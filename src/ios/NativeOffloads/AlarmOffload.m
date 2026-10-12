@@ -152,11 +152,9 @@ static BOOL ensureAuthorization(int stdout_fd, NSString *action, BOOL compact, B
     dispatch_sync(authQueue(), ^{
         dispatch_semaphore_t sem = dispatch_semaphore_create(0);
 
-        [AlarmOffloadBridge requestAuthorizationWithCompletion:^(BOOL granted, NSError *error) {
-            authorized = granted;
-            authError = error;
-            dispatch_semaphore_signal(sem);
-        }];
+        // iOS 15.4: AlarmKit requires iOS 26+, directly return unauthorized
+        authorized = NO;
+        dispatch_semaphore_signal(sem);
 
         dispatch_semaphore_wait(sem, dispatch_time(DISPATCH_TIME_NOW, 30 * NSEC_PER_SEC));
     });
