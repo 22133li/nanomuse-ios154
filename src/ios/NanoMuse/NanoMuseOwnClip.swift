@@ -181,7 +181,7 @@ final class NanoMuseOwnClip: ObservableObject {
         // iOS 15 backport: AVAssetImageGenerator.image(at:) is iOS 16+;
         // generateCGImageAsynchronously is the old API.
         guard let cgImage = try? await withCheckedThrowingContinuation({ (cont: CheckedContinuation<CGImage, Error>) in
-            generator.generateCGImageAsynchronously(for: .zero) { cgImage, _, error in
+            generator.generateCGImagesAsynchronously(forTimes: [NSValue(time: .zero)]) { _, cgImage, _, _, error in
                 if let cgImage { cont.resume(returning: cgImage) }
                 else { cont.resume(throwing: error ?? NSError(domain: "NanoMuseOwnClip", code: -1)) }
             }

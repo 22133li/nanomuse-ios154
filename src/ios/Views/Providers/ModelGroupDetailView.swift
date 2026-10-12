@@ -81,7 +81,7 @@ struct ModelGroupDetailView: View {
         .navigationTitle(group?.name ?? "Group")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) // iOS 15 backport: .secondaryAction is iOS 16+
+            ToolbarItem(placement: .navigationBarTrailing) { // iOS 15 backport: .secondaryAction is iOS 16+
                 if let group {
                     Button {
                         UIPasteboard.general.string = "group:\(group.id)"

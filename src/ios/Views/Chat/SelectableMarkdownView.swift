@@ -4343,7 +4343,7 @@ final class VideoAttachment: NSTextAttachment {
             do {
                 // iOS 15 backport: AVAssetImageGenerator.image(at:) is iOS 16+
                 let cgImage = try await withCheckedThrowingContinuation { (cont: CheckedContinuation<CGImage, Error>) in
-                    generator.generateCGImageAsynchronously(for: .zero) { cgImage, _, error in
+                    generator.generateCGImagesAsynchronously(forTimes: [NSValue(time: .zero)]) { _, cgImage, _, _, error in
                         if let cgImage { cont.resume(returning: cgImage) }
                         else { cont.resume(throwing: error ?? NSError(domain: "SelectableMarkdownView", code: -1)) }
                     }
