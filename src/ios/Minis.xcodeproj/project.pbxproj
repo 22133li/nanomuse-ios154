@@ -45,6 +45,7 @@
 		AADDA9E12F6ECCF400B66649 /* ThumbnailCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = AADDA9E02F6ECCF400B66649 /* ThumbnailCache.swift */; };
 		E5PHP0002 /* NanoMusePHPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5PHP0001 /* NanoMusePHPicker.swift */; };
 		E5LCB0002 /* LabeledContentBackport.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5LCB0001 /* LabeledContentBackport.swift */; };
+		E5BP0008 /* LocalizedStringResourceBackport.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5BP0007 /* LocalizedStringResourceBackport.swift */; };
 		E5VSN0002 /* ViewSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5VSN0001 /* ViewSnapshot.swift */; };
 		AAF00F012F50A00000049557 /* FFmpeg.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAF00F002F50A00000049557 /* FFmpeg.framework */; };
 		AAF00F022F50A00000049557 /* FFmpeg.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = AAF00F002F50A00000049557 /* FFmpeg.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -705,6 +706,7 @@
 		AADDA9E02F6ECCF400B66649 /* ThumbnailCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThumbnailCache.swift; sourceTree = "<group>"; };
 		E5PHP0001 /* NanoMusePHPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NanoMusePHPicker.swift; sourceTree = "<group>"; };
 		E5LCB0001 /* LabeledContentBackport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabeledContentBackport.swift; sourceTree = "<group>"; };
+		E5BP0007 /* LocalizedStringResourceBackport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizedStringResourceBackport.swift; sourceTree = "<group>"; };
 		E5VSN0001 /* ViewSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewSnapshot.swift; sourceTree = "<group>"; };
 		AAF00F002F50A00000049557 /* FFmpeg.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = FFmpeg.framework; path = ../../deps/frameworks/FFmpeg.framework; sourceTree = "<group>"; };
 		AAF10F002F50A00000049557 /* libavcodec.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = libavcodec.framework; path = ../../deps/frameworks/libavcodec.framework; sourceTree = "<group>"; };
@@ -1815,6 +1817,7 @@
 				AADDA9E02F6ECCF400B66649 /* ThumbnailCache.swift */,
 				E5PHP0001 /* NanoMusePHPicker.swift */,
 				E5LCB0001 /* LabeledContentBackport.swift */,
+				E5BP0007 /* LocalizedStringResourceBackport.swift */,
 				E5VSN0001 /* ViewSnapshot.swift */,
 			);
 			path = Shared;
@@ -2684,6 +2687,7 @@
 				AADDA9E12F6ECCF400B66649 /* ThumbnailCache.swift in Sources */,
 				E5PHP0002 /* NanoMusePHPicker.swift in Sources */,
 				E5LCB0002 /* LabeledContentBackport.swift in Sources */,
+				E5BP0008 /* LocalizedStringResourceBackport.swift in Sources */,
 				E5VSN0002 /* ViewSnapshot.swift in Sources */,
 				E51000002 /* ContentView.swift in Sources */,
 				AA26CCBA2F31080100AECF2D /* ISHKernel.m in Sources */,
