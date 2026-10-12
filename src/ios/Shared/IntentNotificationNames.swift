@@ -5,7 +5,6 @@ import Foundation
 // This file provides the names so the rest of the app can post/observe them.
 extension Notification.Name {
     static let openSessionFromIntent = Notification.Name("openSessionFromIntent")
-    static let minisUserAttachmentsMounted = Notification.Name("minisUserAttachmentsMounted")
 }
 
 /// Bridge for audio toggle Darwin notifications (extracted from AudioTogglePlaybackIntent.swift).

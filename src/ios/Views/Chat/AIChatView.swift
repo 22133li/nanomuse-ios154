@@ -594,6 +594,7 @@ struct AIChatView: View {
     /// Group A — core chrome: message area, composer host, nav bar,
     /// background, drop target, overlays, environments, view-model hooks.
     private var chatBodyPresentationsA: some View {
+        ZStack {
         messagesArea
             .safeAreaInset(edge: .top, spacing: 0) {
                 // Error banner
@@ -1815,7 +1816,7 @@ struct AIChatView: View {
 
     // MARK: - Pending Transfer Injection
 
-    private func injectPendingTransferIfNeeded() {
+    @MainActor private func injectPendingTransferIfNeeded() {
         guard let transfer = ViewModelCache.pendingTransfer else { return }
 
         // [T-ios-moveto-transfer-race] Only the intended target may consume the
@@ -3064,7 +3065,7 @@ struct AIChatView: View {
         return img
     }
 
-    private func handleMinisURLTap(_ url: URL) -> OpenURLAction.Result {
+    @MainActor private func handleMinisURLTap(_ url: URL) -> OpenURLAction.Result {
         if let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" {
             withAnimation { safariURL = url }
             return .handled
@@ -3658,7 +3659,7 @@ struct AIChatView: View {
     } // nanoMuse:
 
     // nanoMuse: the pill's mic — the same switch into voice mode as MicButton's onTap.
-    private func nmEnterVoice() { // nanoMuse:
+    @MainActor private func nmEnterVoice() { // nanoMuse:
         inputFocused = false // nanoMuse:
         vm.voiceUsedInComposition = true // nanoMuse:
         VoiceModePreference.shared.enteredFromText = true // nanoMuse:
@@ -6141,7 +6142,7 @@ private struct SpeechLanguagePickerSheet: View {
                 if loc.identifier == speechManager.locale.identifier {
                     Image(systemName: "checkmark")
                         .foregroundStyle(Color.accentColor)
-                        .fontWeight(.semibold)
+                        
                 }
             }
         }
