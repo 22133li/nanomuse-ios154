@@ -2657,7 +2657,12 @@ struct AIChatView: View {
 
     private var messagesArea: some View {
         ZStack {
-            CollectionViewMessageListV3(
+            Group {
+                if #unavailable(iOS 16.0) {
+                    // iOS 15: CollectionView has update issues, use SwiftUI list
+                    SimpleChatMessageList(vm: vm)
+                } else {
+                CollectionViewMessageListV3(
                 vm: vm,
                 inputFocused: inputFocused,
                 onRetryMessage: { vm.retryFromMessage($0); vm.forceScrollToBottom.send() },
@@ -2668,12 +2673,12 @@ struct AIChatView: View {
                 // `[Soul](minis://settings/soul)` link land identically —
                 // no second navigation path to keep in sync.
                 onOpenSoulSettings: {
-                    guard let url = URL(string: "minis://settings/soul") else { return }
-                    _ = handleMinisURLTap(url)
+                guard let url = URL(string: "minis://settings/soul") else { return }
+                _ = handleMinisURLTap(url)
                 },
                 onEdit: { [self] msgId in
-                    vm.editMessage(msgId)
-                    inputFocused = true
+                vm.editMessage(msgId)
+                inputFocused = true
                 },
                 onDeleteFrom: { vm.deleteFromMessage($0) },
                 onWithdraw: { vm.withdrawQueuedMessage($0) },
@@ -2682,21 +2687,24 @@ struct AIChatView: View {
                 onCompact: { msgId in compactConfirmMessageId = msgId },
                 onRevertCompact: { Task { await vm.revertCompact() } },
                 onForceSync: { [self] in
-                    guard let sid = vm.sessionId else { return }
-                    Task {
-                        let count = await ChatStore.shared.forceSyncSession(sid)
-                        if #available(iOS 17.0, *), count > 0 {
-                            SyncCore.shared.scheduleSend(delay: 1)
-                        }
-                    }
+                guard let sid = vm.sessionId else { return }
+                Task {
+                let count = await ChatStore.shared.forceSyncSession(sid)
+                if #available(iOS 17.0, *), count > 0 {
+                SyncCore.shared.scheduleSend(delay: 1)
+                }
+                }
                 },
                 onScreenshotImage: { image in
-                    screenshotPreview = ChatScreenshotPreview(image: image)
+                screenshotPreview = ChatScreenshotPreview(image: image)
                 },
                 maxContentWidth: maxContentWidth ?? 0,
                 floatingBarHeight: 0, // nanoMuse: the tool strip is in the composer column under the list (NanoMuseComposerHost), nothing lies over the list
                 inputBarHeight: 0 // nanoMuse: the list ends where the composer column begins; its 8 pt base pad is all the room it needs
-            )
+                )
+
+                }
+            }
             // Empty/loading overlay for tap-to-dismiss-keyboard.
             // Placed BEFORE the directory timeline in the ZStack so the
             // timeline can sit on top and receive its own taps (folder-card
