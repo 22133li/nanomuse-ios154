@@ -94,11 +94,11 @@ struct NanoMuseComposerField: View {
                 // (black in dark mode), which clashes with the pill. Clear it.
                 UITextView.appearance().backgroundColor = .clear
             }
-            .overlay(alignment: .topLeading) {
+            .overlay(alignment: .leading) {
                 if text.isEmpty {
                     Text(placeholder)
+                        .font(font)
                         .foregroundColor(.secondary)
-                        .padding(.top, 8)
                         .padding(.leading, 5)
                         .allowsHitTesting(false)
                 }
