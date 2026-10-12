@@ -579,1050 +579,1029 @@ struct AIChatView: View {
     var body: some View {
         ZStack {
             // Messages — floating tool preview overlaid at bottom
-            chatBodyPresentationsC
+            messagesArea
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    // Error banner
+                    if let error = vm.errorMessage {
+                        errorBanner(error)
+                    }
+                    // Transient notice (e.g. request-level image budget
+                    // elision). Auto-dismisses after ~4s.
+                    if let notice = vm.transientNotice {
+                        Text(notice)
+                            .font(.system(size: 12))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 12).padding(.vertical, 8)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.black.opacity(0.75))
+                            .onAppear {
+                                let captured = notice
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
+                                    if vm.transientNotice == captured {
+                                        vm.transientNotice = nil
+                                    }
+                                }
+                            }
+                    }
+                }
+                // nanoMuse: upstream's `.overlay(alignment: .bottom) { ZStack … }` is one link of the chain,
+                // NanoMuseComposerHost (NanoMuseChatModifiers.swift), and since 0.1.40 that host is a VStack:
+                // the composer column is a row under the list, the popup layer an overlay of the list.
+                // Build 9 overflowed the stack in this body's getter, so every link counts. The layout
+                // notes below are upstream's: the popup's anchoring they describe still holds (its bottom
+                // edge is the column's top edge, by layout), the "overlay on top of the message list" does not.
+                .modifier(NanoMuseComposerHost(stack: nmComposerStack, popup: nmComposerPopup)) // nanoMuse: was `.overlay(alignment: .bottom) {`
+                    // Tool preview + input bar stacked at the bottom.
+                    // Both overlay on top of the message list for immersive scrolling.
+                    //
+                    // The slash / mention popup is attached to THIS stack as
+                    // a `.overlay(alignment: .bottom)` on a placeholder
+                    // sitting just above the input bar — that way SwiftUI's
+                    // own layout pins the popup's bottom edge to the input
+                    // bar's top edge directly, with no `inputBarHeight`
+                    // @State round-trip and no screen-bottom math. The
+                    // popup follows the input bar automatically when
+                    // attachments / waveform expand it, when the keyboard
+                    // animates, or when safe-area insets change.
+                    //
+                    // Popup uses the EXACT same constraint toolbar uses
+                    // with inputBar: bottom edge of popup = top edge of
+                    // inputBar, with the SAME gap (i.e. whatever VStack
+                    // spacing produces between toolbar and inputBar —
+                    // which is 0 here, the visual gap toolbar exhibits
+                    // comes from its own internal padding).
+                    //
+                    // To achieve this without re-implementing layout
+                    // math: popup is an `.overlay(alignment: .top)` on
+                    // the inputBar with `alignmentGuide(.top){$0[.bottom]}`
+                    // — this anchors popup's BOTTOM to inputBar's TOP.
+                    // The popup card carries its OWN bottom padding
+                    // equal to what the toolbar's own internal bottom
+                    // spacing produces, so the visual gap is identical
+                    // whether toolbar is visible or not. Popup ALWAYS
+                    // sits flush with inputBar top, covering the toolbar
+                    // when it's also there.
+                    // Wrap input stack in a ZStack so the popup can have a
+                    // sibling-level frame (full ZStack size) with proper hit
+                    // testing — `.overlay(alignment: .top)` on inputBar was
+                    // failing to receive touches for the popup card because
+                    // SwiftUI doesn't hit-test overlay content drawn outside
+                    // the host's own frame.
+                    //
+                    // Layout structure (z-order bottom→top inside ZStack):
+                    //   1. VStack { toolbar; inputBar } — anchored .bottom
+                    //   2. Popup with alignmentGuide pinning its BOTTOM
+                    //      edge to inputBar's TOP edge — also anchored
+                    //      .bottom, but `alignmentGuide(.bottom) { d in
+                    //      d[.bottom] + inputBarHeight }` would require
+                    //      reading inputBar height again. Instead we use
+                    //      `.padding(.bottom, inputBarHeight)` so the
+                    //      popup's bottom edge sits exactly at inputBar's
+                    //      top edge. inputBarHeight here is just the input
+                    //      bar (NOT including toolbar) so popup covers
+                    //      toolbar when both visible.
+                    // nanoMuse: the VStack of that ZStack is `nmComposerColumn`, the popup and its catcher
+                    // `nmComposerPopup`; NanoMuseComposerHost lays the column out under the list and the
+                    // popup over the list's bottom edge. The list's own bottom inset for the composer is 0.
+                // Collapse the expanded speech player on a tap anywhere in the chat
+                // area. Attached as a SIMULTANEOUS TapGesture directly on the content
+                // (no full-screen hit-test overlay, which blocked scrolling) so a tap
+                // collapses the player while scroll/drag still work normally. The tap
+                // only acts when the player is expanded; otherwise it's a no-op.
+                .simultaneousGesture(
+                    TapGesture().onEnded {
+                        if vm.speakEnabled && vm.speechPlayerExpanded {
+                            withAnimation(.easeInOut(duration: 0.16)) {
+                                vm.speechPlayerExpanded = false
+                            }
+                        }
+                    }
+                )
+                .overlay(alignment: .bottomTrailing) {
+                    floatingSpeechButton
+                }
+                .overlay {
+                    // Session-loading indicator, two flavors by scenario:
+                    //  • ENTERING the session (first load, nothing rendered yet)
+                    //    → centered soft loading card with a gentle fade+scale
+                    //    exit, replacing the abrupt bare system spinner.
+                    //  • Any LATER reload (iCloud sync, compaction, stale-cache
+                    //    refresh) while content is on screen → keep the small
+                    //    unobtrusive spinner; the big card must never cover
+                    //    content the user is already reading.
+                    ZStack {
+                        // Pre-load window: isLoadingSession only flips once
+                        // loadSession() actually begins (onAppear → Task →
+                        // repairSessionIfNeeded → loadSession), so gating the
+                        // card on it alone left a blank screen for that gap.
+                        // Treat "real session, nothing loaded yet" as loading
+                        // from the very first frame of the push.
+                        let enteringUnloaded = sessionId != nil
+                            && vm.messages.isEmpty
+                            && !vm.hasCompletedInitialLoad
+                        if (vm.isLoadingSession || enteringUnloaded) && vm.messages.isEmpty {
+                            // Entering: nothing rendered yet — show the dots.
+                            // In-place reloads with content on screen (iCloud
+                            // sync fetch → reloadMessagesFromDB → loadSession
+                            // right after entry is the common case) show NO
+                            // overlay at all: the content stays visible and
+                            // interactive, and a centered gray "…" right after
+                            // the blue entry dots read as a glitch, not
+                            // feedback (user report 2026-07-06).
+                            SessionLoadingCard()
+                                .transition(.opacity.combined(with: .scale(scale: 0.92)))
+                                .accessibilityIdentifier("sessionLoadingCard")
+                        }
+                    }
+                    .animation(.easeOut(duration: 0.28), value: vm.isLoadingSession)
+                    .allowsHitTesting(false)
+                }
+                .overlay {
+                    SessionLockGateOverlay(sessionId: vm.sessionId)
+                }
+                .onChange(of: vm.isLoadingSession) { newValue in
+                    // [SpinnerTrace] Every transition of the
+                    // session-loading overlay logged, so we can confirm
+                    // whether a center-spinner report corresponds to
+                    // this overlay or some other ProgressView in the
+                    // chat.
+                    minisLogger.warning("[SpinnerTrace] isLoadingSession → \(newValue) sid=\(vm.sessionId?.prefix(8) ?? "nil") msgs=\(vm.messages.count)")
+                }
+
+            // Full-screen kernel boot overlay
+            kernelBootOverlay
+        }
+        .background(ChatColors.background)
+        .onDrop(of: [.image, .movie, .fileURL, .data], isTargeted: $isDropTargeted) { providers in
+            handleDropProviders(providers)
+            return true
+        }
+        .overlay {
+            if isDropTargeted {
+                RoundedRectangle(cornerRadius: 16)
+                    .strokeBorder(Color.accentColor, style: StrokeStyle(lineWidth: 2, dash: [8]))
+                    .background(Color.accentColor.opacity(0.08).clipShape(RoundedRectangle(cornerRadius: 16)))
+                    .padding(8)
+                    .allowsHitTesting(false)
+            }
+        }
+        .environment(\.chatSessionId, vm.sessionId)
+        // nanoMuse: the Muse header's ••• menu, the composer's expectation around a turn and the C9
+        // presence line, as one link (NanoMuseChatHooks) — four links here overflowed the stack in 0.1.38
+        .modifier(NanoMuseChatHooks(vm: vm, processing: vm.isProcessing, composer: nmComposer, readOnly: isReadOnly, perform: { nmPerform($0) }, voice: voiceVM, enterVoice: { nmEnterVoice() })) // nanoMuse:
+        .modifier(NavBarStyleModifier(topSafeAreaInset: $topSafeAreaInset))
+        .navigationBarTitleDisplayMode(.inline)
+        // [T-ios-navbar-toolbar-host] The ENTIRE toolbar now lives inside an
+        // equatable-gated host child. Root cause of the mid-streaming "..."
+        // menu refresh (4th attempt, this one from instrumentation): with
+        // .toolbar attached on this (per-token re-evaluated) chain, the
+        // ToolbarContent builder itself re-ran on EVERY streaming tick
+        // (NavbarEval toolbarPass=34/stream) and handed the bridge a brand-new
+        // ToolbarContent value each time — which it re-pushed to the
+        // UINavigationItem, refreshing the OPEN UIMenu, even while both inner
+        // Equatable gates provably held (titleEval=3, menuEval=2). Hosting the
+        // toolbar in a child whose body is gated on the displayed inputs means
+        // the builder simply never re-runs during a stream: no new
+        // ToolbarContent, nothing to re-push, and the native SwiftUI Menu
+        // (with the system's round Liquid-Glass chrome) can stay.
+        // .equatable() is MANDATORY here, not an optimization hint: device
+        // instrumentation (2026-07-17 23:53, == FALSE count 0 while
+        // hostEval == toolbarPass) proved SwiftUI does NOT consult a plain
+        // Equatable conformance for this generic closure-holding view in the
+        // .background position — the gate silently never engaged. EquatableView
+        // wrapping is the only guaranteed path to ==.
+        .background(
+            ChatToolbarHost(key: chatToolbarKey, title: {
+                chatNavPrincipalContent
+            }, trailing: {
+                trailingMenu
+            })
+            .equatable()
+        )
+        .sheet(item: $titlePillEditSession) { session in
+            SessionEditSheet(session: session) { newTitle, newCategory in
+                Task {
+                    await ChatStore.shared.updateSessionTitle(session.id, title: newTitle, category: newCategory)
+                    refreshTitlePillSession()
+                }
+                titlePillEditSession = nil
+            }
+        }
+        .alert(AppLocalized("Force Pull Messages"), isPresented: $showForcePullConfirm) {
+            Button(AppLocalized("Pull from iCloud"), role: .destructive) {
+                runForcePull()
+            }
+            Button(AppLocalized("Cancel"), role: .cancel) {}
+        } message: {
+            Text(AppLocalized("This will delete all local messages for this chat and re-download them from iCloud. Local changes that haven't synced yet will be lost. Continue?"))
+        }
+        // [T-ios-json-open-provider-import-prompt] Shared/opened Provider-export
+        // JSON: let the user choose import-as-provider vs add-as-attachment.
+        // Extracted into a single modifier so the body's type-check stays cheap.
+        .modifier(ProviderImportPromptModifier(
+            pending: $pendingProviderImport,
+            result: $providerImportResult,
+            onImport: { json in configStore.importInstanceJSON(json) },
+            onAttach: { url in vm.addFileAttachment(from: url) }
+        ))
+        .overlay(alignment: .top) {
+            if let msg = forcePullToast {
+                Text(msg)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(Color.accentColor, in: Capsule())
+                    .padding(.top, 8)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .animation(.spring(response: 0.3), value: forcePullToast)
+        // [T-browser-download-ux-v2] Downloads panel opened from the floating
+        // download button (mounted next to the scroll buttons, see
+        // downloadFloatingButton). Completed rows jump to the file browser
+        // located at the downloaded file in the session workspace.
+        .sheet(isPresented: $showDownloadsPanel) {
+            BrowserDownloadPanelSheet(sessionId: vm.sessionId ?? "") { filename in
+                showDownloadsPanel = false
+                locateDownloadTarget = DownloadLocateTarget(filename: filename)
+            }
+        }
+        .sheet(item: $locateDownloadTarget) { target in
+            if let sid = vm.sessionId {
+                NavigationView {
+                    FileBrowserView(
+                        rootPath: AIChatViewModel.minisWorkspacePersistentDir(for: sid),
+                        rootLabel: "/var/minis/workspace",
+                        highlightFileName: target.filename
+                    )
+                }
+            }
+        }
+        .alert("Enhanced Cache", isPresented: $showEnhancedCacheAlert) {
+            Button("Enable") {
+                UserDefaults.standard.set(true, forKey: "enhancedCacheConfirmed")
+                cached.vm.enhancedCacheEnabled = true
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Enhanced cache extends the cache TTL from 5 minutes to 1 hour. Cache writes cost more (2x vs 1.25x base price), but cache reads remain cheap (0.1x). Recommended for long coding sessions where request gaps may exceed 5 minutes.")
+        }
+        .alert(AppLocalized("Context Near Capacity"), isPresented: Binding(get: { vm.showCompactBeforeSendPrompt }, set: { vm.showCompactBeforeSendPrompt = $0 })) {
+            Button(AppLocalized("Compact & Send")) {
+                vm.compactAndSend()
+            }
+            // [T-chat-auto-compact-opt-in] One-tap opt-in: compact now AND
+            // remember (globally, UserDefaults "autoCompactOnThreshold") to
+            // auto-compact without prompting whenever the threshold fires in
+            // future conversations.
+            Button(AppLocalized("Compact & Enable Auto-Compact")) {
+                vm.autoCompactEnabled = true
+                vm.compactAndSend()
+            }
+            Button(AppLocalized("Cancel"), role: .cancel) {
+                vm.cancelCompactBeforeSend()
+            }
+        } message: {
+            Text(AppLocalized("Conversation context is nearly full. Compact the history to free up space before sending. Enabling auto-compact will do this automatically from now on."))
+        }
+        .alert(AppLocalized("Context Full"), isPresented: Binding(get: { vm.showContextExhaustedPrompt }, set: { vm.showContextExhaustedPrompt = $0 })) {
+            Button(AppLocalized("New Session")) {
+                vm.showContextExhaustedPrompt = false
+                vm.cancelCompactBeforeSend()
+                NotificationCenter.default.post(name: .newChatRequested, object: nil)
+            }
+            Button(AppLocalized("Clear Chat"), role: .destructive) {
+                vm.showContextExhaustedPrompt = false
+                vm.cancelCompactBeforeSend()
+                vm.clearChat()
+            }
+            Button(AppLocalized("Cancel"), role: .cancel) {
+                vm.cancelCompactBeforeSend()
+            }
+        } message: {
+            Text(AppLocalized("The conversation context has reached its limit. Start a new session or clear the chat to continue."))
+        }
+        // [T-new-chat-menu-entry] Streaming guard for the "…" menu's New Chat:
+        // confirm → stop the running task, then create; cancel → stay put.
+        .alert(AppLocalized("Task Running"), isPresented: $showNewChatStopConfirm) {
+            Button(AppLocalized("Stop & New Chat"), role: .destructive) {
+                vm.cancel()
+                NotificationCenter.default.post(name: .newChatRequested, object: nil)
+            }
+            Button(AppLocalized("Cancel"), role: .cancel) {}
+        } message: {
+            Text(AppLocalized("A task is running in this chat. Starting a new chat will stop it."))
+        }
+        .alert(AppLocalized("Clear Chat"), isPresented: $showClearChatConfirm) {
+            Button(AppLocalized("Clear"), role: .destructive) { vm.clearChat() }
+            Button(AppLocalized("Cancel"), role: .cancel) {}
+        } message: {
+            Text(AppLocalized("All messages in this session will be permanently deleted."))
+        }
+        // Bridge VM's slash-command "/clear" request into the local @State that
+        // drives the confirmation alert above, so the menu and slash-command
+        // entry points share one alert instance.
+        .onChange(of: vm.clearChatConfirmRequested) { requested in
+            if requested {
+                showClearChatConfirm = true
+                vm.clearChatConfirmRequested = false
+            }
+        }
+        .alert(AppLocalized("Compact Above"), isPresented: Binding(
+            get: { compactConfirmMessageId != nil },
+            set: { if !$0 { compactConfirmMessageId = nil } }
+        )) {
+            Button(AppLocalized("Compact"), role: .destructive) {
+                if let id = compactConfirmMessageId {
+                    Task { await vm.compactBefore(id) }
+                }
+            }
+            Button(AppLocalized("Cancel"), role: .cancel) {}
+        } message: {
+            Text(AppLocalized("Messages above this point will be compacted into a summary. This cannot be undone."))
+        }
+        .offloadPermissionDialog()
+        .environment(\.openMinisURL, OpenMinisURLAction { url in
+            handleMinisURLTap(url)
+        })
+        .environment(\.openImageGallery, OpenImageGalleryAction { presentation in
+            imageGallery = presentation
+        })
+        .fullScreenCover(item: $previewImageFile) { fileURL in
+            MinisImageFilePreviewView(fileURL: fileURL)
+        }
+        .alert(
+            AppLocalized("File Not Found"),
+            isPresented: Binding(
+                get: { missingMinisFileName != nil },
+                set: { if !$0 { missingMinisFileName = nil } }
+            ),
+            presenting: missingMinisFileName
+        ) { _ in
+            Button(AppLocalized("OK"), role: .cancel) { missingMinisFileName = nil }
+        } message: { name in
+            Text(AppLocalized("\(name) is unavailable. It may have been deleted or not yet synced from iCloud."))
+        }
+        .fullScreenCover(item: $imageGallery) { presentation in
+            MessageImageGallery(items: presentation.items, startIndex: presentation.startIndex)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: MarkdownImageTapRouter.tappedNotification)) { note in
+            handleMarkdownImageTap(note)
+        }
+        .modifier(DismissImmersiveCoversListener(onDismiss: dismissAllOwnedImmersiveCovers))
+        .onReceive(vm.requestComposerFocusSignal) {
+            // VM fires this after filling the composer programmatically
+            // (e.g. /skill tap) so the keyboard pops up immediately and
+            // the user can keep typing without an extra tap on the field.
+            inputFocused = true
+        }
+        .modifier(ChatInputAppendListener(vm: vm, inputFocused: $inputFocused))
+        .modifier(RerunFromToolBlockListener(vm: vm))
+        .fullScreenCover(item: $previewVideoFile) { fileURL in
+            MinisVideoFullscreenPlayer(fileURL: fileURL)
+        }
+        .sheet(item: $previewAudioFile) { fileURL in
+            MinisAudioPreviewView(fileURL: fileURL)
+        }
+        .sheet(item: $previewTextFile) { fileURL in
+            MinisTextPreviewView(fileURL: fileURL)
+        }
+        .sheet(item: $previewMarkdownFile) { fileURL in
+            MinisMarkdownPreviewView(fileURL: fileURL)
+        }
+        .sheet(item: $previewDocumentFile) { fileURL in
+            MinisDocumentPreviewView(fileURL: fileURL)
+        }
+        .sheet(item: $shareFile) { fileURL in
+            MinisShareSheet(url: fileURL)
+        }
+        .sheet(item: $safariURL) { url in
+            MinisLinkPreviewView(url: url, browserPool: vm.browserTabPool, onExpand: { _ in
+                fullBrowserIsLocal = false
+                let targetURL = url
+                safariURL = nil
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    fullBrowserURL = targetURL
+                }
+            })
+        }
+        // Auto-present the in-app preview when a shell tool's stdout emits
+        // an OSC MinisOpenURL marker (via /usr/local/bin/minis-open).
+        //
+        // Dispatch by scheme:
+        //  - http/https/about: in-chat WKWebView preview. ToolLiveSheet
+        //    observes the same broker and takes priority for web URLs when
+        //    it is on top (broker.toolSheetVisible).
+        //  - minis://...: chat-resource file preview (image/markdown/html/
+        //    pdf/...). Routed through handleMinisURLTap which already
+        //    picks the right sheet by extension. Always dispatched here
+        //    because ToolLiveSheet cannot host fullscreen file previews.
+        //
+        // `.dropFirst()` skips the current value that `@Published` delivers
+        // to new subscribers on first attach — without it, a chat view
+        // created after a previous OSC capture would re-present a stale URL.
+        .onReceive(MinisOpenURLBroker.shared.$pendingURL.dropFirst().compactMap { $0 }) { url in
+            if MinisOpenURLBroker.isWebScheme(url.scheme) {
+                // Skip when a topmost host wants to present the web preview
+                // itself: ToolLiveSheet (`toolSheetVisible`) or the
+                // full-screen iSH terminal (`terminalVisible`). Otherwise
+                // our sheet fights their presentation and the terminal's
+                // fullScreenCover gets dismissed mid-animation.
+                guard !MinisOpenURLBroker.shared.toolSheetVisible,
+                      !MinisOpenURLBroker.shared.terminalVisible else { return }
+                withAnimation { safariURL = url }
+            } else {
+                _ = handleMinisURLTap(url)
+            }
+            MinisOpenURLBroker.shared.consume()
+        }
+        .sheet(item: $previewHTMLFile) { fileURL in
+            MinisHTMLPreviewView(fileURL: fileURL, onExpand: { _ in
+                fullBrowserIsLocal = true
+                let targetURL = fileURL
+                previewHTMLFile = nil
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    fullBrowserURL = targetURL
+                }
+            })
+        }
+        .fullScreenCover(item: $fullBrowserURL) { url in
+            let wasLocal = fullBrowserIsLocal
+            MinisSafariView(url: url, localFile: wasLocal, onCollapse: {
+                fullBrowserURL = nil
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    if wasLocal {
+                        previewHTMLFile = url
+                    } else {
+                        safariURL = url
+                    }
+                }
+            })
+        }
+        .sheet(isPresented: $showFileBrowser) {
+            NavigationView {
+                let base = RootfsManager.shared.dataPath
+                FileBrowserView(rootPath: base, initialPath: base.appendingPathComponent("var/minis"), rootLabel: "/")
+            }
+        }
+        .sheet(isPresented: $showBrowserSheet) {
+            BrowserSheetView(pool: vm.browserTabPool, isAgentBusy: vm.browserTabPool.isAgentBrowsing, onTakeover: {
+                vm.browserTakeoverActive = true
+            })
+        }
+        .sheet(isPresented: $showModelPicker) {
+            NavigationView {
+                SessionModelPicker(sessionId: vm.sessionId) {
+                    await vm.ensureSessionReturningId()
+                }
+            }
+        }
+        .sheet(isPresented: $showTokenUsage) {
+            TokenUsageSheet(vm: cached.vm)
+        }
+        .sheet(item: $screenshotPreview) { preview in
+            ChatScreenshotPreviewSheet(image: preview.image)
+        }
+        .sheet(isPresented: $showSessionSkills) {
+            // Pass the real id (nil for a draft) plus an ensure-session closure
+            // so a pre-first-message toggle binds its override to the session
+            // the chat will actually persist under, instead of the "" phantom
+            // key (T-ios-session-skill-override-init-timing).
+            SessionSkillsView(sessionId: vm.sessionId) {
+                await vm.ensureSessionReturningId()
+            }
+        }
+        .sheet(isPresented: $showSessionMCPs) {
+            SessionMCPsView(sessionId: vm.sessionId) {
+                await vm.ensureSessionReturningId()
+            }
+        }
+        .sheet(isPresented: $showSessionMemory) {
+            SessionMemoryView(vm: cached.vm)
+        }
+        .sheet(isPresented: $showMoveToSheet) {
+            MoveToSessionSheet(currentSessionId: vm.sessionId) { targetId in
+                // [T-ios-moveto-transfer-race] Stash bound to the target, so
+                // only that session can consume it.
+                let movedText = vm.inputText
+                let movedAttachments = vm.attachments
+                let stash = ViewModelCache.PendingTransfer(
+                    targetId: targetId,
+                    inputText: movedText,
+                    attachments: movedAttachments
+                )
+                ViewModelCache.pendingTransfer = stash
+                // Clear the source composer optimistically so the move reads as
+                // instant, but keep a copy: if the target never consumes the
+                // stash (navigation swallowed, wrong session opened), restore it
+                // here rather than letting the user's content vanish. Attachment
+                // files are NOT deleted on this path — both the stash and this
+                // restore reference the same cacheURLs.
+                vm.inputText = ""
+                vm.attachments.removeAll()
+                // The share content is no longer here — reset the flag that
+                // gates the "Move to…" pill. Currently `hasMovableShareContent`
+                // hides the pill anyway now the composer is empty, so this is
+                // not user-visible, but leaving it true is a latent trap for
+                // anything else that reads it.
+                hasInjectedShareContent = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + ViewModelCache.PendingTransfer.staleAfter) {
+                    // Match the exact stash we staged, not just its target: a
+                    // second move to the same target within the stale window
+                    // replaces the slot, and this timer must not restore that
+                    // newer content out from under it.
+                    guard let stranded = ViewModelCache.pendingTransfer,
+                          stranded.targetId == targetId,
+                          stranded.createdAt == stash.createdAt else { return }
+                    // Still sitting in the slot → nobody consumed it.
+                    ViewModelCache.pendingTransfer = nil
+                    minisLogger.info("[MoveTo] Transfer to \(targetId) was never consumed — restoring content to source session")
+                    if vm.inputText.isEmpty {
+                        vm.inputText = movedText
+                    } else if !movedText.isEmpty {
+                        vm.inputText += "\n" + movedText
+                    }
+                    vm.attachments.append(contentsOf: movedAttachments)
+                }
+                // Dismiss keyboard first so it doesn't linger during transition
+                inputFocused = false
+                // Post navigation after sheet dismiss animation completes
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    NotificationCenter.default.post(
+                        name: .moveInputToSession,
+                        object: nil,
+                        userInfo: ["targetId": targetId]
+                    )
+                }
+            }
+        }
+        .fullScreenCover(isPresented: $showTerminal) {
+            terminalInitCommand = nil
+        } content: {
+            NavigationView {
+                ISHTerminalView(sessionId: vm.sessionId, showCloseButton: true, initCommand: terminalInitCommand)
+                    .onAppear {
+                        if let sid = vm.sessionId {
+                            minisLogger.info("🔍MOUNT Terminal onAppear — re-mounting minis for session \(sid)")
+                            vm.mountMinis(for: sid)
+                        } else {
+                            minisLogger.info("🔍MOUNT Terminal onAppear — no sessionId, skipping mount")
+                        }
+                    }
+            }
+        }
+        .fullScreenCover(isPresented: $showCamera, onDismiss: {
+            minisLogger.info("[QuickAction] fullScreenCover(camera) onDismiss showCamera=\(showCamera)")
+        }) {
+            // AnyView erases the camera sheet's view tree from the
+            // outer body's generic chain. Without it, AIChatView.body's
+            // mangled type pushes Swift's runtime type decoder past its
+            // recursion limit on cold launch via the share/quick-action
+            // path — SIGSEGV in __swift_instantiateConcreteTypeFromMangledNameV2
+            // with `attachmentMenuButton.getter` at the stack top (a
+            // bystander; whichever leaf the decoder reached when the
+            // stack ran out gets named). Same class of crash as the
+            // 2026-04-17 `inputBar.getter` blow-up — the
+            // `.observingQuickActions(modifier:)` modifier added by
+            // T-quick-action-workflow tipped a chain that was already
+            // sitting at the threshold. AnyView here is the minimal,
+            // surgical cut: it sinks the largest closure in this
+            // modifier (CameraPicker + .ignoresSafeArea + .onAppear)
+            // into an erased subtree so the outer body type stays
+            // demangle-able. Keep until the body is structurally split
+            // into separate View structs (v1.10 follow-up).
+            AnyView(
+                CameraPicker { image in
+                    minisLogger.info("[QuickAction] CameraPicker onCapture size=\(Int(image.size.width))x\(Int(image.size.height))")
+                    vm.addImageAttachment(image)
+                }
+                .ignoresSafeArea()
+                .onAppear {
+                    minisLogger.info("[QuickAction] fullScreenCover(camera) content onAppear — notifying workflow")
+                    QuickActionWorkflow.shared.markCoverPresented()
+                }
+            )
+        }
+        .sheet(isPresented: $showPhotoPicker) {
+            NanoMusePHPicker(
+                onComplete: { results in
+                    showPhotoPicker = false
+                    handlePHPickerResults(results)
+                },
+                onCancel: {
+                    showPhotoPicker = false
+                }
+            )
+        }
+        .fileImporter(
+            isPresented: $showDocumentPicker,
+            allowedContentTypes: [.image, .pdf, .plainText, .json, .sourceCode, .presentation, .spreadsheet, .data],
+            allowsMultipleSelection: true
+        ) { result in
+            switch result {
+            case .success(let urls):
+                for url in urls {
+                    vm.addFileAttachment(from: url)
+                }
+            case .failure(let error):
+                minisLogger.error("File import failed: \(error.localizedDescription)")
+            }
+        }
+        .onAppear {
+            let sinceInit = (CFAbsoluteTimeGetCurrent() - AIChatViewModel.onAppearTimestamp) * 1000
+            minisLogger.info("[SessionLoad] onAppear T+\(String(format: "%.0f", sinceInit))ms isNew=\(cached.isNew) msgs=\(vm.messages.count)")
+            // [T-inputbar-stale-across-reentry] Re-arm the leading-edge seed on
+            // EVERY appear. AIChatView is keyed `.id(sessionId)` in ContentView,
+            // so re-entering the SAME session reuses the same SwiftUI identity
+            // and its @State survives — `inputBarHeight` keeps whatever (possibly
+            // wrong) value it last held, and because `didSeedInputBarHeight` is
+            // still true the synchronous seed never re-fires. If the composer's
+            // geometry doesn't change on re-entry, onGeometryChange emits no new
+            // callback either, so nothing ever reconciles it: a too-tall height
+            // survives indefinitely across re-renders. Clearing the flag makes
+            // the next (guaranteed) geometry callback re-seed authoritatively.
+            didSeedInputBarHeight = false
+            inputBarHeightDebounce?.cancel()
+            inputBarHeightDebounce = nil
+            AppLogger(category: "InputBarLayout").info("inputBarHeight re-arm seed on appear (was \(inputBarHeight))")
+            nmComposer.visible = true // nanoMuse: the composer watch only acts while the chat is on screen
+            if !isReadOnly { nmComposer.expect("the chat appeared") } // nanoMuse: a composer must report a height within a second, or the column is rebuilt
+            vm.sessionId = sessionId
+            vm.draftId = draftId
+            vm.remoteDeviceId = remoteDeviceId
+            vm.initialGroupId = initialGroupId
+            // Snapshot total session count once so the New-Chat onboarding
+            // grid only appears for first-time users (no prior sessions).
+            // [T-ios-session-coldload-listsessions-block] Use the bare
+            // COUNT(*) query, NOT listSessions().count — the latter ran 4
+            // un-indexable parts_json LIKE subqueries per session (~0.5s cold
+            // on a 100k-message DB) and, on the serialized ChatStore actor,
+            // head-of-line-blocked the loadSession() dispatched below, which
+            // was the reported ~3s cold-open stall. The comment used to claim
+            // "single SQLite COUNT" — now the code actually does one.
+            if totalSessionCount == nil {
+                Task.detached(priority: .utility) {
+                    let count = await ChatStore.shared.sessionCount()
+                    await MainActor.run { totalSessionCount = count }
+                }
+            }
+            if let sessionId { AIChatViewModel.activeSessionId = sessionId }
+            vm.ensureKernelBooted()
+            if let sessionId {
+                if cached.isNew || (vm.messages.isEmpty && !vm.isLoadingSession) {
+                    // Load session if: (a) VM is freshly created, or (b) cache hit but messages
+                    // are empty — this can happen on iOS 16 where NavigationStack may recreate
+                    // @StateObject unexpectedly, causing isNew=false but an empty VM.
+                    minisLogger.info("🔄SESSION AIChatView.onAppear loading session \(sessionId) isNew=\(cached.isNew) msgs=\(vm.messages.count)")
+                    // [T-ios-session-coldload-listsessions-block] .userInitiated
+                    // so the actual session-open work wins the serialized
+                    // ChatStore actor queue over background sidebar-refresh
+                    // listSessions() scans that would otherwise starve it.
+                    Task(priority: .userInitiated) {
+                        // Phase A: auto-repair any sortOrder / legacy marker anomalies
+                        // before loading. Cheap no-op if the session is healthy.
+                        _ = await ChatStore.shared.repairSessionIfNeeded(sessionId: sessionId)
+                        await vm.loadSession()
+                    }
+                } else if vm.messages.isEmpty && vm.isLoadingSession {
+                    // iOS 16 edge case: a previous view instance started loadSession()
+                    // but this view appeared before it completed. Wait for it to finish,
+                    // then reload if messages are still empty (objectWillChange may have
+                    // fired between old and new CachedViewModel subscriptions).
+                    minisLogger.info("🔄SESSION AIChatView.onAppear WAITING for in-flight load session=\(sessionId)")
+                    Task {
+                        // Wait for the in-flight load to complete (poll at short intervals)
+                        for _ in 0..<20 {
+                            try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
+                            if !vm.isLoadingSession { break }
+                        }
+                        // If messages are still empty after the load completed, retry
+                        if vm.messages.isEmpty && !vm.isLoadingSession {
+                            minisLogger.warning("🔄SESSION AIChatView.onAppear RETRY load — messages still empty after in-flight load for \(sessionId)")
+                            await vm.loadSession()
+                        }
+                    }
+                } else {
+                    let reuseStart = CFAbsoluteTimeGetCurrent()
+                    minisLogger.info("🔄SESSION AIChatView.onAppear REUSING cached vm for \(sessionId) isProcessing=\(vm.isProcessing) msgs=\(vm.messages.count)")
+                    // Remount minis for this session (in case another session took over)
+                    vm.mountMinis(for: sessionId)
+                    // While the user was off this view, an iCloud / LAN
+                    // sync may have landed new messages (or applied a
+                    // tombstone). reloadMessagesFromDB internally compares
+                    // SQLite count + max(sort_order) + (id, sort_order)
+                    // hash against the VM's last-known baseline and only
+                    // re-renders on diff. Skip when isProcessing — the
+                    // active stream owns messages right now and a reload
+                    // would clobber the in-flight assistant turn.
+                    if !vm.isProcessing && !vm.isCompacting {
+                        Task { @MainActor in await vm.reloadMessagesFromDB(reason: "AIChatView.onAppear-reuse") }
+                    }
+                    vm.consumeDeferredSnapshotIfNeeded()
+                    let mountElapsed = (CFAbsoluteTimeGetCurrent() - reuseStart) * 1000
+                    // Cached VM already has messages — trigger scroll-to-bottom
+                    // since isLoadingSession won't transition and its onChange won't fire.
+                    if !vm.messages.isEmpty {
+                        vm.forceScrollToBottom.send()
+                    }
+                    let totalElapsed = (CFAbsoluteTimeGetCurrent() - reuseStart) * 1000
+                    minisLogger.info("[SessionLoad] \(sessionId) — REUSE: \(String(format: "%.1f", totalElapsed))ms [mount: \(String(format: "%.1f", mountElapsed)) | msgs: \(vm.messages.count)]")
+                }
+            } else {
+                minisLogger.info("🔄SESSION AIChatView.onAppear nil sessionId — draft mode")
+                // Draft session — auto-focus input for immediate typing
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                    guard !hasOverlayPresented, isChatViewVisible else { return }
+                    inputFocused = true
+                }
+            }
+            minisLogger.info("[Share] AIChatView.onAppear: sessionId=\(sessionId ?? "nil") bufferVersion=\(shareCoordinator.bufferVersion) hasBuffer=\(shareCoordinator.pendingShareBuffer != nil)")
+            injectPendingShareIfNeeded()
+            injectPendingTransferIfNeeded()
+            isChatViewVisible = true
+            refreshTitlePillSession()
+            // Notify workflow that THIS view is mounted + visible. If
+            // the workflow is waiting for our session id, it will
+            // transition to chatReady — our state observer below picks
+            // that up and flips `showCamera`. Transient draft views
+            // (sessionId=nil) won't match the workflow's target and
+            // are correctly skipped.
+            tryMarkWorkflowChatReady(reason: "onAppear")
+        }
+        .observingQuickActions(modifier: quickActionObserver)
+        .onChange(of: vm.sessionId) { _ in
+            refreshTitlePillSession()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .sessionDidUpdate)) { note in
+            guard let sid = vm.sessionId,
+                  let updatedId = note.object as? String,
+                  updatedId == sid else { return }
+            refreshTitlePillSession()
+        }
+        .onChange(of: shareCoordinator.bufferVersion) { newVersion in
+            // Warm start: user is already in a session when share arrives
+            minisLogger.info("[Share] AIChatView.onChange(bufferVersion)=\(newVersion) sessionId=\(sessionId ?? "nil") draftId=\(draftId ?? "nil") hasBuffer=\(shareCoordinator.pendingShareBuffer != nil)")
+            injectPendingShareIfNeeded()
+        }
+        .onDisappear {
+            isChatViewVisible = false
+            nmComposer.visible = false // nanoMuse: a host torn down because the chat left is not a failure
+            // [T-voice-inputbar-collapse-selfheal] The health probe must not
+            // outlive the view — its report would describe a composer that no
+            // longer exists.
+            inputBarHealthProbe?.cancel()
+            inputBarHealthProbe = nil
+            if speechManager.state == .recording {
+                speechManager.stopRecording()
+            }
+            // [T-inputbar-keyboard-leaks-to-home] Cut the ONLY channel by which
+            // chat composer geometry can reach the HOME screen.
+            //
+            // `inputBarHeight` is per-view @State and only feeds the message
+            // list's bottom inset — it cannot touch home. What CAN is a stranded
+            // first responder: leaving the chat while the composer (or the voice
+            // transcript editor) still holds focus leaves the keyboard's inset
+            // reserved on the WINDOW, and SwiftUI's automatic keyboard avoidance
+            // applies that window-wide. The home screen's 新建/搜索 FAB row is a
+            // `.safeAreaInset(edge: .bottom)` (ContentView 1213/1326) with no
+            // `.ignoresSafeArea(.keyboard)` opt-out, so it reads that inflated
+            // bottom safe area and floats upward — the reported symptom. Same
+            // failure class as the offscreen-WebView phantom keyboard (8232308a)
+            // and the voice-editor stranded responder (4c530bf4); this closes the
+            // remaining door, the chat→home transition itself.
+            //
+            // Blanket-disabling keyboard avoidance on the home FAB row would be
+            // the wrong fix — its inline search field legitimately needs to rise
+            // with the keyboard. Releasing the responder at the source is correct
+            // and is a no-op when nothing is focused.
+            inputFocused = false
+            let keyWindow = UIApplication.shared.connectedScenes
+                .compactMap { $0 as? UIWindowScene }
+                .flatMap(\.windows)
+                .first(where: \.isKeyWindow)
+            if let keyWindow, keyWindow.endEditing(true) {
+                AppLogger(category: "InputBarLayout").info("chat onDisappear — released a lingering first responder (would have left a phantom keyboard inset on the window)")
+            }
+            // Capsule auto-shows whenever audio is loaded — no manual activation needed.
+            minisLogger.info("🔑DRAFT AIChatView.onDisappear vm=\(vm.vmInstanceId) sessionId=\(sessionId ?? "nil") draftId=\(draftId ?? "nil") vm.sessionId=\(vm.sessionId ?? "nil") vm.isProcessing=\(vm.isProcessing)")
+        }
+        // [T-voice-bg-fg-gap] Structural immunity: while the voice panel is up
+        // and the transcript editor is NOT open, there is no legitimate keyboard
+        // in this subtree — so ignore the keyboard safe-area entirely in that
+        // state. Device log 2026-07-17 12:12 showed the panel shifting from
+        // y=686…778 to y=638…730 (exactly 48pt, the keyboard-accessory height)
+        // during the didEnterBackground layout pass: iOS re-asserted a keyboard
+        // inset while snapshotting, the app suspended before the matching hide
+        // was processed, and no keyboard event fires on foreground return — the
+        // zombie inset persisted and the panel floated (the reported bottom
+        // gap). Ignoring the keyboard edge in this state makes ANY such stale
+        // inset harmless; edit mode (edges: []) keeps normal avoidance so the
+        // panel still lifts above the keyboard while editing, and text mode is
+        // untouched.
+        .ignoresSafeArea(
+            .keyboard,
+            edges: (voiceInputActive && !voiceVM.isEditingTranscript) ? .bottom : []
+        )
+        .onChange(of: scenePhase) { phase in
+            if phase == .active {
+                // [T-voice-inputbar-fg-stale-debounce] iOS changes safe area
+                // insets while backgrounded, causing onGeometryChange to fire
+                // with shifted geometry. That measurement spawns a debounce
+                // Task carrying stale height. Cancel it so the stale value
+                // never lands. The post-foreground onGeometryChange re-fires
+                // with the correct geometry and enters a fresh debounce.
+                // NOTE: do NOT reset didSeedInputBarHeight here. The seed path
+                // is synchronous (no debounce) so it would capture a mid-
+                // animation frame if the panel is expanding/collapsing when the
+                // app returns to foreground — the debounce path is the correct
+                // one for an already-visible view.
+                inputBarHeightDebounce?.cancel()
+                inputBarHeightDebounce = nil
+                // [T-voice-inputbar-collapse-selfheal] …EXCEPT when the composer
+                // has stopped reporting geometry altogether, which is the one
+                // state the note above cannot cover.
+                //
+                // Device 2026-08-18 01:29 (iPhone 17 Pro, no lock, no manual app
+                // switch): a transcript landed and collapsed the panel band in a
+                // single frame (transcriptContentHeight 262→42, an intermediate
+                // panel frame reaching y=1119 on an 874pt window). The system
+                // then drove six inactive↔active cycles in 20s on its own
+                // (snapshot / audio-session interruption right after
+                // `end(.capture)`), each logging `hadResponder=true`. After
+                // `inputBarHeight settled=282.0` at 01:29:15.597 the composer's
+                // onGeometryChange NEVER fired again: its SwiftUI host survived
+                // with alpha=1 and zero subviews (confirmed live via
+                // debug.viewTree — FloatingBarHostingView nkids=0), so the whole
+                // bottom of the screen was empty black with no input bar.
+                //
+                // Nothing could wake it: this subtree deliberately ignores the
+                // keyboard safe area while the voice panel is up
+                // ([T-voice-bg-fg-gap], see the .ignoresSafeArea above), so the
+                // inset churn that would normally force a re-layout is filtered
+                // out by design, and onGeometryChange is the ONLY writer of
+                // inputBarHeight. The user's own workaround — leave the session
+                // and re-enter — worked precisely because `.onAppear` re-arms
+                // the seed ([T-inputbar-stale-across-reentry]); this is that
+                // same recovery, applied without making the user find it.
+                //
+                // Re-arm only when the composer is provably not reporting: the
+                // last on-screen sample disagrees with the committed height, or
+                // no sample was ever recorded. In the healthy case both values
+                // match and this is a no-op, so the mid-animation hazard the
+                // note above warns about is not reintroduced — a re-seed can
+                // only happen where the alternative is a permanently wrong (or
+                // missing) bar.
+                let committedH = inputBarHeight
+                let latestH = latestInputBarFrameH
+                let sinceReport = inputBarLastGeometryAt.map { CFAbsoluteTimeGetCurrent() - $0 } ?? -1
+                if didSeedInputBarHeight,
+                   latestH <= 0 || abs(latestH - committedH) > 0.5 {
+                    didSeedInputBarHeight = false
+                    AppLogger(category: "InputBarLayout").info("[voice-bgfg] scene active — composer geometry stale (committed=\(committedH) latest=\(latestH) lastReport=\(String(format: "%.1f", sinceReport))s ago); re-arming seed so the next callback re-measures")
+                }
+
+                // [T-voice-inputbar-collapse-selfheal] Re-arming only makes the
+                // seed ELIGIBLE to fire; it cannot make a host that has stopped
+                // reporting geometry start again. In the observed failure that
+                // host had zero subviews and emitted nothing for minutes, so
+                // verify the wake-up actually happened and say so loudly when it
+                // did not — this is the line that tells the next investigation
+                // "the self-heal ran and was not enough" instead of leaving them
+                // to re-derive it from a silent log.
+                inputBarHealthProbe?.cancel()
+                let probeBaseline = inputBarGeometryTick
+                inputBarHealthProbe = Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 900_000_000)
+                    guard !Task.isCancelled else { return }
+                    let ticked = inputBarGeometryTick != probeBaseline
+                    let age = inputBarLastGeometryAt.map { CFAbsoluteTimeGetCurrent() - $0 } ?? -1
+                    if ticked {
+                        AppLogger(category: "InputBarLayout").info("[InputBarHealth] OK after foreground — composer re-reported geometry (h=\(latestInputBarFrameH) committed=\(inputBarHeight))")
+                    } else {
+                        AppLogger(category: "InputBarLayout").error("[InputBarHealth] STALLED — no geometry callback 900ms after foreground. committed=\(inputBarHeight) latest=\(latestInputBarFrameH) lastReport=\(String(format: "%.1f", age))s ago voice=\(voiceInputActive) editing=\(voiceVM.isEditingTranscript) seeded=\(didSeedInputBarHeight). The composer host is not laying out; expect a blank bottom area. Leaving and re-entering the session rebuilds it.")
+                        nmComposer.stalled() // nanoMuse: the rebuild upstream only describes — if the host really is gone, NanoMuseComposerWatch re-creates it
+                    }
+                }
+                nmComposer.sceneActive() // nanoMuse: and a plain check a beat after every foreground
+                // [T-voice-bg-fg-gap] Foreground reseal: if we return to a
+                // voice-mode-not-editing state, no responder should be armed.
+                // Releasing here is a no-op when nothing is focused and clears
+                // any responder UIKit resurrected during the background pass.
+                if voiceInputActive && !voiceVM.isEditingTranscript {
+                    let keyWindow = UIApplication.shared.connectedScenes
+                        .compactMap { $0 as? UIWindowScene }
+                        .flatMap(\.windows)
+                        .first(where: \.isKeyWindow)
+                    if let keyWindow, keyWindow.endEditing(true) {
+                        AppLogger(category: "InputBarLayout").info("[voice-bgfg] scene active — released a resurrected responder (voice mode, not editing)")
+                    }
+                }
+            }
+            if phase != .active, voiceInputActive, !voiceVM.isEditingTranscript {
+                // [T-voice-bg-fg-gap] Complete any in-flight keyboard dismissal
+                // BEFORE the snapshot/suspend layout pass — but ONLY in the
+                // voice-mode-not-editing state, where no responder is ever
+                // legitimate (text mode keeps its focused composer across app
+                // switches; edit mode keeps its editor keyboard — resigning
+                // those would be a visible regression). If the edit→send
+                // teardown's dismiss animation is still running when the app
+                // backgrounds, iOS can freeze the window mid-dismissal with a
+                // partial keyboard inset that survives into the next foreground.
+                // Synchronous resign + no-animation layout guarantees the window
+                // geometry is final before UIKit snapshots it.
+                let keyWindow = UIApplication.shared.connectedScenes
+                    .compactMap { $0 as? UIWindowScene }
+                    .flatMap(\.windows)
+                    .first(where: \.isKeyWindow)
+                if let keyWindow {
+                    let hadResponder = keyWindow.endEditing(true)
+                    UIView.performWithoutAnimation { keyWindow.layoutIfNeeded() }
+                    AppLogger(category: "InputBarLayout").info("[voice-bgfg] scene \(phase == .inactive ? "inactive" : "background") — forced keyboard-dismiss completion (hadResponder=\(hadResponder)) voice=\(voiceInputActive) editing=\(voiceVM.isEditingTranscript)")
+                }
+            }
+            if phase != .active, speechManager.state == .recording {
+                speechManager.stopRecording()
+            }
+        }
+        .onChange(of: deepLink.showTerminal) { show in
+            if show {
+                terminalInitCommand = deepLink.terminalInitCommand
+                showTerminal = true
+                deepLink.showTerminal = false
+                deepLink.terminalInitCommand = nil
+            }
+        }
+        // [T-ios-voiceover-announce] Announce the end of a turn to VoiceOver.
+        // Deliberately a SEPARATE observer from the auto-focus handler below:
+        // that one returns early when the auto-focus setting is off, and a
+        // blind user must still hear that the reply ended regardless of an
+        // unrelated keyboard preference. The outcome closure is evaluated at
+        // the end edge so it sees the final cancel/error state.
+        .announceChatTurnEnd(isProcessing: vm.isProcessing) {
+            if vm.userDidCancel { return .stopped }
+            if vm.errorMessage != nil { return .failed }
+            return .finished
+        }
+        .onChange(of: vm.isProcessing) { processing in
+            if !processing {
+                // Reply reading is handled INCREMENTALLY during streaming (the
+                // SSE loop splits into sentences/titles + tool announcements and
+                // queues them as they arrive — see speakQueued/extractNewSentences).
+                // No whole-reply speak here; that would double-read everything.
+                // [T-keyboard-auto-pop default flip] Gate behind a Settings
+                // toggle. Default ON — most users want the composer ready
+                // for a follow-up immediately. `object(forKey:)` lets us
+                // distinguish "never toggled" (nil → use new ON default)
+                // from "explicitly set OFF" (NSNumber(false) → respect).
+                // Existing length-based skip is still applied so very long
+                // replies still don't trigger the auto-focus.
+                let autoFocusEnabled = (UserDefaults.standard.object(forKey: "chat.autoFocusAfterReply") as? Bool) ?? true
+                guard autoFocusEnabled else { return }
+                // [T-ios-retry-keyboard] Don't treat the end of a RETRIED turn
+                // as "a reply arrived".
+                //
+                // Trigger chain being cut: the user taps Retry on a failure from
+                // a while back -> retry() sets isProcessing=true -> the re-sent
+                // request fails fast (kernel down, no concurrency slot, or an
+                // immediate provider error) -> isProcessing flips back to false
+                // -> this observer fires. The edge is indistinguishable from a
+                // successful reply, and the delayed block's guards now all pass
+                // (the user IS looking at the chat, nothing is queued, and the
+                // errored message is short so the <600 length check succeeds) —
+                // so the keyboard rises seconds after a tap that only meant
+                // "try that again".
+                //
+                // Scoped to the turn's ORIGIN, not its outcome: auto-focus when
+                // a fresh send fails is existing, accepted behaviour and is
+                // deliberately left alone. Consumed (not just read) so it
+                // governs exactly one turn.
+                let wasRetry = vm.turnStartedByRetry
+                vm.turnStartedByRetry = false
+                guard !wasRetry else { return }
+                if GCKeyboard.coalesced != nil {
+                    inputFocused = true
+                } else {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                        guard !hasOverlayPresented, isChatViewVisible else { return }
+                        guard !vm.isProcessing, vm.promptQueue.isEmpty else { return }
+                        // Re-check: a retry started during the 1.5s window would
+                        // otherwise be focused by this older timer.
+                        guard !vm.turnStartedByRetry else { return }
+                        let lastAssistantLength = vm.messages.last.flatMap {
+                            $0.role == .assistant ? $0.blocks.reduce(0) { $0 + $1.content.count } : nil
+                        } ?? 0
+                        if lastAssistantLength < 600 {
+                            inputFocused = true
+                        }
+                    }
+                }
+            }
         }
         // [T-ios-retry-hide-when-processing] Inject the view model so deep
         // descendants (e.g. ToolCapsuleView's long-press menu) can react to
         // `vm.isProcessing` without threading the vm through every level.
         .environmentObject(vm)
-    }
-
-    // `body`'s modifier chain used to be one inline expression; it exceeded
-    // the type-checker's budget ("expression too complex"). Split into three
-    // groups that are checked independently — the composed view tree is
-    // identical to the original chain.
-    /// Group A — core chrome: message area, composer host, nav bar,
-    /// background, drop target, overlays, environments, view-model hooks.
-    private var chatBodyPresentationsA: some View {
-        ZStack {
-        messagesArea
-            .safeAreaInset(edge: .top, spacing: 0) {
-                // Error banner
-                if let error = vm.errorMessage {
-                    errorBanner(error)
-                }
-                // Transient notice (e.g. request-level image budget
-                // elision). Auto-dismisses after ~4s.
-                if let notice = vm.transientNotice {
-                    Text(notice)
-                        .font(.system(size: 12))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 12).padding(.vertical, 8)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.black.opacity(0.75))
-                        .onAppear {
-                            let captured = notice
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
-                                if vm.transientNotice == captured {
-                                    vm.transientNotice = nil
-                                }
-                            }
-                        }
-                }
-            }
-            // nanoMuse: upstream's `.overlay(alignment: .bottom) { ZStack … }` is one link of the chain,
-            // NanoMuseComposerHost (NanoMuseChatModifiers.swift), and since 0.1.40 that host is a VStack:
-            // the composer column is a row under the list, the popup layer an overlay of the list.
-            // Build 9 overflowed the stack in this body's getter, so every link counts. The layout
-            // notes below are upstream's: the popup's anchoring they describe still holds (its bottom
-            // edge is the column's top edge, by layout), the "overlay on top of the message list" does not.
-            .modifier(NanoMuseComposerHost(stack: nmComposerStack, popup: nmComposerPopup)) // nanoMuse: was `.overlay(alignment: .bottom) {`
-                // Tool preview + input bar stacked at the bottom.
-                // Both overlay on top of the message list for immersive scrolling.
-                //
-                // The slash / mention popup is attached to THIS stack as
-                // a `.overlay(alignment: .bottom)` on a placeholder
-                // sitting just above the input bar — that way SwiftUI's
-                // own layout pins the popup's bottom edge to the input
-                // bar's top edge directly, with no `inputBarHeight`
-                // @State round-trip and no screen-bottom math. The
-                // popup follows the input bar automatically when
-                // attachments / waveform expand it, when the keyboard
-                // animates, or when safe-area insets change.
-                //
-                // Popup uses the EXACT same constraint toolbar uses
-                // with inputBar: bottom edge of popup = top edge of
-                // inputBar, with the SAME gap (i.e. whatever VStack
-                // spacing produces between toolbar and inputBar —
-                // which is 0 here, the visual gap toolbar exhibits
-                // comes from its own internal padding).
-                //
-                // To achieve this without re-implementing layout
-                // math: popup is an `.overlay(alignment: .top)` on
-                // the inputBar with `alignmentGuide(.top){$0[.bottom]}`
-                // — this anchors popup's BOTTOM to inputBar's TOP.
-                // The popup card carries its OWN bottom padding
-                // equal to what the toolbar's own internal bottom
-                // spacing produces, so the visual gap is identical
-                // whether toolbar is visible or not. Popup ALWAYS
-                // sits flush with inputBar top, covering the toolbar
-                // when it's also there.
-                // Wrap input stack in a ZStack so the popup can have a
-                // sibling-level frame (full ZStack size) with proper hit
-                // testing — `.overlay(alignment: .top)` on inputBar was
-                // failing to receive touches for the popup card because
-                // SwiftUI doesn't hit-test overlay content drawn outside
-                // the host's own frame.
-                //
-                // Layout structure (z-order bottom→top inside ZStack):
-                //   1. VStack { toolbar; inputBar } — anchored .bottom
-                //   2. Popup with alignmentGuide pinning its BOTTOM
-                //      edge to inputBar's TOP edge — also anchored
-                //      .bottom, but `alignmentGuide(.bottom) { d in
-                //      d[.bottom] + inputBarHeight }` would require
-                //      reading inputBar height again. Instead we use
-                //      `.padding(.bottom, inputBarHeight)` so the
-                //      popup's bottom edge sits exactly at inputBar's
-                //      top edge. inputBarHeight here is just the input
-                //      bar (NOT including toolbar) so popup covers
-                //      toolbar when both visible.
-                // nanoMuse: the VStack of that ZStack is `nmComposerColumn`, the popup and its catcher
-                // `nmComposerPopup`; NanoMuseComposerHost lays the column out under the list and the
-                // popup over the list's bottom edge. The list's own bottom inset for the composer is 0.
-            // Collapse the expanded speech player on a tap anywhere in the chat
-            // area. Attached as a SIMULTANEOUS TapGesture directly on the content
-            // (no full-screen hit-test overlay, which blocked scrolling) so a tap
-            // collapses the player while scroll/drag still work normally. The tap
-            // only acts when the player is expanded; otherwise it's a no-op.
-            .simultaneousGesture(
-                TapGesture().onEnded {
-                    if vm.speakEnabled && vm.speechPlayerExpanded {
-                        withAnimation(.easeInOut(duration: 0.16)) {
-                            vm.speechPlayerExpanded = false
-                        }
-                    }
-                }
-            )
-            .overlay(alignment: .bottomTrailing) {
-                floatingSpeechButton
-            }
-            .overlay {
-                // Session-loading indicator, two flavors by scenario:
-                //  • ENTERING the session (first load, nothing rendered yet)
-                //    → centered soft loading card with a gentle fade+scale
-                //    exit, replacing the abrupt bare system spinner.
-                //  • Any LATER reload (iCloud sync, compaction, stale-cache
-                //    refresh) while content is on screen → keep the small
-                //    unobtrusive spinner; the big card must never cover
-                //    content the user is already reading.
-                ZStack {
-                    // Pre-load window: isLoadingSession only flips once
-                    // loadSession() actually begins (onAppear → Task →
-                    // repairSessionIfNeeded → loadSession), so gating the
-                    // card on it alone left a blank screen for that gap.
-                    // Treat "real session, nothing loaded yet" as loading
-                    // from the very first frame of the push.
-                    let enteringUnloaded = sessionId != nil
-                        && vm.messages.isEmpty
-                        && !vm.hasCompletedInitialLoad
-                    if (vm.isLoadingSession || enteringUnloaded) && vm.messages.isEmpty {
-                        // Entering: nothing rendered yet — show the dots.
-                        // In-place reloads with content on screen (iCloud
-                        // sync fetch → reloadMessagesFromDB → loadSession
-                        // right after entry is the common case) show NO
-                        // overlay at all: the content stays visible and
-                        // interactive, and a centered gray "…" right after
-                        // the blue entry dots read as a glitch, not
-                        // feedback (user report 2026-07-06).
-                        SessionLoadingCard()
-                            .transition(.opacity.combined(with: .scale(scale: 0.92)))
-                            .accessibilityIdentifier("sessionLoadingCard")
-                    }
-                }
-                .animation(.easeOut(duration: 0.28), value: vm.isLoadingSession)
-                .allowsHitTesting(false)
-            }
-            .overlay {
-                SessionLockGateOverlay(sessionId: vm.sessionId)
-            }
-            .onChange(of: vm.isLoadingSession) { newValue in
-                // [SpinnerTrace] Every transition of the
-                // session-loading overlay logged, so we can confirm
-                // whether a center-spinner report corresponds to
-                // this overlay or some other ProgressView in the
-                // chat.
-                minisLogger.warning("[SpinnerTrace] isLoadingSession → \(newValue) sid=\(vm.sessionId?.prefix(8) ?? "nil") msgs=\(vm.messages.count)")
-            }
-
-        // Full-screen kernel boot overlay
-        kernelBootOverlay
-    }
-    .background(ChatColors.background)
-    .onDrop(of: [.image, .movie, .fileURL, .data], isTargeted: $isDropTargeted) { providers in
-        handleDropProviders(providers)
-        return true
-    }
-    .overlay {
-        if isDropTargeted {
-            RoundedRectangle(cornerRadius: 16)
-                .strokeBorder(Color.accentColor, style: StrokeStyle(lineWidth: 2, dash: [8]))
-                .background(Color.accentColor.opacity(0.08).clipShape(RoundedRectangle(cornerRadius: 16)))
-                .padding(8)
-                .allowsHitTesting(false)
-        }
-    }
-    .environment(\.chatSessionId, vm.sessionId)
-    // nanoMuse: the Muse header's ••• menu, the composer's expectation around a turn and the C9
-    // presence line, as one link (NanoMuseChatHooks) — four links here overflowed the stack in 0.1.38
-    .modifier(NanoMuseChatHooks(vm: vm, processing: vm.isProcessing, composer: nmComposer, readOnly: isReadOnly, perform: { nmPerform($0) }, voice: voiceVM, enterVoice: { nmEnterVoice() })) // nanoMuse:
-    .modifier(NavBarStyleModifier(topSafeAreaInset: $topSafeAreaInset))
-    .navigationBarTitleDisplayMode(.inline)
-    // [T-ios-navbar-toolbar-host] The ENTIRE toolbar now lives inside an
-    // equatable-gated host child. Root cause of the mid-streaming "..."
-    // menu refresh (4th attempt, this one from instrumentation): with
-    // .toolbar attached on this (per-token re-evaluated) chain, the
-    // ToolbarContent builder itself re-ran on EVERY streaming tick
-    // (NavbarEval toolbarPass=34/stream) and handed the bridge a brand-new
-    // ToolbarContent value each time — which it re-pushed to the
-    // UINavigationItem, refreshing the OPEN UIMenu, even while both inner
-    // Equatable gates provably held (titleEval=3, menuEval=2). Hosting the
-    // toolbar in a child whose body is gated on the displayed inputs means
-    // the builder simply never re-runs during a stream: no new
-    // ToolbarContent, nothing to re-push, and the native SwiftUI Menu
-    // (with the system's round Liquid-Glass chrome) can stay.
-    // .equatable() is MANDATORY here, not an optimization hint: device
-    // instrumentation (2026-07-17 23:53, == FALSE count 0 while
-    // hostEval == toolbarPass) proved SwiftUI does NOT consult a plain
-    // Equatable conformance for this generic closure-holding view in the
-    // .background position — the gate silently never engaged. EquatableView
-    // wrapping is the only guaranteed path to ==.
-    .background(
-        ChatToolbarHost(key: chatToolbarKey, title: {
-            chatNavPrincipalContent
-        }, trailing: {
-            trailingMenu
-        })
-        .equatable()
-    )
-    .sheet(item: $titlePillEditSession) { session in
-        SessionEditSheet(session: session) { newTitle, newCategory in
-            Task {
-                await ChatStore.shared.updateSessionTitle(session.id, title: newTitle, category: newCategory)
-                refreshTitlePillSession()
-            }
-            titlePillEditSession = nil
-        }
-    }
-    .alert(AppLocalized("Force Pull Messages"), isPresented: $showForcePullConfirm) {
-        Button(AppLocalized("Pull from iCloud"), role: .destructive) {
-            runForcePull()
-        }
-        Button(AppLocalized("Cancel"), role: .cancel) {}
-    } message: {
-        Text(AppLocalized("This will delete all local messages for this chat and re-download them from iCloud. Local changes that haven't synced yet will be lost. Continue?"))
-    }
-    // [T-ios-json-open-provider-import-prompt] Shared/opened Provider-export
-    // JSON: let the user choose import-as-provider vs add-as-attachment.
-    // Extracted into a single modifier so the body's type-check stays cheap.
-    .modifier(ProviderImportPromptModifier(
-        pending: $pendingProviderImport,
-        result: $providerImportResult,
-        onImport: { json in configStore.importInstanceJSON(json) },
-        onAttach: { url in vm.addFileAttachment(from: url) }
-    ))
-    .overlay(alignment: .top) {
-        if let msg = forcePullToast {
-            Text(msg)
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(Color.accentColor, in: Capsule())
-                .padding(.top, 8)
-                .transition(.move(edge: .top).combined(with: .opacity))
-        }
-    }
-    .animation(.spring(response: 0.3), value: forcePullToast)
-    // [T-browser-download-ux-v2] Downloads panel opened from the floating
-    // download button (mounted next to the scroll buttons, see
-    // downloadFloatingButton). Completed rows jump to the file browser
-    // located at the downloaded file in the session workspace.
-    .sheet(isPresented: $showDownloadsPanel) {
-        BrowserDownloadPanelSheet(sessionId: vm.sessionId ?? "") { filename in
-            showDownloadsPanel = false
-            locateDownloadTarget = DownloadLocateTarget(filename: filename)
-        }
-    }
-    .sheet(item: $locateDownloadTarget) { target in
-        if let sid = vm.sessionId {
-            NavigationView {
-                FileBrowserView(
-                    rootPath: AIChatViewModel.minisWorkspacePersistentDir(for: sid),
-                    rootLabel: "/var/minis/workspace",
-                    highlightFileName: target.filename
-                )
-            }
-        }
-    }
-    .alert("Enhanced Cache", isPresented: $showEnhancedCacheAlert) {
-        Button("Enable") {
-            UserDefaults.standard.set(true, forKey: "enhancedCacheConfirmed")
-            cached.vm.enhancedCacheEnabled = true
-        }
-        Button("Cancel", role: .cancel) {}
-    } message: {
-        Text("Enhanced cache extends the cache TTL from 5 minutes to 1 hour. Cache writes cost more (2x vs 1.25x base price), but cache reads remain cheap (0.1x). Recommended for long coding sessions where request gaps may exceed 5 minutes.")
-    }
-    .alert(AppLocalized("Context Near Capacity"), isPresented: Binding(get: { vm.showCompactBeforeSendPrompt }, set: { vm.showCompactBeforeSendPrompt = $0 })) {
-        Button(AppLocalized("Compact & Send")) {
-            vm.compactAndSend()
-        }
-        // [T-chat-auto-compact-opt-in] One-tap opt-in: compact now AND
-        // remember (globally, UserDefaults "autoCompactOnThreshold") to
-        // auto-compact without prompting whenever the threshold fires in
-        // future conversations.
-        Button(AppLocalized("Compact & Enable Auto-Compact")) {
-            vm.autoCompactEnabled = true
-            vm.compactAndSend()
-        }
-        Button(AppLocalized("Cancel"), role: .cancel) {
-            vm.cancelCompactBeforeSend()
-        }
-    } message: {
-        Text(AppLocalized("Conversation context is nearly full. Compact the history to free up space before sending. Enabling auto-compact will do this automatically from now on."))
-    }
-    .alert(AppLocalized("Context Full"), isPresented: Binding(get: { vm.showContextExhaustedPrompt }, set: { vm.showContextExhaustedPrompt = $0 })) {
-        Button(AppLocalized("New Session")) {
-            vm.showContextExhaustedPrompt = false
-            vm.cancelCompactBeforeSend()
-            NotificationCenter.default.post(name: .newChatRequested, object: nil)
-        }
-        Button(AppLocalized("Clear Chat"), role: .destructive) {
-            vm.showContextExhaustedPrompt = false
-            vm.cancelCompactBeforeSend()
-            vm.clearChat()
-        }
-        Button(AppLocalized("Cancel"), role: .cancel) {
-            vm.cancelCompactBeforeSend()
-        }
-    } message: {
-        Text(AppLocalized("The conversation context has reached its limit. Start a new session or clear the chat to continue."))
-    }
-    // [T-new-chat-menu-entry] Streaming guard for the "…" menu's New Chat:
-    // confirm → stop the running task, then create; cancel → stay put.
-    .alert(AppLocalized("Task Running"), isPresented: $showNewChatStopConfirm) {
-        Button(AppLocalized("Stop & New Chat"), role: .destructive) {
-            vm.cancel()
-            NotificationCenter.default.post(name: .newChatRequested, object: nil)
-        }
-        Button(AppLocalized("Cancel"), role: .cancel) {}
-    } message: {
-        Text(AppLocalized("A task is running in this chat. Starting a new chat will stop it."))
-    }
-    .alert(AppLocalized("Clear Chat"), isPresented: $showClearChatConfirm) {
-        Button(AppLocalized("Clear"), role: .destructive) { vm.clearChat() }
-        Button(AppLocalized("Cancel"), role: .cancel) {}
-    } message: {
-        Text(AppLocalized("All messages in this session will be permanently deleted."))
-    }
-    // Bridge VM's slash-command "/clear" request into the local @State that
-    // drives the confirmation alert above, so the menu and slash-command
-    // entry points share one alert instance.
-    .onChange(of: vm.clearChatConfirmRequested) { requested in
-        if requested {
-            showClearChatConfirm = true
-            vm.clearChatConfirmRequested = false
-        }
-    }
-    .alert(AppLocalized("Compact Above"), isPresented: Binding(
-        get: { compactConfirmMessageId != nil },
-        set: { if !$0 { compactConfirmMessageId = nil } }
-    )) {
-        Button(AppLocalized("Compact"), role: .destructive) {
-            if let id = compactConfirmMessageId {
-                Task { await vm.compactBefore(id) }
-            }
-        }
-        Button(AppLocalized("Cancel"), role: .cancel) {}
-    } message: {
-        Text(AppLocalized("Messages above this point will be compacted into a summary. This cannot be undone."))
-    }
-    .offloadPermissionDialog()
-    .environment(\.openMinisURL, OpenMinisURLAction { url in
-        handleMinisURLTap(url)
-    })
-    .environment(\.openImageGallery, OpenImageGalleryAction { presentation in
-        imageGallery = presentation
-    })
-    .fullScreenCover(item: $previewImageFile) { fileURL in
-        MinisImageFilePreviewView(fileURL: fileURL)
-    }
-    .alert(
-        AppLocalized("File Not Found"),
-        isPresented: Binding(
-            get: { missingMinisFileName != nil },
-            set: { if !$0 { missingMinisFileName = nil } }
-        ),
-        presenting: missingMinisFileName
-    ) { _ in
-        Button(AppLocalized("OK"), role: .cancel) { missingMinisFileName = nil }
-    } message: { name in
-        Text(AppLocalized("\(name) is unavailable. It may have been deleted or not yet synced from iCloud."))
-    }
-    .fullScreenCover(item: $imageGallery) { presentation in
-        MessageImageGallery(items: presentation.items, startIndex: presentation.startIndex)
-    }
-    .onReceive(NotificationCenter.default.publisher(for: MarkdownImageTapRouter.tappedNotification)) { note in
-        handleMarkdownImageTap(note)
-    }
-    .modifier(DismissImmersiveCoversListener(onDismiss: dismissAllOwnedImmersiveCovers))
-    .onReceive(vm.requestComposerFocusSignal) {
-        // VM fires this after filling the composer programmatically
-        // (e.g. /skill tap) so the keyboard pops up immediately and
-        // the user can keep typing without an extra tap on the field.
-        inputFocused = true
-    }
-    .modifier(ChatInputAppendListener(vm: vm, inputFocused: $inputFocused))
-    .modifier(RerunFromToolBlockListener(vm: vm))
-    }
-
-    /// Group B — media/file preview presentations.
-    private var chatBodyPresentationsB: some View {
-        chatBodyPresentationsA
-    .fullScreenCover(item: $previewVideoFile) { fileURL in
-        MinisVideoFullscreenPlayer(fileURL: fileURL)
-    }
-    .sheet(item: $previewAudioFile) { fileURL in
-        MinisAudioPreviewView(fileURL: fileURL)
-    }
-    .sheet(item: $previewTextFile) { fileURL in
-        MinisTextPreviewView(fileURL: fileURL)
-    }
-    .sheet(item: $previewMarkdownFile) { fileURL in
-        MinisMarkdownPreviewView(fileURL: fileURL)
-    }
-    .sheet(item: $previewDocumentFile) { fileURL in
-        MinisDocumentPreviewView(fileURL: fileURL)
-    }
-    .sheet(item: $shareFile) { fileURL in
-        MinisShareSheet(url: fileURL)
-    }
-    .sheet(item: $safariURL) { url in
-        MinisLinkPreviewView(url: url, browserPool: vm.browserTabPool, onExpand: { _ in
-            fullBrowserIsLocal = false
-            let targetURL = url
-            safariURL = nil
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                fullBrowserURL = targetURL
-            }
-        })
-    }
-    // Auto-present the in-app preview when a shell tool's stdout emits
-    // an OSC MinisOpenURL marker (via /usr/local/bin/minis-open).
-    //
-    // Dispatch by scheme:
-    //  - http/https/about: in-chat WKWebView preview. ToolLiveSheet
-    //    observes the same broker and takes priority for web URLs when
-    //    it is on top (broker.toolSheetVisible).
-    //  - minis://...: chat-resource file preview (image/markdown/html/
-    //    pdf/...). Routed through handleMinisURLTap which already
-    //    picks the right sheet by extension. Always dispatched here
-    //    because ToolLiveSheet cannot host fullscreen file previews.
-    //
-    // `.dropFirst()` skips the current value that `@Published` delivers
-    // to new subscribers on first attach — without it, a chat view
-    // created after a previous OSC capture would re-present a stale URL.
-    .onReceive(MinisOpenURLBroker.shared.$pendingURL.dropFirst().compactMap { $0 }) { url in
-        if MinisOpenURLBroker.isWebScheme(url.scheme) {
-            // Skip when a topmost host wants to present the web preview
-            // itself: ToolLiveSheet (`toolSheetVisible`) or the
-            // full-screen iSH terminal (`terminalVisible`). Otherwise
-            // our sheet fights their presentation and the terminal's
-            // fullScreenCover gets dismissed mid-animation.
-            guard !MinisOpenURLBroker.shared.toolSheetVisible,
-                  !MinisOpenURLBroker.shared.terminalVisible else { return }
-            withAnimation { safariURL = url }
-        } else {
-            _ = handleMinisURLTap(url)
-        }
-        MinisOpenURLBroker.shared.consume()
-    }
-    .sheet(item: $previewHTMLFile) { fileURL in
-        MinisHTMLPreviewView(fileURL: fileURL, onExpand: { _ in
-            fullBrowserIsLocal = true
-            let targetURL = fileURL
-            previewHTMLFile = nil
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                fullBrowserURL = targetURL
-            }
-        })
-    }
-    .fullScreenCover(item: $fullBrowserURL) { url in
-        let wasLocal = fullBrowserIsLocal
-        MinisSafariView(url: url, localFile: wasLocal, onCollapse: {
-            fullBrowserURL = nil
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                if wasLocal {
-                    previewHTMLFile = url
-                } else {
-                    safariURL = url
-                }
-            }
-        })
-    }
-    .sheet(isPresented: $showFileBrowser) {
-        NavigationView {
-            let base = RootfsManager.shared.dataPath
-            FileBrowserView(rootPath: base, initialPath: base.appendingPathComponent("var/minis"), rootLabel: "/")
-        }
-    }
-    .sheet(isPresented: $showBrowserSheet) {
-        BrowserSheetView(pool: vm.browserTabPool, isAgentBusy: vm.browserTabPool.isAgentBrowsing, onTakeover: {
-            vm.browserTakeoverActive = true
-        })
-    }
-    .sheet(isPresented: $showModelPicker) {
-        NavigationView {
-            SessionModelPicker(sessionId: vm.sessionId) {
-                await vm.ensureSessionReturningId()
-            }
-        }
-    }
-    .sheet(isPresented: $showTokenUsage) {
-        TokenUsageSheet(vm: cached.vm)
-    }
-    .sheet(item: $screenshotPreview) { preview in
-        ChatScreenshotPreviewSheet(image: preview.image)
-    }
-    .sheet(isPresented: $showSessionSkills) {
-        // Pass the real id (nil for a draft) plus an ensure-session closure
-        // so a pre-first-message toggle binds its override to the session
-        // the chat will actually persist under, instead of the "" phantom
-        // key (T-ios-session-skill-override-init-timing).
-        SessionSkillsView(sessionId: vm.sessionId) {
-            await vm.ensureSessionReturningId()
-        }
-    }
-    .sheet(isPresented: $showSessionMCPs) {
-        SessionMCPsView(sessionId: vm.sessionId) {
-            await vm.ensureSessionReturningId()
-        }
-    }
-    .sheet(isPresented: $showSessionMemory) {
-        SessionMemoryView(vm: cached.vm)
-    }
-    .sheet(isPresented: $showMoveToSheet) {
-        MoveToSessionSheet(currentSessionId: vm.sessionId) { targetId in
-            // [T-ios-moveto-transfer-race] Stash bound to the target, so
-            // only that session can consume it.
-            let movedText = vm.inputText
-            let movedAttachments = vm.attachments
-            let stash = ViewModelCache.PendingTransfer(
-                targetId: targetId,
-                inputText: movedText,
-                attachments: movedAttachments
-            )
-            ViewModelCache.pendingTransfer = stash
-            // Clear the source composer optimistically so the move reads as
-            // instant, but keep a copy: if the target never consumes the
-            // stash (navigation swallowed, wrong session opened), restore it
-            // here rather than letting the user's content vanish. Attachment
-            // files are NOT deleted on this path — both the stash and this
-            // restore reference the same cacheURLs.
-            vm.inputText = ""
-            vm.attachments.removeAll()
-            // The share content is no longer here — reset the flag that
-            // gates the "Move to…" pill. Currently `hasMovableShareContent`
-            // hides the pill anyway now the composer is empty, so this is
-            // not user-visible, but leaving it true is a latent trap for
-            // anything else that reads it.
-            hasInjectedShareContent = false
-            DispatchQueue.main.asyncAfter(deadline: .now() + ViewModelCache.PendingTransfer.staleAfter) {
-                // Match the exact stash we staged, not just its target: a
-                // second move to the same target within the stale window
-                // replaces the slot, and this timer must not restore that
-                // newer content out from under it.
-                guard let stranded = ViewModelCache.pendingTransfer,
-                      stranded.targetId == targetId,
-                      stranded.createdAt == stash.createdAt else { return }
-                // Still sitting in the slot → nobody consumed it.
-                ViewModelCache.pendingTransfer = nil
-                minisLogger.info("[MoveTo] Transfer to \(targetId) was never consumed — restoring content to source session")
-                if vm.inputText.isEmpty {
-                    vm.inputText = movedText
-                } else if !movedText.isEmpty {
-                    vm.inputText += "\n" + movedText
-                }
-                vm.attachments.append(contentsOf: movedAttachments)
-            }
-            // Dismiss keyboard first so it doesn't linger during transition
-            inputFocused = false
-            // Post navigation after sheet dismiss animation completes
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                NotificationCenter.default.post(
-                    name: .moveInputToSession,
-                    object: nil,
-                    userInfo: ["targetId": targetId]
-                )
-            }
-        }
-    }
-    }
-
-    /// Group C — terminal/camera/pickers, lifecycle listeners.
-    private var chatBodyPresentationsC: some View {
-        chatBodyPresentationsB
-    .fullScreenCover(isPresented: $showTerminal) {
-        terminalInitCommand = nil
-    } content: {
-        NavigationView {
-            ISHTerminalView(sessionId: vm.sessionId, showCloseButton: true, initCommand: terminalInitCommand)
-                .onAppear {
-                    if let sid = vm.sessionId {
-                        minisLogger.info("🔍MOUNT Terminal onAppear — re-mounting minis for session \(sid)")
-                        vm.mountMinis(for: sid)
-                    } else {
-                        minisLogger.info("🔍MOUNT Terminal onAppear — no sessionId, skipping mount")
-                    }
-                }
-        }
-    }
-    .fullScreenCover(isPresented: $showCamera, onDismiss: {
-        minisLogger.info("[QuickAction] fullScreenCover(camera) onDismiss showCamera=\(showCamera)")
-    }) {
-        // AnyView erases the camera sheet's view tree from the
-        // outer body's generic chain. Without it, AIChatView.body's
-        // mangled type pushes Swift's runtime type decoder past its
-        // recursion limit on cold launch via the share/quick-action
-        // path — SIGSEGV in __swift_instantiateConcreteTypeFromMangledNameV2
-        // with `attachmentMenuButton.getter` at the stack top (a
-        // bystander; whichever leaf the decoder reached when the
-        // stack ran out gets named). Same class of crash as the
-        // 2026-04-17 `inputBar.getter` blow-up — the
-        // `.observingQuickActions(modifier:)` modifier added by
-        // T-quick-action-workflow tipped a chain that was already
-        // sitting at the threshold. AnyView here is the minimal,
-        // surgical cut: it sinks the largest closure in this
-        // modifier (CameraPicker + .ignoresSafeArea + .onAppear)
-        // into an erased subtree so the outer body type stays
-        // demangle-able. Keep until the body is structurally split
-        // into separate View structs (v1.10 follow-up).
-        AnyView(
-            CameraPicker { image in
-                minisLogger.info("[QuickAction] CameraPicker onCapture size=\(Int(image.size.width))x\(Int(image.size.height))")
-                vm.addImageAttachment(image)
-            }
-            .ignoresSafeArea()
-            .onAppear {
-                minisLogger.info("[QuickAction] fullScreenCover(camera) content onAppear — notifying workflow")
-                QuickActionWorkflow.shared.markCoverPresented()
-            }
-        )
-    }
-    .sheet(isPresented: $showPhotoPicker) {
-        NanoMusePHPicker(
-            onComplete: { results in
-                showPhotoPicker = false
-                handlePHPickerResults(results)
-            },
-            onCancel: {
-                showPhotoPicker = false
-            }
-        )
-    }
-    .fileImporter(
-        isPresented: $showDocumentPicker,
-        allowedContentTypes: [.image, .pdf, .plainText, .json, .sourceCode, .presentation, .spreadsheet, .data],
-        allowsMultipleSelection: true
-    ) { result in
-        switch result {
-        case .success(let urls):
-            for url in urls {
-                vm.addFileAttachment(from: url)
-            }
-        case .failure(let error):
-            minisLogger.error("File import failed: \(error.localizedDescription)")
-        }
-    }
-    .onAppear {
-        let sinceInit = (CFAbsoluteTimeGetCurrent() - AIChatViewModel.onAppearTimestamp) * 1000
-        minisLogger.info("[SessionLoad] onAppear T+\(String(format: "%.0f", sinceInit))ms isNew=\(cached.isNew) msgs=\(vm.messages.count)")
-        // [T-inputbar-stale-across-reentry] Re-arm the leading-edge seed on
-        // EVERY appear. AIChatView is keyed `.id(sessionId)` in ContentView,
-        // so re-entering the SAME session reuses the same SwiftUI identity
-        // and its @State survives — `inputBarHeight` keeps whatever (possibly
-        // wrong) value it last held, and because `didSeedInputBarHeight` is
-        // still true the synchronous seed never re-fires. If the composer's
-        // geometry doesn't change on re-entry, onGeometryChange emits no new
-        // callback either, so nothing ever reconciles it: a too-tall height
-        // survives indefinitely across re-renders. Clearing the flag makes
-        // the next (guaranteed) geometry callback re-seed authoritatively.
-        didSeedInputBarHeight = false
-        inputBarHeightDebounce?.cancel()
-        inputBarHeightDebounce = nil
-        AppLogger(category: "InputBarLayout").info("inputBarHeight re-arm seed on appear (was \(inputBarHeight))")
-        nmComposer.visible = true // nanoMuse: the composer watch only acts while the chat is on screen
-        if !isReadOnly { nmComposer.expect("the chat appeared") } // nanoMuse: a composer must report a height within a second, or the column is rebuilt
-        vm.sessionId = sessionId
-        vm.draftId = draftId
-        vm.remoteDeviceId = remoteDeviceId
-        vm.initialGroupId = initialGroupId
-        // Snapshot total session count once so the New-Chat onboarding
-        // grid only appears for first-time users (no prior sessions).
-        // [T-ios-session-coldload-listsessions-block] Use the bare
-        // COUNT(*) query, NOT listSessions().count — the latter ran 4
-        // un-indexable parts_json LIKE subqueries per session (~0.5s cold
-        // on a 100k-message DB) and, on the serialized ChatStore actor,
-        // head-of-line-blocked the loadSession() dispatched below, which
-        // was the reported ~3s cold-open stall. The comment used to claim
-        // "single SQLite COUNT" — now the code actually does one.
-        if totalSessionCount == nil {
-            Task.detached(priority: .utility) {
-                let count = await ChatStore.shared.sessionCount()
-                await MainActor.run { totalSessionCount = count }
-            }
-        }
-        if let sessionId { AIChatViewModel.activeSessionId = sessionId }
-        vm.ensureKernelBooted()
-        if let sessionId {
-            if cached.isNew || (vm.messages.isEmpty && !vm.isLoadingSession) {
-                // Load session if: (a) VM is freshly created, or (b) cache hit but messages
-                // are empty — this can happen on iOS 16 where NavigationStack may recreate
-                // @StateObject unexpectedly, causing isNew=false but an empty VM.
-                minisLogger.info("🔄SESSION AIChatView.onAppear loading session \(sessionId) isNew=\(cached.isNew) msgs=\(vm.messages.count)")
-                // [T-ios-session-coldload-listsessions-block] .userInitiated
-                // so the actual session-open work wins the serialized
-                // ChatStore actor queue over background sidebar-refresh
-                // listSessions() scans that would otherwise starve it.
-                Task(priority: .userInitiated) {
-                    // Phase A: auto-repair any sortOrder / legacy marker anomalies
-                    // before loading. Cheap no-op if the session is healthy.
-                    _ = await ChatStore.shared.repairSessionIfNeeded(sessionId: sessionId)
-                    await vm.loadSession()
-                }
-            } else if vm.messages.isEmpty && vm.isLoadingSession {
-                // iOS 16 edge case: a previous view instance started loadSession()
-                // but this view appeared before it completed. Wait for it to finish,
-                // then reload if messages are still empty (objectWillChange may have
-                // fired between old and new CachedViewModel subscriptions).
-                minisLogger.info("🔄SESSION AIChatView.onAppear WAITING for in-flight load session=\(sessionId)")
-                Task {
-                    // Wait for the in-flight load to complete (poll at short intervals)
-                    for _ in 0..<20 {
-                        try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
-                        if !vm.isLoadingSession { break }
-                    }
-                    // If messages are still empty after the load completed, retry
-                    if vm.messages.isEmpty && !vm.isLoadingSession {
-                        minisLogger.warning("🔄SESSION AIChatView.onAppear RETRY load — messages still empty after in-flight load for \(sessionId)")
-                        await vm.loadSession()
-                    }
-                }
-            } else {
-                let reuseStart = CFAbsoluteTimeGetCurrent()
-                minisLogger.info("🔄SESSION AIChatView.onAppear REUSING cached vm for \(sessionId) isProcessing=\(vm.isProcessing) msgs=\(vm.messages.count)")
-                // Remount minis for this session (in case another session took over)
-                vm.mountMinis(for: sessionId)
-                // While the user was off this view, an iCloud / LAN
-                // sync may have landed new messages (or applied a
-                // tombstone). reloadMessagesFromDB internally compares
-                // SQLite count + max(sort_order) + (id, sort_order)
-                // hash against the VM's last-known baseline and only
-                // re-renders on diff. Skip when isProcessing — the
-                // active stream owns messages right now and a reload
-                // would clobber the in-flight assistant turn.
-                if !vm.isProcessing && !vm.isCompacting {
-                    Task { @MainActor in await vm.reloadMessagesFromDB(reason: "AIChatView.onAppear-reuse") }
-                }
-                vm.consumeDeferredSnapshotIfNeeded()
-                let mountElapsed = (CFAbsoluteTimeGetCurrent() - reuseStart) * 1000
-                // Cached VM already has messages — trigger scroll-to-bottom
-                // since isLoadingSession won't transition and its onChange won't fire.
-                if !vm.messages.isEmpty {
-                    vm.forceScrollToBottom.send()
-                }
-                let totalElapsed = (CFAbsoluteTimeGetCurrent() - reuseStart) * 1000
-                minisLogger.info("[SessionLoad] \(sessionId) — REUSE: \(String(format: "%.1f", totalElapsed))ms [mount: \(String(format: "%.1f", mountElapsed)) | msgs: \(vm.messages.count)]")
-            }
-        } else {
-            minisLogger.info("🔄SESSION AIChatView.onAppear nil sessionId — draft mode")
-            // Draft session — auto-focus input for immediate typing
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                guard !hasOverlayPresented, isChatViewVisible else { return }
-                inputFocused = true
-            }
-        }
-        minisLogger.info("[Share] AIChatView.onAppear: sessionId=\(sessionId ?? "nil") bufferVersion=\(shareCoordinator.bufferVersion) hasBuffer=\(shareCoordinator.pendingShareBuffer != nil)")
-        injectPendingShareIfNeeded()
-        injectPendingTransferIfNeeded()
-        isChatViewVisible = true
-        refreshTitlePillSession()
-        // Notify workflow that THIS view is mounted + visible. If
-        // the workflow is waiting for our session id, it will
-        // transition to chatReady — our state observer below picks
-        // that up and flips `showCamera`. Transient draft views
-        // (sessionId=nil) won't match the workflow's target and
-        // are correctly skipped.
-        tryMarkWorkflowChatReady(reason: "onAppear")
-    }
-    .observingQuickActions(modifier: quickActionObserver)
-    .onChange(of: vm.sessionId) { _ in
-        refreshTitlePillSession()
-    }
-    .onReceive(NotificationCenter.default.publisher(for: .sessionDidUpdate)) { note in
-        guard let sid = vm.sessionId,
-              let updatedId = note.object as? String,
-              updatedId == sid else { return }
-        refreshTitlePillSession()
-    }
-    .onChange(of: shareCoordinator.bufferVersion) { newVersion in
-        // Warm start: user is already in a session when share arrives
-        minisLogger.info("[Share] AIChatView.onChange(bufferVersion)=\(newVersion) sessionId=\(sessionId ?? "nil") draftId=\(draftId ?? "nil") hasBuffer=\(shareCoordinator.pendingShareBuffer != nil)")
-        injectPendingShareIfNeeded()
-    }
-    .onDisappear {
-        isChatViewVisible = false
-        nmComposer.visible = false // nanoMuse: a host torn down because the chat left is not a failure
-        // [T-voice-inputbar-collapse-selfheal] The health probe must not
-        // outlive the view — its report would describe a composer that no
-        // longer exists.
-        inputBarHealthProbe?.cancel()
-        inputBarHealthProbe = nil
-        if speechManager.state == .recording {
-            speechManager.stopRecording()
-        }
-        // [T-inputbar-keyboard-leaks-to-home] Cut the ONLY channel by which
-        // chat composer geometry can reach the HOME screen.
-        //
-        // `inputBarHeight` is per-view @State and only feeds the message
-        // list's bottom inset — it cannot touch home. What CAN is a stranded
-        // first responder: leaving the chat while the composer (or the voice
-        // transcript editor) still holds focus leaves the keyboard's inset
-        // reserved on the WINDOW, and SwiftUI's automatic keyboard avoidance
-        // applies that window-wide. The home screen's 新建/搜索 FAB row is a
-        // `.safeAreaInset(edge: .bottom)` (ContentView 1213/1326) with no
-        // `.ignoresSafeArea(.keyboard)` opt-out, so it reads that inflated
-        // bottom safe area and floats upward — the reported symptom. Same
-        // failure class as the offscreen-WebView phantom keyboard (8232308a)
-        // and the voice-editor stranded responder (4c530bf4); this closes the
-        // remaining door, the chat→home transition itself.
-        //
-        // Blanket-disabling keyboard avoidance on the home FAB row would be
-        // the wrong fix — its inline search field legitimately needs to rise
-        // with the keyboard. Releasing the responder at the source is correct
-        // and is a no-op when nothing is focused.
-        inputFocused = false
-        let keyWindow = UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .flatMap(\.windows)
-            .first(where: \.isKeyWindow)
-        if let keyWindow, keyWindow.endEditing(true) {
-            AppLogger(category: "InputBarLayout").info("chat onDisappear — released a lingering first responder (would have left a phantom keyboard inset on the window)")
-        }
-        // Capsule auto-shows whenever audio is loaded — no manual activation needed.
-        minisLogger.info("🔑DRAFT AIChatView.onDisappear vm=\(vm.vmInstanceId) sessionId=\(sessionId ?? "nil") draftId=\(draftId ?? "nil") vm.sessionId=\(vm.sessionId ?? "nil") vm.isProcessing=\(vm.isProcessing)")
-    }
-    // [T-voice-bg-fg-gap] Structural immunity: while the voice panel is up
-    // and the transcript editor is NOT open, there is no legitimate keyboard
-    // in this subtree — so ignore the keyboard safe-area entirely in that
-    // state. Device log 2026-07-17 12:12 showed the panel shifting from
-    // y=686…778 to y=638…730 (exactly 48pt, the keyboard-accessory height)
-    // during the didEnterBackground layout pass: iOS re-asserted a keyboard
-    // inset while snapshotting, the app suspended before the matching hide
-    // was processed, and no keyboard event fires on foreground return — the
-    // zombie inset persisted and the panel floated (the reported bottom
-    // gap). Ignoring the keyboard edge in this state makes ANY such stale
-    // inset harmless; edit mode (edges: []) keeps normal avoidance so the
-    // panel still lifts above the keyboard while editing, and text mode is
-    // untouched.
-    .ignoresSafeArea(
-        .keyboard,
-        edges: (voiceInputActive && !voiceVM.isEditingTranscript) ? .bottom : []
-    )
-    .onChange(of: scenePhase) { phase in
-        if phase == .active {
-            // [T-voice-inputbar-fg-stale-debounce] iOS changes safe area
-            // insets while backgrounded, causing onGeometryChange to fire
-            // with shifted geometry. That measurement spawns a debounce
-            // Task carrying stale height. Cancel it so the stale value
-            // never lands. The post-foreground onGeometryChange re-fires
-            // with the correct geometry and enters a fresh debounce.
-            // NOTE: do NOT reset didSeedInputBarHeight here. The seed path
-            // is synchronous (no debounce) so it would capture a mid-
-            // animation frame if the panel is expanding/collapsing when the
-            // app returns to foreground — the debounce path is the correct
-            // one for an already-visible view.
-            inputBarHeightDebounce?.cancel()
-            inputBarHeightDebounce = nil
-            // [T-voice-inputbar-collapse-selfheal] …EXCEPT when the composer
-            // has stopped reporting geometry altogether, which is the one
-            // state the note above cannot cover.
-            //
-            // Device 2026-08-18 01:29 (iPhone 17 Pro, no lock, no manual app
-            // switch): a transcript landed and collapsed the panel band in a
-            // single frame (transcriptContentHeight 262→42, an intermediate
-            // panel frame reaching y=1119 on an 874pt window). The system
-            // then drove six inactive↔active cycles in 20s on its own
-            // (snapshot / audio-session interruption right after
-            // `end(.capture)`), each logging `hadResponder=true`. After
-            // `inputBarHeight settled=282.0` at 01:29:15.597 the composer's
-            // onGeometryChange NEVER fired again: its SwiftUI host survived
-            // with alpha=1 and zero subviews (confirmed live via
-            // debug.viewTree — FloatingBarHostingView nkids=0), so the whole
-            // bottom of the screen was empty black with no input bar.
-            //
-            // Nothing could wake it: this subtree deliberately ignores the
-            // keyboard safe area while the voice panel is up
-            // ([T-voice-bg-fg-gap], see the .ignoresSafeArea above), so the
-            // inset churn that would normally force a re-layout is filtered
-            // out by design, and onGeometryChange is the ONLY writer of
-            // inputBarHeight. The user's own workaround — leave the session
-            // and re-enter — worked precisely because `.onAppear` re-arms
-            // the seed ([T-inputbar-stale-across-reentry]); this is that
-            // same recovery, applied without making the user find it.
-            //
-            // Re-arm only when the composer is provably not reporting: the
-            // last on-screen sample disagrees with the committed height, or
-            // no sample was ever recorded. In the healthy case both values
-            // match and this is a no-op, so the mid-animation hazard the
-            // note above warns about is not reintroduced — a re-seed can
-            // only happen where the alternative is a permanently wrong (or
-            // missing) bar.
-            let committedH = inputBarHeight
-            let latestH = latestInputBarFrameH
-            let sinceReport = inputBarLastGeometryAt.map { CFAbsoluteTimeGetCurrent() - $0 } ?? -1
-            if didSeedInputBarHeight,
-               latestH <= 0 || abs(latestH - committedH) > 0.5 {
-                didSeedInputBarHeight = false
-                AppLogger(category: "InputBarLayout").info("[voice-bgfg] scene active — composer geometry stale (committed=\(committedH) latest=\(latestH) lastReport=\(String(format: "%.1f", sinceReport))s ago); re-arming seed so the next callback re-measures")
-            }
-
-            // [T-voice-inputbar-collapse-selfheal] Re-arming only makes the
-            // seed ELIGIBLE to fire; it cannot make a host that has stopped
-            // reporting geometry start again. In the observed failure that
-            // host had zero subviews and emitted nothing for minutes, so
-            // verify the wake-up actually happened and say so loudly when it
-            // did not — this is the line that tells the next investigation
-            // "the self-heal ran and was not enough" instead of leaving them
-            // to re-derive it from a silent log.
-            inputBarHealthProbe?.cancel()
-            let probeBaseline = inputBarGeometryTick
-            inputBarHealthProbe = Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 900_000_000)
-                guard !Task.isCancelled else { return }
-                let ticked = inputBarGeometryTick != probeBaseline
-                let age = inputBarLastGeometryAt.map { CFAbsoluteTimeGetCurrent() - $0 } ?? -1
-                if ticked {
-                    AppLogger(category: "InputBarLayout").info("[InputBarHealth] OK after foreground — composer re-reported geometry (h=\(latestInputBarFrameH) committed=\(inputBarHeight))")
-                } else {
-                    AppLogger(category: "InputBarLayout").error("[InputBarHealth] STALLED — no geometry callback 900ms after foreground. committed=\(inputBarHeight) latest=\(latestInputBarFrameH) lastReport=\(String(format: "%.1f", age))s ago voice=\(voiceInputActive) editing=\(voiceVM.isEditingTranscript) seeded=\(didSeedInputBarHeight). The composer host is not laying out; expect a blank bottom area. Leaving and re-entering the session rebuilds it.")
-                    nmComposer.stalled() // nanoMuse: the rebuild upstream only describes — if the host really is gone, NanoMuseComposerWatch re-creates it
-                }
-            }
-            nmComposer.sceneActive() // nanoMuse: and a plain check a beat after every foreground
-            // [T-voice-bg-fg-gap] Foreground reseal: if we return to a
-            // voice-mode-not-editing state, no responder should be armed.
-            // Releasing here is a no-op when nothing is focused and clears
-            // any responder UIKit resurrected during the background pass.
-            if voiceInputActive && !voiceVM.isEditingTranscript {
-                let keyWindow = UIApplication.shared.connectedScenes
-                    .compactMap { $0 as? UIWindowScene }
-                    .flatMap(\.windows)
-                    .first(where: \.isKeyWindow)
-                if let keyWindow, keyWindow.endEditing(true) {
-                    AppLogger(category: "InputBarLayout").info("[voice-bgfg] scene active — released a resurrected responder (voice mode, not editing)")
-                }
-            }
-        }
-        if phase != .active, voiceInputActive, !voiceVM.isEditingTranscript {
-            // [T-voice-bg-fg-gap] Complete any in-flight keyboard dismissal
-            // BEFORE the snapshot/suspend layout pass — but ONLY in the
-            // voice-mode-not-editing state, where no responder is ever
-            // legitimate (text mode keeps its focused composer across app
-            // switches; edit mode keeps its editor keyboard — resigning
-            // those would be a visible regression). If the edit→send
-            // teardown's dismiss animation is still running when the app
-            // backgrounds, iOS can freeze the window mid-dismissal with a
-            // partial keyboard inset that survives into the next foreground.
-            // Synchronous resign + no-animation layout guarantees the window
-            // geometry is final before UIKit snapshots it.
-            let keyWindow = UIApplication.shared.connectedScenes
-                .compactMap { $0 as? UIWindowScene }
-                .flatMap(\.windows)
-                .first(where: \.isKeyWindow)
-            if let keyWindow {
-                let hadResponder = keyWindow.endEditing(true)
-                UIView.performWithoutAnimation { keyWindow.layoutIfNeeded() }
-                AppLogger(category: "InputBarLayout").info("[voice-bgfg] scene \(phase == .inactive ? "inactive" : "background") — forced keyboard-dismiss completion (hadResponder=\(hadResponder)) voice=\(voiceInputActive) editing=\(voiceVM.isEditingTranscript)")
-            }
-        }
-        if phase != .active, speechManager.state == .recording {
-            speechManager.stopRecording()
-        }
-    }
-    .onChange(of: deepLink.showTerminal) { show in
-        if show {
-            terminalInitCommand = deepLink.terminalInitCommand
-            showTerminal = true
-            deepLink.showTerminal = false
-            deepLink.terminalInitCommand = nil
-        }
-    }
-    // [T-ios-voiceover-announce] Announce the end of a turn to VoiceOver.
-    // Deliberately a SEPARATE observer from the auto-focus handler below:
-    // that one returns early when the auto-focus setting is off, and a
-    // blind user must still hear that the reply ended regardless of an
-    // unrelated keyboard preference. The outcome closure is evaluated at
-    // the end edge so it sees the final cancel/error state.
-    .announceChatTurnEnd(isProcessing: vm.isProcessing) {
-        if vm.userDidCancel { return .stopped }
-        if vm.errorMessage != nil { return .failed }
-        return .finished
-    }
-    .onChange(of: vm.isProcessing) { processing in
-        if !processing {
-            // Reply reading is handled INCREMENTALLY during streaming (the
-            // SSE loop splits into sentences/titles + tool announcements and
-            // queues them as they arrive — see speakQueued/extractNewSentences).
-            // No whole-reply speak here; that would double-read everything.
-            // [T-keyboard-auto-pop default flip] Gate behind a Settings
-            // toggle. Default ON — most users want the composer ready
-            // for a follow-up immediately. `object(forKey:)` lets us
-            // distinguish "never toggled" (nil → use new ON default)
-            // from "explicitly set OFF" (NSNumber(false) → respect).
-            // Existing length-based skip is still applied so very long
-            // replies still don't trigger the auto-focus.
-            let autoFocusEnabled = (UserDefaults.standard.object(forKey: "chat.autoFocusAfterReply") as? Bool) ?? true
-            guard autoFocusEnabled else { return }
-            // [T-ios-retry-keyboard] Don't treat the end of a RETRIED turn
-            // as "a reply arrived".
-            //
-            // Trigger chain being cut: the user taps Retry on a failure from
-            // a while back -> retry() sets isProcessing=true -> the re-sent
-            // request fails fast (kernel down, no concurrency slot, or an
-            // immediate provider error) -> isProcessing flips back to false
-            // -> this observer fires. The edge is indistinguishable from a
-            // successful reply, and the delayed block's guards now all pass
-            // (the user IS looking at the chat, nothing is queued, and the
-            // errored message is short so the <600 length check succeeds) —
-            // so the keyboard rises seconds after a tap that only meant
-            // "try that again".
-            //
-            // Scoped to the turn's ORIGIN, not its outcome: auto-focus when
-            // a fresh send fails is existing, accepted behaviour and is
-            // deliberately left alone. Consumed (not just read) so it
-            // governs exactly one turn.
-            let wasRetry = vm.turnStartedByRetry
-            vm.turnStartedByRetry = false
-            guard !wasRetry else { return }
-            if GCKeyboard.coalesced != nil {
-                inputFocused = true
-            } else {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                    guard !hasOverlayPresented, isChatViewVisible else { return }
-                    guard !vm.isProcessing, vm.promptQueue.isEmpty else { return }
-                    // Re-check: a retry started during the 1.5s window would
-                    // otherwise be focused by this older timer.
-                    guard !vm.turnStartedByRetry else { return }
-                    let lastAssistantLength = vm.messages.last.flatMap {
-                        $0.role == .assistant ? $0.blocks.reduce(0) { $0 + $1.content.count } : nil
-                    } ?? 0
-                    if lastAssistantLength < 600 {
-                        inputFocused = true
-                    }
-                }
-            }
-        }
     }
 
     // MARK: - Home Screen Quick Actions
@@ -2859,7 +2838,7 @@ struct AIChatView: View {
                 // layout and trips a precondition on the iOS 18 async renderer
                 // (ViewGraphGeometryObservers.needsUpdate SIGTRAP). The action
                 // also fires with the initial value, covering the old onAppear.
-                .onGeometryChangeBackport(for: CGFloat.self) { proxy in
+                .onGeometryChange(for: CGFloat.self) { proxy in
                     proxy.size.height
                 } action: { newH in
                     floatingBarHeight = newH
@@ -3905,7 +3884,7 @@ struct AIChatView: View {
             // floating-bar site). Fires with the initial value too, so the
             // old onAppear seeding AND its diagnostic log are preserved as
             // a single unified line.
-            .onGeometryChangeBackport(for: CGRect.self) { proxy in
+            .onGeometryChange(for: CGRect.self) { proxy in
                 proxy.frame(in: .global)
             } action: { frame in
                 let newH = frame.size.height
@@ -4852,6 +4831,10 @@ private struct ComposerSurface: ViewModifier {
             content // nanoMuse:
                 .background(shape.fill(NanoMuseTones.bubble)) // nanoMuse:
                 .clipShape(shape) // nanoMuse:
+        } else if #available(iOS 26.0, *) {
+            content
+                .glassEffect(.regular, in: shape)
+                .clipShape(shape)
         } else {
             content
                 .background(shape.fill(ChatColors.inputBg))
@@ -5051,7 +5034,7 @@ private struct NavBarStyleModifier: ViewModifier {
                     // stay outside it exactly as before, and the action's
                     // initial fire covers the old onAppear seed.
                     Color.clear
-                        .onGeometryChangeBackport(for: CGFloat.self) { proxy in
+                        .onGeometryChange(for: CGFloat.self) { proxy in
                             proxy.safeAreaInsets.top
                         } action: { topSafeAreaInset = $0 }
                         .ignoresSafeArea()

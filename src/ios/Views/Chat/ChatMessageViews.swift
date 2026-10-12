@@ -447,7 +447,7 @@ struct ChatMessageRow: View {
                         Label("Compact Above", systemImage: "arrow.down.right.and.arrow.up.left")
                     }
                 }
-            }
+            })
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 4)
@@ -716,7 +716,7 @@ struct ChatMessageRow: View {
                 } label: {
                     Label(AppLocalized("Copy Error"), systemImage: "doc.on.doc")
                 }
-            }
+            })
 
             Spacer()
 
