@@ -69,7 +69,7 @@ struct ConfigConfirmSheet: View {
                         confirmSheetLogger.info("tap primary pending=\(change.id) items=\(workingItems.count) approved=\(approvedCount)")
                         gate.userApprove(items: workingItems)
                     }
-                    .bold()
+
                     .disabled(workingItems.isEmpty)
                 }
             }
@@ -122,7 +122,7 @@ private struct ConfigConfirmRow: View {
                         .foregroundStyle(item.risk == .destructive ? .red
                                          : item.risk == .sensitive ? .orange
                                          : .primary)
-                        .fontWeight(.medium)
+
                 }
             }
             .font(.system(.footnote, design: .monospaced))

@@ -2838,7 +2838,7 @@ struct AIChatView: View {
                 // layout and trips a precondition on the iOS 18 async renderer
                 // (ViewGraphGeometryObservers.needsUpdate SIGTRAP). The action
                 // also fires with the initial value, covering the old onAppear.
-                .onGeometryChange(for: CGFloat.self) { proxy in
+                .onGeometryChangeBackport(for: CGFloat.self) { proxy in
                     proxy.size.height
                 } action: { newH in
                     floatingBarHeight = newH
@@ -3884,7 +3884,7 @@ struct AIChatView: View {
             // floating-bar site). Fires with the initial value too, so the
             // old onAppear seeding AND its diagnostic log are preserved as
             // a single unified line.
-            .onGeometryChange(for: CGRect.self) { proxy in
+            .onGeometryChangeBackport(for: CGRect.self) { proxy in
                 proxy.frame(in: .global)
             } action: { frame in
                 let newH = frame.size.height
@@ -4831,10 +4831,6 @@ private struct ComposerSurface: ViewModifier {
             content // nanoMuse:
                 .background(shape.fill(NanoMuseTones.bubble)) // nanoMuse:
                 .clipShape(shape) // nanoMuse:
-        } else if #available(iOS 26.0, *) {
-            content
-                .glassEffect(.regular, in: shape)
-                .clipShape(shape)
         } else {
             content
                 .background(shape.fill(ChatColors.inputBg))
@@ -5034,7 +5030,7 @@ private struct NavBarStyleModifier: ViewModifier {
                     // stay outside it exactly as before, and the action's
                     // initial fire covers the old onAppear seed.
                     Color.clear
-                        .onGeometryChange(for: CGFloat.self) { proxy in
+                        .onGeometryChangeBackport(for: CGFloat.self) { proxy in
                             proxy.safeAreaInsets.top
                         } action: { topSafeAreaInset = $0 }
                         .ignoresSafeArea()

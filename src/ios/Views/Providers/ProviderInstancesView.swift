@@ -254,8 +254,8 @@ struct ProviderInstancesView: View {
 
     @ToolbarContentBuilder
     private var instancesToolbar: some ToolbarContent {
-        if !store.instances.isEmpty {
-            ToolbarItem(placement: .topBarLeading) {
+        ToolbarItem(placement: .topBarLeading) {
+            if !store.instances.isEmpty {
                 EditButton()
             }
         }

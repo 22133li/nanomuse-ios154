@@ -1793,7 +1793,7 @@ struct BackgroundInterruptionBanner: View {
         .padding(.top, 4)
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color.orange.gradient)
+                .fill(LinearGradient(colors: [Color.orange, Color.orange.opacity(0.75)], startPoint: .top, endPoint: .bottom)) // iOS 15 backport: ShapeStyle.gradient is iOS 16+
                 .shadow(color: .black.opacity(0.15), radius: 8, y: 4)
         )
         .padding(.horizontal, 12)

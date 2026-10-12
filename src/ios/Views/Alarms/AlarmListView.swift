@@ -120,20 +120,8 @@ class AlarmListViewModel: ObservableObject {
 
     @available(iOS 26.0, *)
     private func _loadImpl() {
-        AlarmOffloadBridge.listAlarms { [weak self] arr, err in
-            DispatchQueue.main.async {
-                self?.isLoading = false
-                if let err {
-                    self?.error = err.localizedDescription
-                    return
-                }
-                guard let dicts = arr as? [[String: Any]] else {
-                    self?.alarms = []
-                    return
-                }
-                self?.alarms = dicts.map { AlarmItem(dict: $0) }
-            }
-        }
+        // iOS 15 backport: stubbed (AlarmKit not in SDK; see 1.14 reference)
+        isLoading = false
     }
 
     func delete(id: String) {
@@ -144,7 +132,7 @@ class AlarmListViewModel: ObservableObject {
 
     @available(iOS 26.0, *)
     private func _cancelImpl(id: String) {
-        AlarmOffloadBridge.cancelAlarm(withId: id) { _, _ in }
+        // iOS 15 backport: stubbed (AlarmKit not in SDK)
     }
 
     func clearAll() {
@@ -156,9 +144,7 @@ class AlarmListViewModel: ObservableObject {
 
     @available(iOS 26.0, *)
     private func _clearAllImpl(ids: [String]) {
-        for id in ids {
-            AlarmOffloadBridge.cancelAlarm(withId: id) { _, _ in }
-        }
+        // iOS 15 backport: stubbed (AlarmKit not in SDK)
     }
 
     /// Group alarms by week for sectioned display.
