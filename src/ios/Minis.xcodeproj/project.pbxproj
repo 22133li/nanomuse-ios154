@@ -239,7 +239,7 @@
 		E5FMI0001 /* FileMentionIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5FMI0011 /* FileMentionIndex.swift */; };
 		E5FP00001 /* FileProviderExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5FP00011 /* FileProviderExtension.swift */; };
 		E5FP00002 /* FileProviderEnumerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5FP00012 /* FileProviderEnumerator.swift */; };
-		E5FP00004 /* FileProviderBootHealth.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5FP00014 /* FileProviderBootHealth.swift */; };
+		E5FP00004 /* FileProviderBootHealth.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5FP00016 /* FileProviderBootHealth.swift */; };
 		E5FP00003 /* FileProviderItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5FP00013 /* FileProviderItem.swift */; };
 		E5FP00009 /* MinisFileProvider.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = E5FP00010 /* MinisFileProvider.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		E5FP00100 /* AppGroupChangeWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5FP00101 /* AppGroupChangeWatcher.swift */; };
@@ -899,7 +899,7 @@
 		E5FP00010 /* MinisFileProvider.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MinisFileProvider.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		E5FP00011 /* FileProviderExtension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileProviderExtension.swift; sourceTree = "<group>"; };
 		E5FP00012 /* FileProviderEnumerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileProviderEnumerator.swift; sourceTree = "<group>"; };
-		E5FP00014 /* FileProviderBootHealth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileProviderBootHealth.swift; sourceTree = "<group>"; };
+		E5FP00016 /* FileProviderBootHealth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileProviderBootHealth.swift; sourceTree = "<group>"; };
 		E5FP00013 /* FileProviderItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileProviderItem.swift; sourceTree = "<group>"; };
 		E5FP00014 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		E5FP00015 /* FileProvider.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FileProvider.entitlements; sourceTree = "<group>"; };
@@ -1825,7 +1825,7 @@
 			children = (
 				E5FP00011 /* FileProviderExtension.swift */,
 				E5FP00012 /* FileProviderEnumerator.swift */,
-				E5FP00014 /* FileProviderBootHealth.swift */,
+				E5FP00016 /* FileProviderBootHealth.swift */,
 				E5FP00013 /* FileProviderItem.swift */,
 				E5FP00014 /* Info.plist */,
 				E5FP00015 /* FileProvider.entitlements */,
