@@ -274,9 +274,17 @@ extension AIChatViewModel {
     /// to iOS Files (mounted-folders.json, FileProvider extension logs, etc).
     /// Sibling of `minisAppGroupRoot` inside the same App Group container.
     nonisolated static var minisConfigRoot: URL {
-        let url = FileManager.default.containerURL(
+        // iOS 15.4 sideload: App Group container may be nil (no entitlement).
+        // Fall back to Library so the app doesn't crash on launch.
+        let base: URL
+        if let container = FileManager.default.containerURL(
             forSecurityApplicationGroupIdentifier: SharedContainerStore.appGroupID
-        )!.appendingPathComponent("MinisConfig", isDirectory: true)
+        ) {
+            base = container
+        } else {
+            base = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first!
+        }
+        let url = base.appendingPathComponent("MinisConfig", isDirectory: true)
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
     }
