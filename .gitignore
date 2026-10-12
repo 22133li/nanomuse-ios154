@@ -1,0 +1,6 @@
+build/
+DerivedData/
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+src/ios/Configs/ProviderCustomization.xcconfig
+.DS_Store
