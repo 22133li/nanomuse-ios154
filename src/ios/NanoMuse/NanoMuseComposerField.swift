@@ -95,6 +95,11 @@ struct NanoMuseComposerField: View {
                 .font(font)
                 .foregroundStyle(ChatColors.primaryText)
                 .lineLimit(lineCap)
+                .onAppear {
+                    // iOS 15: TextEditor wraps a UITextView with an opaque background
+                    // (black in dark mode), which clashes with the pill. Clear it.
+                    UITextView.appearance().backgroundColor = .clear
+                }
             if text.isEmpty {
                 Text(placeholder)
                     .foregroundColor(.secondary)

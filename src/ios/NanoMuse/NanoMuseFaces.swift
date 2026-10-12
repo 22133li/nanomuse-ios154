@@ -505,8 +505,12 @@ enum NanoMuseLocale {
     /// The BCP-47 tag of the language the screens show right now (`zh-Hans`, `en`, `ja`): the
     /// in-app override wins, else the system's first preferred language.
     static var tag: String {
-        AppBundle.current.preferredLocalizations.first
-            ?? Locale.preferredLanguages.first ?? "en"
+        // In-app override first (Settings → Language).
+        let override = UserDefaults.standard.string(forKey: "appLanguage") ?? ""
+        if !override.isEmpty { return override }
+        // System language. Locale.preferredLanguages is more reliable than
+        // Bundle.preferredLocalizations on iOS 15.
+        return Locale.preferredLanguages.first ?? "en"
     }
 
     static var isChinese: Bool {
