@@ -38,6 +38,8 @@ struct NanoMuseWaysList: View {
 
     @Environment(\.openURL) private var openURL
     @State private var more = false
+    // iOS 15 backport: ShareLink is iOS 16+; Button + NanoMuseShareSheet instead.
+    @State private var showShare = false
 
     private var chinese: Bool { NanoMuseCatalogue.chinese }
     private var mainland: Bool { NanoMuseRegion.isMainland }
@@ -140,8 +142,6 @@ struct NanoMuseAllowanceCard: View {
     var onDismiss: () -> Void
 
     @State private var pick: NanoMuseVendorPick?
-    // iOS 15 backport: ShareLink is iOS 16+; Button + NanoMuseShareSheet instead.
-    @State private var showShare = false
 
     private var ways: NanoMuseWays {
         NanoMuseWays.resolve(guidance: refused.facts.guidance ?? NanoMuseAllowance.storedGuidance(), catalogue: NanoMuseCatalogue.bundled, mainland: NanoMuseRegion.isMainland, chinese: NanoMuseCatalogue.chinese)

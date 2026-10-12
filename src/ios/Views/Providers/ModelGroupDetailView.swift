@@ -349,7 +349,6 @@ struct ModelGroupDetailView: View {
                 }
             }
         }
-        .scrollDismissesKeyboard(.interactively)
         .environment(\.editMode, $editMode)
         .sheet(isPresented: $showAddModels) {
             NavigationView {

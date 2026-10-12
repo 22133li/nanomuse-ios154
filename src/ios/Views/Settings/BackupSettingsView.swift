@@ -308,21 +308,11 @@ struct BackupSettingsView: View {
                 // instead of producing one.
                 .disabled(!runController.isRunning
                           && (selected.isEmpty || !passphraseValid || !hasDestination))
-                // List aligns a row's separator to its first Text's leading
-                // edge. These rows centre their content, so the text starts
-                // mid-row and the separator under "Exporting sessions…" only
-                // spanned the middle of the card (user report: the divider
-                // above Stop Backup looked broken). Pin it to the row's
-                // leading edge so it runs the full card width.
-                .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
 
                 // A disabled button with no explanation is a dead end — say
                 // which requirement is unmet rather than leaving the user to
                 // guess why nothing happens when they tap.
                 if !isExporting {
-                    // Same centred-row separator fix as the buttons above:
-                    // without the guide these hint rows inherit a mid-card
-                    // separator start.
                     if !hasDestination {
                         // First, because it is the requirement a new user is
                         // most likely to be missing — the categories arrive
@@ -332,28 +322,24 @@ struct BackupSettingsView: View {
                             .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity)
                             .multilineTextAlignment(.center)
-                            .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
                     } else if selected.isEmpty {
                         Text("Choose at least one thing to include.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity)
                             .multilineTextAlignment(.center)
-                            .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
                     } else if encryptBackup && passphrase.isEmpty {
                         Text("Set a passphrase to encrypt this backup.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity)
                             .multilineTextAlignment(.center)
-                            .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
                     } else if encryptBackup && passphrase != confirmPassphrase {
                         Text("Confirm the passphrase to continue.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity)
                             .multilineTextAlignment(.center)
-                            .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
                     }
                 }
 

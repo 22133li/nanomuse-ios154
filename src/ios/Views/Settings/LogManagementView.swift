@@ -175,9 +175,9 @@ struct LogManagementView: View {
                 }
             }
         }
-        .toolbar {
-            if !vm.logFiles.isEmpty && tab == "logs" {
-                ToolbarItem(placement: .topBarTrailing) {
+        .navigationBarItems(trailing:
+            Group {
+                if !vm.logFiles.isEmpty && tab == "logs" {
                     Button {
                         showShareSheet = true
                     } label: {
@@ -185,7 +185,7 @@ struct LogManagementView: View {
                     }
                 }
             }
-        }
+        )
         .sheet(isPresented: $showShareSheet) {
             LogShareSheet(urls: vm.logFiles.map(\.url))
         }
@@ -242,13 +242,13 @@ struct LogDetailView: View {
     }
 }
 
-// MARK: - UITextView wrapper (TextKit 2 lazy layout)
+// MARK: - UITextView wrapper
 
 private struct LogTextView: UIViewRepresentable {
     let text: String
 
     func makeUIView(context: Context) -> UITextView {
-        let textView = UITextView(usingTextLayoutManager: true)
+        let textView = UITextView()  // iOS 15 backport: TextKit 1
         textView.isEditable = false
         textView.isSelectable = true
         textView.backgroundColor = .clear

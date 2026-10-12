@@ -45,6 +45,10 @@
 		AADDA9E12F6ECCF400B66649 /* ThumbnailCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = AADDA9E02F6ECCF400B66649 /* ThumbnailCache.swift */; };
 		E5PHP0002 /* NanoMusePHPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5PHP0001 /* NanoMusePHPicker.swift */; };
 		E5LCB0002 /* LabeledContentBackport.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5LCB0001 /* LabeledContentBackport.swift */; };
+		E5SCH0002 /* ShortcutHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5SCH0001 /* ShortcutHelpers.swift */; };
+		E5INN0002 /* IntentNotificationNames.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5INN0001 /* IntentNotificationNames.swift */; };
+		E5GEO0002 /* GeometryChangeBackport.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5GEO0001 /* GeometryChangeBackport.swift */; };
+		E5SHP0002 /* ShapeBackport.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5SHP0001 /* ShapeBackport.swift */; };
 		E5BP0008 /* LocalizedStringResourceBackport.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5BP0007 /* LocalizedStringResourceBackport.swift */; };
 		E5VSN0002 /* ViewSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5VSN0001 /* ViewSnapshot.swift */; };
 		AAF00F012F50A00000049557 /* FFmpeg.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAF00F002F50A00000049557 /* FFmpeg.framework */; };
@@ -706,6 +710,10 @@
 		AADDA9E02F6ECCF400B66649 /* ThumbnailCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThumbnailCache.swift; sourceTree = "<group>"; };
 		E5PHP0001 /* NanoMusePHPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NanoMusePHPicker.swift; sourceTree = "<group>"; };
 		E5LCB0001 /* LabeledContentBackport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabeledContentBackport.swift; sourceTree = "<group>"; };
+		E5SCH0001 /* ShortcutHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutHelpers.swift; sourceTree = "<group>"; };
+		E5INN0001 /* IntentNotificationNames.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentNotificationNames.swift; sourceTree = "<group>"; };
+		E5GEO0001 /* GeometryChangeBackport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeometryChangeBackport.swift; sourceTree = "<group>"; };
+		E5SHP0001 /* ShapeBackport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShapeBackport.swift; sourceTree = "<group>"; };
 		E5BP0007 /* LocalizedStringResourceBackport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizedStringResourceBackport.swift; sourceTree = "<group>"; };
 		E5VSN0001 /* ViewSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewSnapshot.swift; sourceTree = "<group>"; };
 		AAF00F002F50A00000049557 /* FFmpeg.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = FFmpeg.framework; path = ../../deps/frameworks/FFmpeg.framework; sourceTree = "<group>"; };
@@ -1817,6 +1825,10 @@
 				AADDA9E02F6ECCF400B66649 /* ThumbnailCache.swift */,
 				E5PHP0001 /* NanoMusePHPicker.swift */,
 				E5LCB0001 /* LabeledContentBackport.swift */,
+				E5SCH0001 /* ShortcutHelpers.swift */,
+				E5INN0001 /* IntentNotificationNames.swift */,
+				E5GEO0001 /* GeometryChangeBackport.swift */,
+				E5SHP0001 /* ShapeBackport.swift */,
 				E5BP0007 /* LocalizedStringResourceBackport.swift */,
 				E5VSN0001 /* ViewSnapshot.swift */,
 			);
@@ -2687,6 +2699,10 @@
 				AADDA9E12F6ECCF400B66649 /* ThumbnailCache.swift in Sources */,
 				E5PHP0002 /* NanoMusePHPicker.swift in Sources */,
 				E5LCB0002 /* LabeledContentBackport.swift in Sources */,
+				E5SCH0002 /* ShortcutHelpers.swift in Sources */,
+				E5INN0002 /* IntentNotificationNames.swift in Sources */,
+				E5GEO0002 /* GeometryChangeBackport.swift in Sources */,
+				E5SHP0002 /* ShapeBackport.swift in Sources */,
 				E5BP0008 /* LocalizedStringResourceBackport.swift in Sources */,
 				E5VSN0002 /* ViewSnapshot.swift in Sources */,
 				E51000002 /* ContentView.swift in Sources */,
@@ -2796,12 +2812,6 @@
 				E54100001 /* SessionDataSimulator.swift in Sources */,
 				E54200001 /* MessageListTestView.swift in Sources */,
 				E5V100001 /* MessageListLayout.swift in Sources */,
-				E5T000001 /* SessionEntity.swift in Sources */,
-				E5T000002 /* ListSessionsIntent.swift in Sources */,
-				E5T000003 /* SendPromptIntent.swift in Sources */,
-				E5T0000A1 /* AskMinisIntent.swift in Sources */,
-				E5F200006 /* ModelSelectionEntity.swift in Sources */,
-				E5T000004 /* OpenSessionIntent.swift in Sources */,
 				E5W000031 /* WebAppShortcut.swift in Sources */,
 				EAB000051 /* SyncMigrationDetailView.swift in Sources */,
 				EAB000071 /* UploadPolicy.swift in Sources */,
@@ -2812,14 +2822,7 @@
 				E5W000036 /* WebAppIconCache.swift in Sources */,
 				E5W000037 /* WebAppPathClassifier.swift in Sources */,
 				E5W000038 /* WebAppAddToHomeSheet.swift in Sources */,
-				E5T000005 /* MinisShortcutsProvider.swift in Sources */,
-				E5T000006 /* SendPromptResult.swift in Sources */,
-				E5T000007 /* GetSessionStatusIntent.swift in Sources */,
-				E5T000008 /* QuickTaskIntent.swift in Sources */,
-				E5T000009 /* FollowUpSessionIntent.swift in Sources */,
 				E5SD00009 /* ShortcutRunTracker.swift in Sources */,
-				E5T00000A /* RetryRunIntent.swift in Sources */,
-				E5T00000B /* UserMessageEntity.swift in Sources */,
 				E5F000001 /* ISHExecutionCoordinator.swift in Sources */,
 				E5F000002 /* MinisFsRouter.swift in Sources */,
 				E5CR00001 /* ShellCommandRingBuffer.swift in Sources */,
@@ -2960,7 +2963,6 @@
 				E5G000002 /* AgentLiveActivityManager.swift in Sources */,
 				E5G000003 /* EnhancedBackgroundSettingsView.swift in Sources */,
 				E5G000004 /* AgentActivityAttributes.swift in Sources */,
-				E5AT00004 /* AudioTogglePlaybackIntent.swift in Sources */,
 				E5I000001 /* SpeechRecognitionManager.swift in Sources */,
 				E5I000002 /* AudioWaveformView.swift in Sources */,
 				E5J000001 /* LoggingManager.swift in Sources */,
@@ -3143,7 +3145,6 @@
 				E5H000001 /* AgentWidgetBundle.swift in Sources */,
 				E5H000002 /* AgentLiveActivityWidget.swift in Sources */,
 				E5H000003 /* AgentActivityAttributes.swift in Sources */,
-				E5AT00003 /* AudioTogglePlaybackIntent.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

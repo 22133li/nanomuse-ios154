@@ -178,8 +178,15 @@ final class NanoMuseOwnClip: ObservableObject {
         let generator = AVAssetImageGenerator(asset: AVURLAsset(url: url))
         generator.appliesPreferredTrackTransform = true
         generator.maximumSize = CGSize(width: 512, height: 512)
-        guard let result = try? await generator.image(at: .zero) else { return nil }
-        return UIImage(cgImage: result.image)
+        // iOS 15 backport: AVAssetImageGenerator.image(at:) is iOS 16+;
+        // generateCGImageAsynchronously is the old API.
+        guard let cgImage = try? await withCheckedThrowingContinuation({ (cont: CheckedContinuation<CGImage, Error>) in
+            generator.generateCGImageAsynchronously(forTime: .zero) { cgImage, _, error in
+                if let cgImage { cont.resume(returning: cgImage) }
+                else { cont.resume(throwing: error ?? NSError(domain: "NanoMuseOwnClip", code: -1)) }
+            }
+        }) else { return nil }
+        return UIImage(cgImage: cgImage)
     }
 
     /// The whole import: a look first, and a clip the rule refuses never reaches the avatar

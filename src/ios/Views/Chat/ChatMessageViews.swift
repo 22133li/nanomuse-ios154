@@ -95,14 +95,7 @@ private struct ContextMenuPreviewSurface: ViewModifier {
     }
 
     func body(content: Content) -> some View {
-        if #available(iOS 26.0, *) {
-            content
-                // Opaque floor first — see the note above.
-                .background(shape.fill(ChatColors.background))
-                .glassEffect(.regular, in: shape)
-        } else {
-            content.background(ChatColors.background)
-        }
+        content.background(ChatColors.background)
     }
 }
 
@@ -149,8 +142,6 @@ private struct UserBubbleSurface: ViewModifier {
                 )
         } else if NanoMuseShellPrefs.shell { // nanoMuse: Muse's user pill: the ink colour, black in light and white in dark, 18 pt, no glass (Android: ChatColors.userBubble)
             content.background(shape.fill(NanoMuseTones.ink)) // nanoMuse:
-        } else if #available(iOS 26.0, *) {
-            content.glassEffect(.regular, in: shape)
         } else {
             content.background(shape.fill(ChatColors.userBubble))
         }
@@ -412,7 +403,6 @@ struct ChatMessageRow: View {
             // otherwise the lifted preview shows square corners while the bubble
             // is RoundedRectangle(cornerRadius: 18). iOS 16+ lets us specify the
             // preview clip shape independently from the interaction shape.
-            .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: 18))
             .contextMenu {
                 Button {
                     UIPasteboard.general.string = message.content
@@ -583,7 +573,7 @@ struct ChatMessageRow: View {
         // (ViewGraphGeometryObservers.needsUpdate SIGTRAP). onGeometryChange
         // measures the same row bounds the background GeometryReader did,
         // and its initial fire covers the old onAppear seed.
-        .onGeometryChange(for: CGRect.self) { proxy in
+        .onGeometryChangeBackport(for: CGRect.self) { proxy in
             proxy.frame(in: .global)
         } action: { rowFrameInWindow = $0 }
         .background {

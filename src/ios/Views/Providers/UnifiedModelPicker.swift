@@ -606,22 +606,28 @@ struct UnifiedModelPicker: View {
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
-        if isMulti {
-            ToolbarItem(placement: .topBarLeading) {
-                Button("Cancel") { dismiss() }
+        ToolbarItem(placement: .navigationBarLeading) {
+            Button("Cancel") { dismiss() }
+                .opacity(isMulti ? 1 : 0)
+                .disabled(!isMulti)
+        }
+        ToolbarItem(placement: .navigationBarTrailing) {
+            multiDoneButton
+        }
+    }
+
+    private var multiDoneButton: some View {
+        ZStack {
+            Button("Add (\(selectedEntryIds.count))") {
+                config.onAddMulti?(selectedEntryIds)
+                dismiss()
             }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("Add (\(selectedEntryIds.count))") {
-                    config.onAddMulti?(selectedEntryIds)
-                    dismiss()
-                }
-                .font(.body.weight(.semibold))
-                .disabled(selectedEntryIds.isEmpty)
-            }
-        } else {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("Done") { dismiss() }
-            }
+            .font(.body.weight(.semibold))
+            .disabled(selectedEntryIds.isEmpty)
+            .opacity(isMulti ? 1 : 0)
+            Button("Done") { dismiss() }
+                .opacity(isMulti ? 0 : 1)
+                .disabled(isMulti)
         }
     }
 

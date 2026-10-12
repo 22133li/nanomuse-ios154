@@ -216,16 +216,11 @@ private let folderEdgeHighlight = Color(UIColor { traits in
 /// over a separately-drawn shape.
 private struct SearchBarSurface: ViewModifier {
     func body(content: Content) -> some View {
-        if #available(iOS 26.0, *) {
-            // No .clipShape needed — glassEffect(in:) already clips to the
-            // capsule, and no .shadow: the material carries its own.
-            content.glassEffect(.regular, in: .capsule)
-        } else {
-            content
-                .background(Color(UIColor.secondarySystemBackground))
-                .clipShape(Capsule())
-                .shadow(color: .black.opacity(0.1), radius: 6, x: 0, y: 2)
-        }
+        // iOS 15 backport: glassEffect is iOS 26+; opaque capsule + shadow only.
+        content
+            .background(Color(UIColor.secondarySystemBackground))
+            .clipShape(Capsule())
+            .shadow(color: .black.opacity(0.1), radius: 6, x: 0, y: 2)
     }
 }
 
@@ -243,11 +238,8 @@ private struct FABGlassMorphID: ViewModifier {
     let namespace: Namespace.ID
 
     func body(content: Content) -> some View {
-        if #available(iOS 26.0, *) {
-            content.glassEffectID("fabSearch", in: namespace)
-        } else {
-            content
-        }
+        // iOS 15 backport: glassEffectID is iOS 26+; no-op.
+        content
     }
 }
 
@@ -286,18 +278,18 @@ private struct FolderSurface: ViewModifier {
             : UIColor(red: 252/255.0, green: 252/255.0, blue: 252/255.0, alpha: 1)
     })
 
-    private var shape: AnyShape {
+    private var shape: BackportAnyShape {
         switch kind {
         case .lone:
-            return AnyShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            return BackportAnyShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         case .top:
-            return AnyShape(UnevenRoundedRectangle(
+            return BackportAnyShape(BackportUnevenRoundedRectangle(
                 topLeadingRadius: 16, bottomLeadingRadius: 0,
                 bottomTrailingRadius: 0, topTrailingRadius: 16, style: .continuous))
         case .middle:
-            return AnyShape(Rectangle())
+            return BackportAnyShape(Rectangle())
         case .bottom:
-            return AnyShape(UnevenRoundedRectangle(
+            return BackportAnyShape(BackportUnevenRoundedRectangle(
                 topLeadingRadius: 0, bottomLeadingRadius: 16,
                 bottomTrailingRadius: 16, topTrailingRadius: 0, style: .continuous))
         }
@@ -366,12 +358,12 @@ private struct FolderCardBackground: ViewModifier {
     let isDropTarget: Bool
     let isExpanded: Bool
 
-    private var dropShape: AnyShape {
+    private var dropShape: BackportAnyShape {
         isExpanded
-            ? AnyShape(UnevenRoundedRectangle(
+            ? BackportAnyShape(BackportUnevenRoundedRectangle(
                 topLeadingRadius: 16, bottomLeadingRadius: 0,
                 bottomTrailingRadius: 0, topTrailingRadius: 16, style: .continuous))
-            : AnyShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            : BackportAnyShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     func body(content: Content) -> some View {
@@ -2858,10 +2850,6 @@ struct ContentView: View {
                                         }
                                     }
                                 }
-                                .background(
-                                    NavigationLink(value: session.id) { EmptyView() }
-                                        .opacity(0)
-                                )
                             .listRowInsets(EdgeInsets())
                             .listRowSeparator(.hidden)
                             .listRowBackground(Group {
@@ -3045,7 +3033,7 @@ struct ContentView: View {
                                             // container's bottom radii so it stays
                                             // wrapped by the corners.
                                             if isSessionHighlighted(session.id) {
-                                                UnevenRoundedRectangle(
+                                                BackportUnevenRoundedRectangle(
                                                     topLeadingRadius: 0,
                                                     bottomLeadingRadius: isLast ? 16 : 0,
                                                     bottomTrailingRadius: isLast ? 16 : 0,
@@ -3087,7 +3075,6 @@ struct ContentView: View {
 
         }
         .listStyle(.plain)
-        .navigationSplitViewColumnWidth(min: 340, ideal: 380, max: 500)
         .opacity(didInitialLoad ? 1 : 0)
         .overlay { if didInitialLoad, displaySessions.isEmpty, !isSearching { emptyState } }
         .overlay(alignment: .top) { folderMiniBarOverlay(scrollProxy) }
@@ -3467,11 +3454,8 @@ struct ContentView: View {
 
     @available(iOS 26.0, *)
     private func _fetchAlarmsImpl() {
-        AlarmOffloadBridge.listAlarms { arr, _ in
-            DispatchQueue.main.async {
-                hasAlarms = (arr?.count ?? 0) > 0
-            }
-        }
+        // iOS 15 backport: stubbed
+        hasAlarms = false
     }
 
     // MARK: - Navigation Helper
@@ -3839,7 +3823,7 @@ struct ContentView: View {
             Section {
                 ForEach(entry.ids, id: \.self) { sessionId in
                     if let session = byId["\(entry.deviceId):\(sessionId)"] {
-                        NavigationLink(value: "remote:\(entry.deviceId):\(session.id)") {
+                        NavigationLink(destination: AIChatView(sessionId: session.id, remoteDeviceId: entry.deviceId)) {
                             RemoteSessionRow(session: session)
                         }
                         .listRowInsets(EdgeInsets())
@@ -4323,50 +4307,10 @@ struct ContentView: View {
         fallbackShadowOpacity: Double,
         @ViewBuilder icon: () -> Icon
     ) -> some View {
-        if #available(iOS 26.0, *) {
-            icon()
-                .frame(width: 56, height: 56)
-                .glassEffect(
-                    tint.map { Glass.regular.tint($0) } ?? Glass.regular,
-                    in: .circle
-                )
-                // [T-fab-glass-contextmenu-regression] Without this the long-press
-                // menu on the new-chat FAB stops opening.
-                //
-                // The pre-glass label was `Circle().fill(...)`, a filled shape,
-                // so its hit-test region was the whole 56x56 disc and
-                // `.contextMenu` (attached to that same view) picked up a
-                // long-press anywhere on the button. The glass version's content
-                // is a bare `Image` — `.frame` only reserves space, and
-                // `.glassEffect` draws a material without contributing a
-                // hit-testable shape — so the only interactive pixels left were
-                // the glyph's own strokes. A long press on the surrounding
-                // (visually filled) area hit nothing and no menu appeared.
-                //
-                // Tapping still worked, which is what made this look like a
-                // gesture-priority fight with glassEffect rather than a hit-test
-                // hole: DraggableFAB re-applies `.frame` and `.onTapGesture` at
-                // ITS level, one layer out, so taps were being caught there.
-                // `.contextMenu` is the only one of the three attached inside.
-                //
-                // Restoring an explicit circular content shape gives the glass
-                // surface the same hit region the filled Circle had. Applied
-                // AFTER glassEffect so it covers the rendered disc.
-                .contentShape(.circle)
-                // …and the same shape again for the context-menu PREVIEW.
-                // `.contentShape(_:)` only sets the INTERACTION region; the
-                // lifted platter resolves its shape separately and otherwise
-                // falls back to the view's rectangular bounds, which is what
-                // showed a grey rounded-rect slab peeking out from under the
-                // circular button on long press. `ChatMessageRow` already
-                // declares the two shapes separately for the same reason.
-                .contentShape(.contextMenuPreview, Circle())
-        } else {
-            Circle()
-                .fill(fallbackFill)
-                .overlay { icon() }
-                .shadow(color: .black.opacity(fallbackShadowOpacity), radius: 8, x: 0, y: 4)
-        }
+        Circle()
+            .fill(fallbackFill)
+            .overlay { icon() }
+            .shadow(color: .black.opacity(fallbackShadowOpacity), radius: 8, x: 0, y: 4)
     }
 
     @ViewBuilder
