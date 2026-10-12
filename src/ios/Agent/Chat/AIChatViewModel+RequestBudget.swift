@@ -259,9 +259,15 @@ extension AIChatViewModel {
     /// FileProvider extension. Keep ONLY user-facing subdirs (shared, skills,
     /// memory) here — anything else leaks into "On My iPhone → nanoMuse".
     nonisolated static var minisAppGroupRoot: URL {
-        FileManager.default.containerURL(
+        // iOS 15.4 sideload: App Group container may be nil (no entitlement).
+        // Fall back to Library so the app doesn't crash on launch.
+        if let container = FileManager.default.containerURL(
             forSecurityApplicationGroupIdentifier: SharedContainerStore.appGroupID
-        )!.appendingPathComponent("MinisFileProvider", isDirectory: true)
+        ) {
+            return container.appendingPathComponent("MinisFileProvider", isDirectory: true)
+        }
+        return FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("MinisFileProvider", isDirectory: true)
     }
 
     /// App Group subdirectory for private metadata that must NOT be exposed

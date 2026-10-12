@@ -401,8 +401,11 @@ struct MinisApp: App {
                     if #available(iOS 16.0, *) {
                         Self.registerFileProviderDomain()
                     }
-                    // Migrate legacy shared dir to App Group container
-                    Self.migrateSharedDirToAppGroup()
+                    // Migrate legacy shared dir to App Group container (iOS 16+ only;
+                    // App Group containerURL is nil on iOS 15.4 sideloads — force-unwrap would crash)
+                    if #available(iOS 16.0, *) {
+                        Self.migrateSharedDirToAppGroup()
+                    }
                     // Trace the resolved AppGroup paths so we can confirm the
                     // main app, FileProvider extension, and iSH bind mount all
                     // agree on which directory holds the user's shared files.
