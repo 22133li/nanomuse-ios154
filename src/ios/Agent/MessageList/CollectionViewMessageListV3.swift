@@ -3201,6 +3201,11 @@ extension CollectionViewMessageListV3 {
             (viewController?.collectionView as? NoAnimationCollectionView)?.isApplyingSnapshot = true
             dataSource.apply(snapshot, animatingDifferences: false)
             (viewController?.collectionView as? NoAnimationCollectionView)?.isApplyingSnapshot = false
+            // iOS 15: diffable data source apply can silently fail to update the UI.
+            // Force a reload as a safety net so messages always appear.
+            if #unavailable(iOS 16.0) {
+                viewController?.collectionView.reloadData()
+            }
             // [ToolLifecycle] Stage 5: log newly-inserted tool blocks now in the
             // applied snapshot. Only fires for inserts, so volume stays proportional
             // to actual new tool blocks appearing in the chat UI.
@@ -3352,6 +3357,11 @@ extension CollectionViewMessageListV3 {
             (viewController?.collectionView as? NoAnimationCollectionView)?.isApplyingSnapshot = true
             dataSource.apply(snapshot, animatingDifferences: false)
             (viewController?.collectionView as? NoAnimationCollectionView)?.isApplyingSnapshot = false
+            // iOS 15: diffable data source apply can silently fail to update the UI.
+            // Force a reload as a safety net so messages always appear.
+            if #unavailable(iOS 16.0) {
+                viewController?.collectionView.reloadData()
+            }
         }
 
         // MARK: - Accurate Height Measurement

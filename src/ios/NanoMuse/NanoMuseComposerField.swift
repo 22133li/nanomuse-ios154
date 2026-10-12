@@ -85,25 +85,25 @@ struct NanoMuseComposerField: View {
         // internally. .textFieldStyle and .submitLabel are TextField-only and dropped.
         let capHeight = CGFloat(lineCap) * lineHeight + 16
         let contentHeight = min(Self.estimatedHeight(for: text.isEmpty ? " " : text, lineHeight: lineHeight), capHeight)
-        let editor = ZStack(alignment: .topLeading) {
-            TextEditor(text: returnAwareText)
-                .font(font)
-                .foregroundStyle(ChatColors.primaryText)
-                .frame(height: contentHeight, alignment: .top)
-                .onAppear {
-                    // iOS 15: TextEditor wraps a UITextView with an opaque background
-                    // (black in dark mode), which clashes with the pill. Clear it.
-                    UITextView.appearance().backgroundColor = .clear
-                }
-            if text.isEmpty {
-                Text(placeholder)
-                    .foregroundColor(.secondary)
-                    .padding(.top, 8)
-                    .padding(.leading, 5)
-                    .allowsHitTesting(false)
+        let editor = TextEditor(text: returnAwareText)
+            .font(font)
+            .foregroundStyle(ChatColors.primaryText)
+            .frame(height: contentHeight, alignment: .top)
+            .onAppear {
+                // iOS 15: TextEditor wraps a UITextView with an opaque background
+                // (black in dark mode), which clashes with the pill. Clear it.
+                UITextView.appearance().backgroundColor = .clear
             }
-        }
-        .padding(.vertical, 8)
+            .overlay(alignment: .topLeading) {
+                if text.isEmpty {
+                    Text(placeholder)
+                        .foregroundColor(.secondary)
+                        .padding(.top, 8)
+                        .padding(.leading, 5)
+                        .allowsHitTesting(false)
+                }
+            }
+            .padding(.vertical, 8)
         if let fixedHeight {
             editor.frame(height: fixedHeight, alignment: .top)
         } else {
