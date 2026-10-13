@@ -1194,19 +1194,24 @@ struct AIChatView: View {
                 }
             )
         }
-        .fileImporter(
-            isPresented: $showDocumentPicker,
-            allowedContentTypes: [.image, .pdf, .plainText, .json, .sourceCode, .presentation, .spreadsheet, .data],
-            allowsMultipleSelection: true
-        ) { result in
-            switch result {
-            case .success(let urls):
-                for url in urls {
-                    vm.addFileAttachment(from: url)
+        .sheet(isPresented: $showDocumentPicker) {
+            // iOS 15: SwiftUI .fileImporter does not deliver selection callbacks
+            // (tapping files does nothing). Use the UIKit wrapper directly.
+            // iOS 16+: keep the system .fileImporter via the wrapper too — it
+            // is the same underlying UIDocumentPickerViewController.
+            NanoMuseDocumentPicker(
+                allowedContentTypes: [.image, .pdf, .plainText, .json, .sourceCode, .presentation, .spreadsheet, .data],
+                allowsMultipleSelection: true,
+                onComplete: { urls in
+                    showDocumentPicker = false
+                    for url in urls {
+                        vm.addFileAttachment(from: url)
+                    }
+                },
+                onCancel: {
+                    showDocumentPicker = false
                 }
-            case .failure(let error):
-                minisLogger.error("File import failed: \(error.localizedDescription)")
-            }
+            )
         }
         .onAppear {
             let sinceInit = (CFAbsoluteTimeGetCurrent() - AIChatViewModel.onAppearTimestamp) * 1000
