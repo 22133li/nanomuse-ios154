@@ -156,7 +156,6 @@ struct QueuedPrompt: Identifiable {
     let id = UUID()
     let text: String
     let attachments: [InputAttachment]
-    let timestamp = Date()
 }
 
 /// Token usage for the current assistant turn.
@@ -229,7 +228,7 @@ final class AssistantBlock: Identifiable, ObservableObject {
     /// iPhone 11) even though `content` only flushes every 0.3s. The view now
     /// keys its scroll/redraw off `content` (flush-paced); this counter stays
     /// as a cheap diagnostic sequence.
-    var contentUpdateSeq: Int = 0
+
 
     /// Non-published buffer for thinking content. During streaming the SSE handler
     /// appends here; `@Published content` is only flushed periodically or when the
@@ -252,7 +251,6 @@ final class AssistantBlock: Identifiable, ObservableObject {
 
     func appendThinkingDelta(_ delta: String) {
         thinkingContentBuffer += delta
-        contentUpdateSeq += 1
     }
 
     // [T-thinking-stream-jank] Adaptive flush throttle for streaming thinking

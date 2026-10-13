@@ -113,7 +113,7 @@ private struct OffloadPermissionDialogContent: View {
                     }
                     manager.respond(to: request.id, allowed: true)
                 } label: {
-                    Text("Allow in Session")
+                    Text(rememberChoice ? "始终允许" : "Allow in Session")
                         .font(.headline)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
@@ -128,7 +128,7 @@ private struct OffloadPermissionDialogContent: View {
                     }
                     manager.respond(to: request.id, allowed: false)
                 } label: {
-                    Text("Deny in Session")
+                    Text(rememberChoice ? "始终拒绝" : "Deny in Session")
                         .font(.headline)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
