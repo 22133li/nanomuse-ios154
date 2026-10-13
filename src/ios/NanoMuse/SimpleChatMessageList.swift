@@ -71,10 +71,9 @@ struct SimpleMessageRow: View {
             } else {
                 // Observe blocks so streaming text updates the row.
                 BlocksObserver(blocks: message.blocks)
-                SelectableMarkdownView(markdown: displayText)
+                SimpleMarkdownText(message: message)
                     .padding(10)
                     .background(Color(.systemGray5))
-                    .foregroundColor(.primary)
                     .cornerRadius(12)
                 Spacer()
             }
@@ -121,4 +120,42 @@ private struct BlocksObserver: View {
 private struct BlockObserver: View {
     @ObservedObject var block: AssistantBlock
     var body: some View { EmptyView() }
+}
+
+/// Renders an assistant message's text blocks using the already-cached
+/// NSAttributedString from the view model (same renderer the main list
+/// uses), inside a non-editable UITextView with explicit width so
+/// SwiftUI's LazyVStack lays it out correctly on iOS 15.
+private struct SimpleMarkdownText: UIViewRepresentable {
+    @ObservedObject var message: ChatMessage
+
+    func makeUIView(context: Context) -> UITextView {
+        let tv = UITextView()
+        tv.isEditable = false
+        tv.isScrollEnabled = false
+        tv.backgroundColor = .clear
+        tv.textContainerInset = .zero
+        tv.textContainer.lineFragmentPadding = 0
+        return tv
+    }
+
+    func updateUIView(_ tv: UITextView, context: Context) {
+        let attr: NSAttributedString
+        if message.role == .user {
+            attr = NSAttributedString(string: message.content)
+        } else {
+            let parts = message.blocks
+                .filter { $0.kind == .text }
+                .map { $0.cachedAttributedString ?? NSAttributedString(string: $0.content) }
+            let combined = NSMutableAttributedString()
+            for (i, p) in parts.enumerated() {
+                if i > 0 { combined.append(NSAttributedString(string: "\n\n")) }
+                combined.append(p)
+            }
+            attr = combined.length > 0 ? combined : NSAttributedString(string: message.content)
+        }
+        if tv.attributedText == nil || !tv.attributedText.isEqual(to: attr) {
+            tv.attributedText = attr
+        }
+    }
 }
