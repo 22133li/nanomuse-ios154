@@ -11,7 +11,6 @@ struct AssistantBlockView: View {
     var onStop: (() -> Void)?
     var onTapBlank: ((CGPoint) -> Void)?
     var onCopyScreenshot: (() -> Void)?
-    var onRerun: ((UUID) -> Void)?
     /// [T-selection-menu-minis-tts] Selection-menu read-aloud hooks, plumbed
     /// down to SelectableMarkdownView (nil for non-text or streaming contexts).
     var onReadAloud: (() -> Void)?
@@ -20,6 +19,7 @@ struct AssistantBlockView: View {
     var toolSnapshots: [ToolSnapshotItem] = []
     @Binding var highlightedBlockId: UUID?
     @Binding var detailBlock: AssistantBlock?
+    var onRerun: ((UUID) -> Void)?
     private var isHighlighted: Bool { highlightedBlockId == block.id }
 
     // nanoMuse: "Show the agent's steps" (Settings → Chat) is off by default — a finished
@@ -224,10 +224,10 @@ struct ToolCapsuleView: View {
     let accentColor: Color
     var commandStartTime: Date?
     var onStop: (() -> Void)?
-    var onRerun: ((UUID) -> Void)?
     var browserPool: BrowserTabPool?
     var toolSnapshots: [ToolSnapshotItem] = []
     @Binding var detailBlock: AssistantBlock?
+    var onRerun: ((UUID) -> Void)?
     @State private var dotsActive = false
     /// [T-tool-bg-suspended-hint] Drives the background-suspension info alert.
     @State private var showBgHintAlert = false

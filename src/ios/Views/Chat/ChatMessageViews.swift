@@ -176,7 +176,6 @@ struct ChatMessageRow: View {
     var onResume: (() -> Void)?
     var onCompact: (() -> Void)?
     var onCopyScreenshot: (() -> Void)?
-    var onRerun: ((UUID) -> Void)?
     /// Read this whole reply aloud from the start (clears any in-progress TTS).
     /// Wired from AIChatView (which owns the view model). Disabled while the
     /// message is still streaming to avoid fighting the live streaming TTS.
@@ -184,6 +183,7 @@ struct ChatMessageRow: View {
     /// When set, presents the compact summary sheet outside the cell tree (V3).
     /// Falls back to a local .sheet when nil (non-V3 / standalone usage).
     var onShowCompactSummary: ((String) -> Void)?
+    var onRerun: ((UUID) -> Void)?
     /// Triggers AIChatViewModel.revertCompact(). Wired from AIChatView so the
     /// row + sheet stay free of view-model imports.
     var onRevertCompact: (() -> Void)?
