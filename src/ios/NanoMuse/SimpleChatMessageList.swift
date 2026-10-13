@@ -72,8 +72,8 @@ struct SimpleMessageRow: View {
             } else {
                 // Observe blocks so streaming text updates the row.
                 BlocksObserver(blocks: message.blocks)
-                SimpleMarkdownText(message: message)
-                    .fixedSize(horizontal: false, vertical: true)
+                SimpleMarkdownText(message: message, textWidth: 312)
+                    .frame(width: 312, alignment: .leading)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 8)
                     .background(NanoMuseTones.agentPill, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
@@ -131,6 +131,7 @@ private struct BlockObserver: View {
 /// SwiftUI's LazyVStack lays it out correctly on iOS 15.
 private struct SimpleMarkdownText: UIViewRepresentable {
     @ObservedObject var message: ChatMessage
+    var textWidth: CGFloat = 312
 
     func makeUIView(context: Context) -> UITextView {
         let tv = UITextView()
@@ -162,5 +163,10 @@ private struct SimpleMarkdownText: UIViewRepresentable {
         if tv.attributedText == nil || !tv.attributedText.isEqual(to: attr) {
             tv.attributedText = attr
         }
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize? {
+        let size = uiView.sizeThatFits(CGSize(width: textWidth, height: .greatestFiniteMagnitude))
+        return CGSize(width: textWidth, height: size.height)
     }
 }
