@@ -47,14 +47,6 @@ struct SimpleMessageRow: View {
     var onEdit: (UUID) -> Void = { _ in }
     var onDeleteFrom: (UUID) -> Void = { _ in }
 
-    /// Render markdown to AttributedString; fall back to plain text.
-    private var displayAttr: AttributedString {
-        if let attr = try? AttributedString(markdown: displayText) {
-            return attr
-        }
-        return AttributedString(displayText)
-    }
-
     /// Assistant messages carry their text in blocks, not content.
     private var displayText: String {
         if message.role == .user { return message.content }
@@ -71,7 +63,7 @@ struct SimpleMessageRow: View {
         HStack {
             if message.role == .user {
                 Spacer()
-                Text(displayAttr)
+                Text(verbatim: displayText)
                     .padding(10)
                     .background(Color.blue)
                     .foregroundColor(.white)
@@ -79,7 +71,7 @@ struct SimpleMessageRow: View {
             } else {
                 // Observe blocks so streaming text updates the row.
                 BlocksObserver(blocks: message.blocks)
-                Text(displayAttr)
+                SelectableMarkdownView(markdown: displayText)
                     .padding(10)
                     .background(Color(.systemGray5))
                     .foregroundColor(.primary)
