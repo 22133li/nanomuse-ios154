@@ -6011,8 +6011,8 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
                     switch status {
                     case .success: toolStatusStrings[id] = "success"
                     case .failed: toolStatusStrings[id] = "failed"
-                    case .cancelled: toolStatusStrings[id] = "cancelled"
-                    case .streaming, .running: break
+                    case .cancelled, .rejected: toolStatusStrings[id] = "cancelled"
+                    case .streaming, .running, .waiting: break
                     }
                 }
             }
