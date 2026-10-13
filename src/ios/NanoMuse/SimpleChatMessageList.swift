@@ -64,6 +64,7 @@ struct SimpleMessageRow: View {
             if message.role == .user {
                 Spacer()
                 Text(verbatim: displayText)
+                    .frame(maxWidth: UIScreen.main.bounds.width * 0.75, alignment: .trailing)
                     .padding(10)
                     .background(Color.blue)
                     .foregroundColor(.white)
@@ -72,6 +73,7 @@ struct SimpleMessageRow: View {
                 // Observe blocks so streaming text updates the row.
                 BlocksObserver(blocks: message.blocks)
                 SimpleMarkdownText(message: message)
+                    .frame(maxWidth: UIScreen.main.bounds.width * 0.75, alignment: .leading)
                     .padding(10)
                     .background(Color(.systemGray5))
                     .cornerRadius(12)
