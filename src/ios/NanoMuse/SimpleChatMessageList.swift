@@ -163,10 +163,7 @@ private struct SimpleMarkdownText: UIViewRepresentable {
         if tv.attributedText == nil || !tv.attributedText.isEqual(to: attr) {
             tv.attributedText = attr
         }
+        tv.textContainer.size = CGSize(width: textWidth, height: .greatestFiniteMagnitude)
     }
 
-    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize? {
-        let size = uiView.sizeThatFits(CGSize(width: textWidth, height: .greatestFiniteMagnitude))
-        return CGSize(width: textWidth, height: size.height)
-    }
 }
