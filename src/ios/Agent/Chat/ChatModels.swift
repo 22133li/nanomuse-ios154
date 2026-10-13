@@ -324,6 +324,11 @@ final class AssistantBlock: Identifiable, ObservableObject {
     @Published var streamingFileContent: String?
     /// Whether a thinking block is expanded (persisted across cell reuse).
     @Published var isThinkingExpanded: Bool = false
+    /// Frozen thinking content when the user scrolls away during streaming.
+    /// @Published (like isThinkingExpanded) so the view updates on freeze/
+    /// unfreeze, and the value survives UICollectionView cell reuse — a @State
+    /// in the view could leak to a different block if the cell ID is unstable.
+    @Published var frozenThinkingContent: String? = nil
     /// True once the user has manually tapped this thinking block's header.
     /// While this is false the view is allowed to auto-expand on stream start
     /// and auto-collapse on stream end; once the user takes control we leave

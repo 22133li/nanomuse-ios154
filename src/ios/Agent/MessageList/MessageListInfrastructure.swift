@@ -1156,6 +1156,8 @@ final class CellStateBridgeV2: ObservableObject {
     @Published var onCompact: (() -> Void)?
     @Published var onForceSync: (() -> Void)?
     @Published var onCopyScreenshot: (() -> Void)?
+    /// Re-run the agent loop from a tool block (long-press menu "Re-run From Here").
+    @Published var onRerun: ((UUID) -> Void)?
     /// Read this whole reply aloud from the start (clears in-progress TTS).
     @Published var onReadAloud: (() -> Void)?
     /// [T-selection-menu-minis-tts] Speak an arbitrary text snippet (the

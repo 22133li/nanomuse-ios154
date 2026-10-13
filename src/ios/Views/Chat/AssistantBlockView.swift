@@ -11,6 +11,7 @@ struct AssistantBlockView: View {
     var onStop: (() -> Void)?
     var onTapBlank: ((CGPoint) -> Void)?
     var onCopyScreenshot: (() -> Void)?
+    var onRerun: ((UUID) -> Void)?
     /// [T-selection-menu-minis-tts] Selection-menu read-aloud hooks, plumbed
     /// down to SelectableMarkdownView (nil for non-text or streaming contexts).
     var onReadAloud: (() -> Void)?
@@ -59,31 +60,38 @@ struct AssistantBlockView: View {
         case .shellTool:
             ToolCapsuleView(block: block, icon: "terminal", accentColor: .green,
                             commandStartTime: commandStartTime, onStop: onStop, browserPool: browserPool,
-                            toolSnapshots: toolSnapshots, detailBlock: $detailBlock)
+                            toolSnapshots: toolSnapshots, detailBlock: $detailBlock,
+                            onRerun: onRerun)
         case .fileReadTool:
             ToolCapsuleView(block: block, icon: "doc.text", accentColor: .cyan,
                             commandStartTime: commandStartTime, onStop: onStop,
-                            toolSnapshots: toolSnapshots, detailBlock: $detailBlock)
+                            toolSnapshots: toolSnapshots, detailBlock: $detailBlock,
+                            onRerun: onRerun)
         case .fileWriteTool:
             ToolCapsuleView(block: block, icon: "doc.text.fill", accentColor: .blue,
                             commandStartTime: commandStartTime, onStop: onStop,
-                            toolSnapshots: toolSnapshots, detailBlock: $detailBlock)
+                            toolSnapshots: toolSnapshots, detailBlock: $detailBlock,
+                            onRerun: onRerun)
         case .fileEditTool:
             ToolCapsuleView(block: block, icon: "square.and.pencil", accentColor: .orange,
                             commandStartTime: commandStartTime, onStop: onStop,
-                            toolSnapshots: toolSnapshots, detailBlock: $detailBlock)
+                            toolSnapshots: toolSnapshots, detailBlock: $detailBlock,
+                            onRerun: onRerun)
         case .browserTool:
             ToolCapsuleView(block: block, icon: "globe", accentColor: .blue,
                             commandStartTime: commandStartTime, onStop: onStop, browserPool: browserPool,
-                            toolSnapshots: toolSnapshots, detailBlock: $detailBlock)
+                            toolSnapshots: toolSnapshots, detailBlock: $detailBlock,
+                            onRerun: onRerun)
         case .readImageTool:
             ToolCapsuleView(block: block, icon: "photo", accentColor: .purple,
                             commandStartTime: commandStartTime, onStop: onStop,
-                            toolSnapshots: toolSnapshots, detailBlock: $detailBlock)
+                            toolSnapshots: toolSnapshots, detailBlock: $detailBlock,
+                            onRerun: onRerun)
         case .memoryTool:
             ToolCapsuleView(block: block, icon: "brain.head.profile", accentColor: .pink,
                             commandStartTime: commandStartTime, onStop: onStop,
-                            toolSnapshots: toolSnapshots, detailBlock: $detailBlock)
+                            toolSnapshots: toolSnapshots, detailBlock: $detailBlock,
+                            onRerun: onRerun)
         case .info:
             let allLines = block.content.components(separatedBy: "\n").filter { !$0.isEmpty }
             // Separate reason lines (⚠️) from the final switched line (✅)
@@ -216,6 +224,7 @@ struct ToolCapsuleView: View {
     let accentColor: Color
     var commandStartTime: Date?
     var onStop: (() -> Void)?
+    var onRerun: ((UUID) -> Void)?
     var browserPool: BrowserTabPool?
     var toolSnapshots: [ToolSnapshotItem] = []
     @Binding var detailBlock: AssistantBlock?
@@ -467,16 +476,9 @@ struct ToolCapsuleView: View {
                         Divider()
                         Button(role: .destructive) {
                             // Re-run the whole assistant turn that owns this
-                            // tool_use. Routed via notification so we don't have
-                            // to thread a vm closure through the 4-layer cell
-                            // hosting chain — AIChatView's RerunFromToolBlockListener
-                            // maps blockId → owning assistant msg → preceding user
-                            // msg → vm.retryFromMessage.
-                            NotificationCenter.default.post(
-                                name: .rerunFromToolBlock,
-                                object: nil,
-                                userInfo: ["blockId": block.id]
-                            )
+                            // tool_use, via the onRerun closure threaded down
+                            // from the message list (vm.retryFromToolBlock).
+                            onRerun?(block.id)
                         } label: {
                             Label(AppLocalized("Re-run From Here"), systemImage: "arrow.clockwise")
                         }
@@ -628,48 +630,8 @@ extension Notification.Name {
     /// string (for logging only — handler invalidates all visible cells).
     /// [T-attachment-size-invalidate 2026-05-21]
     static let minisAttachmentSizeChanged = Notification.Name("minisAttachmentSizeChanged")
-    /// Posted from a tool capsule's long-press menu "Re-run from here".
-    /// userInfo["blockId"] is the AssistantBlock.id (UUID) of the tapped
-    /// tool_use. The active AIChatView listens, maps the block to its
-    /// owning assistant message, finds the preceding user message, and
-    /// re-runs the agent loop from there. [T-ios-tool-bubble-longpress-menu]
-    static let rerunFromToolBlock = Notification.Name("rerunFromToolBlock")
 }
 
-/// Listens for `.rerunFromToolBlock` and drives the re-run. Extracted into
-/// its own ViewModifier (like ChatInputAppendListener) to keep AIChatView's
-/// body within the Swift type-checker budget. [T-ios-tool-bubble-longpress-menu]
-///
-/// "Re-run from here" semantics (block boundary —
-/// T-ios-rerun-from-tool-block-position): re-run from the exact point this
-/// tool_use was about to be issued. retryFromToolBlock keeps the blocks
-/// BEFORE the target tool_use within its assistant turn, drops the target
-/// block + later blocks in that turn + all later messages (rewriting the
-/// trimmed assistant row in the DB), then re-runs the agent loop. If the
-/// target is the first block with nothing preceding it, that path degrades
-/// to a preceding-user-message truncation automatically.
-struct RerunFromToolBlockListener: ViewModifier {
-    let vm: AIChatViewModel
-
-    func body(content: Content) -> some View {
-        content.onReceive(NotificationCenter.default.publisher(for: .rerunFromToolBlock)) { note in
-            guard let blockId = note.userInfo?["blockId"] as? UUID else { return }
-            vm.retryFromToolBlock(blockId: blockId)
-            vm.forceScrollToBottom.send()
-        }
-    }
-}
-
-/// View-modifier wrapper around the `chatInputAppendRequested` listener.
-/// Extracted out of AIChatView.body because that body sits at the Swift
-/// type-checker's expression budget and inlining another `.onReceive` block
-/// trips the "compiler unable to type-check this expression in reasonable
-/// time" diagnostic.
-/// Listens for `.dismissAllImmersivePresentations` and calls the host
-/// view's clear method. Extracted into its own modifier so AIChatView's
-/// body type stays demangleable — adding the onReceive directly to body
-/// trips the Swift type-checker timeout (same class of issue as the
-/// 2026-04-17 inputBar / 2026-05-24 attachmentMenu blow-ups).
 struct DismissImmersiveCoversListener: ViewModifier {
     let onDismiss: () -> Void
 
@@ -755,7 +717,8 @@ struct ThinkingBlockView: View {
     // cell reuse / re-entry is fine — a fresh view simply follows again.
     @State private var thinkingUserScrolledAway = false
     @State private var lastThinkingDragAt: Date = .distantPast
-    @State private var frozenThinkingContent: String? = nil
+    // NOTE: frozenThinkingContent lives on the block model (not @State here) so it
+    // survives UICollectionView cell reuse without leaking to another block.
 
     /// Bind to block.isThinkingExpanded so state survives cell reuse and triggers cell re-sizing.
     private var isExpanded: Binding<Bool> {
@@ -834,7 +797,7 @@ struct ThinkingBlockView: View {
                 let windowSize = isStreaming ? 2000 : 8000
                 let total = block.content.count
                 let isTruncated = total > windowSize
-                let displayContent: String = frozenThinkingContent ?? {
+                let displayContent: String = block.frozenThinkingContent ?? {
                     // [T-thinkperf-release-displaylink] The slice timing and
                     // body-eval counter that used to wrap this closure are gone.
                     // It runs on EVERY body evaluation of an expanded thinking
@@ -903,12 +866,12 @@ struct ThinkingBlockView: View {
                                 if value.translation.height > 12 {
                                     if !thinkingUserScrolledAway {
                                         thinkingUserScrolledAway = true
-                                        frozenThinkingContent = displayContent
+                                        block.frozenThinkingContent = displayContent
                                         AppLogger(category: "ThinkPerf").info("[ThinkPerf] user scrolled away (dy=\(Int(value.translation.height))) — follow paused, content frozen at \(displayContent.count) chars")
                                     }
                                 } else if value.translation.height < -12, thinkingUserScrolledAway {
                                     thinkingUserScrolledAway = false
-                                    frozenThinkingContent = nil
+                                    block.frozenThinkingContent = nil
                                     AppLogger(category: "ThinkPerf").info("[ThinkPerf] user scrolled back (dy=\(Int(value.translation.height))) — following resumed")
                                 }
                             }
@@ -940,7 +903,7 @@ struct ThinkingBlockView: View {
                     .onChange(of: isStreaming) { streaming in
                         if !streaming {
                             thinkingUserScrolledAway = false
-                            frozenThinkingContent = nil
+                            block.frozenThinkingContent = nil
                         }
                     }
                 }

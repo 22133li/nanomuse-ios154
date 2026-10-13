@@ -136,6 +136,12 @@ struct SimpleMessageRow: View {
         }
     }
 
+    /// Thinking blocks (shown as collapsible cards, simplified from
+    /// the full ThinkingBlockView — no follow/freeze state machine).
+    private var thinkingBlocks: [AssistantBlock] {
+        message.blocks.filter { $0.kind == .thinking }
+    }
+
     private var hasTextContent: Bool {
         !message.blocks.filter({ $0.kind == .text }).isEmpty || !message.content.isEmpty
     }
@@ -189,6 +195,10 @@ struct SimpleMessageRow: View {
                     // Tool step capsules (agent's steps), like Android.
                     ForEach(visibleToolBlocks) { block in
                         SimpleToolCapsule(block: block, detailBlock: $detailBlock)
+                    }
+                    // Thinking process (collapsible, simplified).
+                    ForEach(thinkingBlocks) { block in
+                        SimpleThinkingCard(block: block)
                     }
                     // Text bubble.
                     if hasTextContent {
@@ -369,5 +379,50 @@ private struct SimpleInputAttachmentList: View {
                 .cornerRadius(10)
             }
         }
+    }
+}
+
+/// Simplified thinking block for the iOS 15 message list.
+/// Collapsible card showing the model's reasoning; simplified from the
+/// full ThinkingBlockView (no drag-follow/freeze state machine).
+private struct SimpleThinkingCard: View {
+    @ObservedObject var block: AssistantBlock
+
+    private var thinkingText: String {
+        let buf = block.thinkingContentBuffer
+        return buf.isEmpty ? block.content : buf
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Button {
+                block.isThinkingExpanded.toggle()
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "brain.head.profile")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.purple)
+                    Text("思考过程")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Image(systemName: block.isThinkingExpanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .buttonStyle(.plain)
+            if block.isThinkingExpanded {
+                Text(thinkingText)
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(Color.purple.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }

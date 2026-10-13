@@ -176,6 +176,7 @@ struct ChatMessageRow: View {
     var onResume: (() -> Void)?
     var onCompact: (() -> Void)?
     var onCopyScreenshot: (() -> Void)?
+    var onRerun: ((UUID) -> Void)?
     /// Read this whole reply aloud from the start (clears any in-progress TTS).
     /// Wired from AIChatView (which owns the view model). Disabled while the
     /// message is still streaming to avoid fighting the live streaming TTS.
@@ -518,7 +519,8 @@ struct ChatMessageRow: View {
                     browserPool: browserPool,
                     toolSnapshots: toolSnapshots,
                     highlightedBlockId: $highlightedBlockId,
-                    detailBlock: $detailBlock
+                    detailBlock: $detailBlock,
+                    onRerun: onRerun
                 )
             }
 

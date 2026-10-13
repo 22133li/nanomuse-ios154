@@ -328,7 +328,8 @@ private struct BridgedAssistantBlockV3: View {
             browserPool: bridge.browserPool,
             toolSnapshots: bridge.toolSnapshots,
             highlightedBlockId: .constant(nil),
-            detailBlock: $bridge.detailBlock
+            detailBlock: $bridge.detailBlock,
+            onRerun: bridge.onRerun
         )
         .frame(maxWidth: maxWidth > 0 ? maxWidth : nil, alignment: .leading)
         .frame(maxWidth: .infinity)
@@ -666,6 +667,7 @@ private struct BridgedWholeMessageV3: View {
             onCompact: bridge.onCompact,
             onCopyScreenshot: bridge.onCopyScreenshot,
             onShowCompactSummary: bridge.onShowCompactSummary,
+            onRerun: bridge.onRerun,
             browserPool: nil,
             toolSnapshots: []
         )
@@ -1517,6 +1519,10 @@ extension CollectionViewMessageListV3 {
             bridge.isActiveMessage = isActive
             bridge.commandStartTime = vm.commandStartTime
             bridge.onStop = isActive ? { [weak self] in self?.onStop?() } : nil
+            bridge.onRerun = { [weak vm] blockId in
+                vm?.retryFromToolBlock(blockId: blockId)
+                vm?.forceScrollToBottom.send()
+            }
             bridge.browserPool = vm.browserTabPool
             bridge.toolSnapshots = vm.toolSnapshots
             bridge.autoRetryAttempt = isLast ? vm.autoRetryAttempt : 0
