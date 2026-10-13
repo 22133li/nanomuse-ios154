@@ -71,6 +71,13 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
     /// an inline explanation + Resume affordance rather than an unbounded
     /// runaway. Mirrors Android ChatViewModel.MAX_AGENT_TURNS.
     static let maxAgentTurns = 200
+
+    /// [T-agent-loop-max-rounds] Effective per-turn iteration cap: the user's
+    /// Max Rounds setting from Settings → Agent Loop (default 10, range 1-50).
+    /// The hardcoded maxAgentTurns above remains as an absolute backstop.
+    private var effectiveMaxAgentTurns: Int {
+        min(ProviderConfigStore.agentLoopMaxRounds, Self.maxAgentTurns)
+    }
     /// [T-chat-auto-compact-inloop] Max in-loop auto-compactions per single
     /// user turn. Beyond this the loop stops as exhausted rather than
     /// compacting endlessly (which would defeat the maxAgentTurns backstop).
@@ -4996,7 +5003,7 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
         // that keeps hitting the threshold can't compact forever; when the cap
         // is reached and we're still near capacity, the loop stops as exhausted.
         var compactionsThisLoop = 0
-        loopLabel: while turnCount < Self.maxAgentTurns {
+        loopLabel: while turnCount < effectiveMaxAgentTurns {
             defer { turnCount += 1 }
             // [LoopHeartbeat] (#181) One line per loop iteration. If the loop
             // wedges on an await, the last heartbeat pins which iteration it
@@ -6128,9 +6135,9 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
         // turnCount to max and slap a fake "200 turns hit" error on every
         // ordinary completion — exactly the v1.4.0-dev bug user hit.)
         if hitTurnLimit, msgIdx >= 0, msgIdx < messages.count {
-            logger.warning("⚠️ runAgentLoop hit maxAgentTurns=\(Self.maxAgentTurns) — finalizing as resumable")
+            logger.warning("⚠️ runAgentLoop hit maxAgentTurns=\(effectiveMaxAgentTurns) — finalizing as resumable")
             messages[msgIdx].error =
-                "Stopped after \(Self.maxAgentTurns) agent turns to prevent runaway tool use. " +
+                "Stopped after \(effectiveMaxAgentTurns) agent turns to prevent runaway tool use. " +
                 "The model kept calling tools without finishing — tap Resume to continue from here, " +
                 "or send a new message to start over."
             canResume = true

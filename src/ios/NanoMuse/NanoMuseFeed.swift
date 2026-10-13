@@ -149,12 +149,17 @@ final class NanoMuseFeedStore: ObservableObject {
     /// Newest day first, then by index.
     @Published private(set) var posts: [NanoMusePost] = []
     @Published private(set) var preferences: String = ""
+    /// Read tracking, by post id ("day/index"). Persisted in UserDefaults.
+    @Published private(set) var readIds: Set<String> = []
+
+    private static let readIdsKey = "nanomuse.feed.read_ids"
 
     var root: URL { NanoMuseDirs.root.appendingPathComponent("feed", isDirectory: true) }
     var preferencesFile: URL { NanoMuseDirs.root.appendingPathComponent("feed-preferences.md") }
 
     private init() {
         try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        readIds = Set(UserDefaults.standard.stringArray(forKey: Self.readIdsKey) ?? [])
         reload()
     }
 
@@ -193,6 +198,8 @@ final class NanoMuseFeedStore: ObservableObject {
             all.append(contentsOf: ofDay.sorted { $0.index < $1.index })
         }
         posts = all
+        // Drop read markers for posts that no longer exist, so the stored set doesn't grow forever.
+        readIds = readIds.intersection(all.map(\.id))
         let saved = ((try? String(contentsOf: preferencesFile, encoding: .utf8)) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         preferences = saved.isEmpty ? Self.defaultPreferences : saved
     }
@@ -213,7 +220,25 @@ final class NanoMuseFeedStore: ObservableObject {
     func delete(_ post: NanoMusePost) {
         try? FileManager.default.removeItem(at: post.file)
         posts.removeAll { $0.file == post.file }
+        if readIds.remove(post.id) != nil {
+            UserDefaults.standard.set(Array(readIds), forKey: Self.readIdsKey)
+        }
     }
+
+    func isRead(_ post: NanoMusePost) -> Bool { readIds.contains(post.id) }
+
+    func markRead(_ post: NanoMusePost) {
+        guard !readIds.contains(post.id) else { return }
+        readIds.insert(post.id)
+        UserDefaults.standard.set(Array(readIds), forKey: Self.readIdsKey)
+    }
+
+    func markAllRead() {
+        readIds = Set(posts.map(\.id))
+        UserDefaults.standard.set(Array(readIds), forKey: Self.readIdsKey)
+    }
+
+    var unreadCount: Int { posts.count - readIds.intersection(posts.map(\.id)).count }
 
     /// Writes a batch for today, continuing today's numbering. Returns what was written.
     @discardableResult
@@ -443,6 +468,9 @@ struct NanoMuseFeedRoom: View {
                     if NanoMuseFeedFlow.generating {
                         ProgressView().controlSize(.small)
                     }
+                    if store.posts.contains(where: { !store.isRead($0) }) {
+                        NanoMuseRoundButton(symbol: "envelope.open", label: AppLocalized("Mark all read")) { store.markAllRead() }
+                    }
                     NanoMuseRoundButton(symbol: "slider.horizontal.3", label: AppLocalized("Feed settings")) { showSettings = true }
                 }
             }
@@ -594,6 +622,9 @@ struct NanoMusePostCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
+                if !store.isRead(post) {
+                    Circle().fill(NanoMuseTones.action).frame(width: 8, height: 8)
+                }
                 Text(post.emoji.isEmpty ? NanoMusePost.defaultEmoji(post.type) : post.emoji)
                 Text(post.title).font(.body.weight(.semibold)).lineLimit(2)
                 Spacer(minLength: 0)
@@ -606,6 +637,12 @@ struct NanoMusePostCard: View {
             NanoMuseInlineMarkdown(text: post.body)
                 .font(.subheadline)
                 .lineLimit(6)
+            if !post.source.isEmpty {
+                Text(AppLocalized("From") + ": " + post.source.joined(separator: " · "))
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+            }
             HStack(spacing: 14) {
                 Text(post.createdAt.formatted(date: .omitted, time: .shortened)).font(.caption).foregroundStyle(.tertiary)
                 Spacer()
@@ -685,6 +722,7 @@ struct NanoMusePostDetail: View {
             }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button(AppLocalized("Done")) { dismiss() } } }
+            .onAppear { NanoMuseFeedStore.shared.markRead(post) }
         }
     }
 

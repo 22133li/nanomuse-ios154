@@ -296,6 +296,10 @@ extension AIChatViewModel {
             ctLogger.info("[OffloadPerm] shell command: \(command)")
             if let offloadCmd = OffloadPermissionManager.extractOffloadCommand(from: command) {
                 ctLogger.info("[OffloadPerm] matched offload: \(offloadCmd), level: \(OffloadPermissionManager.shared.permissionLevel(for: offloadCmd).rawValue)")
+                // The tool is now waiting on the user's approval decision.
+                if msgIdx < messages.count, blockIdx < messages[msgIdx].blocks.count {
+                    messages[msgIdx].blocks[blockIdx].toolStatus = .waiting
+                }
                 let permResult = await OffloadPermissionManager.shared.checkPermission(
                     for: offloadCmd, sessionId: self.sessionId, fullCommand: command
                 )
@@ -305,8 +309,13 @@ extension AIChatViewModel {
                     toolSuccess = false
                     if msgIdx < messages.count, blockIdx < messages[msgIdx].blocks.count {
                         messages[msgIdx].blocks[blockIdx].content = msg
+                        messages[msgIdx].blocks[blockIdx].toolStatus = .rejected
                     }
                     break
+                }
+                // Approved (or bypassed) — back to running for actual execution.
+                if msgIdx < messages.count, blockIdx < messages[msgIdx].blocks.count {
+                    messages[msgIdx].blocks[blockIdx].toolStatus = .running
                 }
                 ctLogger.info("[OffloadPerm] ALLOWED: \(offloadCmd)")
             } else {
@@ -895,7 +904,10 @@ extension AIChatViewModel {
         if msgIdx < messages.count, blockIdx < messages[msgIdx].blocks.count {
             let blk = messages[msgIdx].blocks[blockIdx]
             blk.toolDuration = toolDuration
-            if cancelledHere {
+            if case .rejected = blk.toolStatus {
+                // User denied the approval prompt — keep the rejected state;
+                // do not downgrade it to a generic failure below.
+            } else if cancelledHere {
                 blk.toolStatus = .cancelled
             } else if toolSuccess, truncationRepairTag != nil {
                 // [T-truncated-args-visibility #119] A repaired call must not

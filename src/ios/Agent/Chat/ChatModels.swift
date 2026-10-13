@@ -204,9 +204,14 @@ enum ChatMessageRole {
 enum ToolBlockStatus: Equatable {
     case streaming(bytes: Int)
     case running
+    /// Tool call issued but not yet executing — e.g. queued, or awaiting
+    /// the user's approval in the permission dialog.
+    case waiting
     case success
     case failed(message: String)
     case cancelled
+    /// The user denied the approval prompt; the tool was never executed.
+    case rejected
 }
 
 /// A single block within an assistant turn.

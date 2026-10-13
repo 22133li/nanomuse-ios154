@@ -126,6 +126,8 @@ struct NanoMuseSettingsHomeView: View {
                 NanoMuseLinkRow(title: AppLocalized("Coding agents")) { NanoMuseCodingView() }
                 NanoMuseRowDivider()
                 NanoMuseLinkRow(title: AppLocalized("Environment Variables")) { EnvironmentVariablesView() }
+                NanoMuseRowDivider()
+                NanoMuseLinkRow(title: AppLocalized("Scheduled Tasks")) { NanoMuseScheduledTasksView() }
             }
         }
     }

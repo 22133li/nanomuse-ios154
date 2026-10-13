@@ -1800,6 +1800,31 @@ final class ProviderConfigStore: ObservableObject {
         }
     }
 
+    // MARK: - Agent Loop Max Rounds
+
+    /// [T-agent-loop-max-rounds] UserDefaults key for the per-turn agent-loop
+    /// iteration cap. Per-device, not synced — same local-only semantics as
+    /// the voice/vision group selectors above.
+    static let agentLoopMaxRoundsKey = "agentLoopMaxRounds"
+    /// Default when never set. Writes are clamped to 1...50.
+    static let defaultAgentLoopMaxRounds = 10
+    static let agentLoopMaxRoundsRange = 1...50
+
+    /// User-configurable cap on agent-loop tool-call iterations within a
+    /// single user turn. Read by AIChatViewModel.runAgentLoop; the Settings
+    /// UI binds it via @AppStorage on the same key.
+    static var agentLoopMaxRounds: Int {
+        get {
+            let v = UserDefaults.standard.integer(forKey: agentLoopMaxRoundsKey)
+            return v >= 1 ? v : defaultAgentLoopMaxRounds
+        }
+        set {
+            let clamped = min(max(newValue, agentLoopMaxRoundsRange.lowerBound),
+                              agentLoopMaxRoundsRange.upperBound)
+            UserDefaults.standard.set(clamped, forKey: agentLoopMaxRoundsKey)
+        }
+    }
+
     func addAgentLoopEntry(_ entryId: String) {
         guard !config.agentLoopModelEntryIds.contains(entryId) else { return }
         config.agentLoopModelEntryIds.append(entryId)

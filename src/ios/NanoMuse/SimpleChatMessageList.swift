@@ -47,6 +47,25 @@ struct SimpleChatMessageList: View {
                         }
                     }
                 }
+                .background(
+                    // Stick to bottom while tokens stream into the last
+                    // assistant message. The full list only fires its
+                    // scrollToBottomSignal when isNearBottom; mirror that
+                    // here so reading history isn't yanked back down.
+                    Group {
+                        if vm.isProcessing,
+                           let last = vm.messages.last,
+                           last.role == .assistant {
+                            StreamScrollTrigger(message: last) {
+                                if isNearBottom {
+                                    withAnimation {
+                                        proxy.scrollTo(last.id, anchor: .bottom)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                )
 
                 // Floating scroll buttons (like Android and the full iOS list)
                 if !vm.messages.isEmpty && !isNearBottom {
@@ -94,6 +113,9 @@ struct SimpleMessageRow: View {
     var onDeleteFrom: (UUID) -> Void = { _ in }
     var isActiveMessage: Bool = false
     @AppStorage(NanoMuseSteps.key) private var showSteps: Bool = NanoMuseSteps.defaultValue
+    /// Tool block tapped for input/output inspection (mirrors the full
+    /// list's detailBlock -> ToolLiveSheet presentation).
+    @State private var detailBlock: AssistantBlock?
 
     /// Assistant messages carry their text in blocks, not content.
     private var displayText: String {
@@ -175,7 +197,7 @@ struct SimpleMessageRow: View {
                 VStack(alignment: .leading, spacing: 8) {
                     // Tool step capsules (agent's steps), like Android.
                     ForEach(visibleToolBlocks) { block in
-                        SimpleToolCapsule(block: block)
+                        SimpleToolCapsule(block: block, detailBlock: $detailBlock)
                     }
                     // Text bubble.
                     if hasTextContent {
@@ -215,6 +237,13 @@ struct SimpleMessageRow: View {
                 Label("删除", systemImage: "trash")
             }
         }
+        .sheet(item: $detailBlock) { block in
+            ToolLiveSheet(
+                toolBlocks: message.blocks.filter { $0.toolStatus != nil },
+                initialIdx: message.blocks.filter({ $0.toolStatus != nil }).firstIndex(where: { $0.id == block.id }) ?? 0,
+                browserPool: nil
+            )
+        }
     }
 }
 
@@ -235,10 +264,11 @@ private struct BlockObserver: View {
 }
 
 /// Simplified tool step capsule for the iOS 15 message list.
-/// Mirrors ToolCapsuleView's appearance (icon + description in a pill)
-/// without the interactive features (stop button, detail sheet, etc.).
+/// Mirrors ToolCapsuleView's appearance (icon + description in a pill).
+/// Tapping opens the same ToolLiveSheet detail as the full list.
 private struct SimpleToolCapsule: View {
     @ObservedObject var block: AssistantBlock
+    @Binding var detailBlock: AssistantBlock?
 
     private var icon: String {
         switch block.kind {
@@ -287,6 +317,36 @@ private struct SimpleToolCapsule: View {
         .frame(height: 36)
         .background(Color(UIColor.systemGray6))
         .clipShape(Capsule())
+        .contentShape(Capsule())
+        .onTapGesture {
+            detailBlock = block
+        }
+    }
+}
+
+/// Fires `onStreamUpdate` whenever a block of `message` changes (tokens
+/// streaming in), so the iOS 15 list can stick to bottom mid-message.
+private struct StreamScrollTrigger: View {
+    @ObservedObject var message: ChatMessage
+    var onStreamUpdate: () -> Void
+
+    var body: some View {
+        ForEach(message.blocks) { block in
+            BlockScrollObserver(block: block, onUpdate: onStreamUpdate)
+        }
+    }
+}
+
+private struct BlockScrollObserver: View {
+    @ObservedObject var block: AssistantBlock
+    var onUpdate: () -> Void
+
+    var body: some View {
+        Color.clear
+            .frame(width: 0, height: 0)
+            .onChange(of: block.content) { _ in
+                onUpdate()
+            }
     }
 }
 

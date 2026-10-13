@@ -320,6 +320,8 @@ struct ToolCapsuleView: View {
         case .success:   statusStr = "success"
         case .failed:    statusStr = "failed"
         case .cancelled: statusStr = "cancelled"
+        case .rejected:  statusStr = "rejected"
+        case .waiting:   statusStr = "waiting"
         case .running:   statusStr = "running"
         case .streaming: statusStr = "streaming"
         case .none:      statusStr = "unknown"
@@ -570,9 +572,22 @@ struct ToolCapsuleView: View {
 
     @ViewBuilder
     private var statusOrIcon: some View {
-        Image(systemName: icon)
-            .font(.system(size: 13))
-            .foregroundStyle(iconColor)
+        // Waiting / rejected get their own state icons so the state is
+        // visible at a glance; other states keep the tool icon tinted by
+        // status color (green=success, red=failed, yellow=cancelled).
+        if case .waiting = block.toolStatus {
+            Image(systemName: "hourglass")
+                .font(.system(size: 13))
+                .foregroundStyle(iconColor)
+        } else if case .rejected = block.toolStatus {
+            Image(systemName: "slash.circle")
+                .font(.system(size: 13))
+                .foregroundStyle(iconColor)
+        } else {
+            Image(systemName: icon)
+                .font(.system(size: 13))
+                .foregroundStyle(iconColor)
+        }
     }
 
     private var iconColor: Color {
@@ -580,6 +595,8 @@ struct ToolCapsuleView: View {
         case .success: return .green
         case .failed: return .red
         case .cancelled: return .yellow
+        case .rejected: return .orange
+        case .waiting: return .blue
         default: return accentColor
         }
     }

@@ -1969,6 +1969,14 @@ struct ToolLiveSheet: View {
             Image(systemName: "stop.circle.fill")
                 .font(.system(size: 18))
                 .foregroundStyle(.yellow)
+        case .waiting:
+            Image(systemName: "hourglass")
+                .font(.system(size: 18))
+                .foregroundStyle(.blue)
+        case .rejected:
+            Image(systemName: "slash.circle.fill")
+                .font(.system(size: 18))
+                .foregroundStyle(.orange)
         case nil:
             EmptyView()
         }
@@ -2490,6 +2498,14 @@ private struct ToolStatusBar: View {
             Image(systemName: "stop.circle.fill")
                 .font(.system(size: 15))
                 .foregroundStyle(.yellow)
+        case .waiting:
+            Image(systemName: "hourglass")
+                .font(.system(size: 15))
+                .foregroundStyle(.blue)
+        case .rejected:
+            Image(systemName: "slash.circle.fill")
+                .font(.system(size: 15))
+                .foregroundStyle(.orange)
         case nil:
             EmptyView()
         }

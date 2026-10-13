@@ -35,13 +35,14 @@ enum NanoMuseShellPrefs {
 // MARK: - Tabs
 
 enum NanoMuseTab: String, CaseIterable, Identifiable {
-    case chat, feed, ideas, goals, library
+    case chat, feed, memory, ideas, goals, library
     var id: String { rawValue }
 
     var title: String {
         switch self {
         case .chat: return AppLocalized("tab.chat") // its own key: 聊天 as on Android, not upstream's 闲聊
         case .feed: return AppLocalized("Feed")
+        case .memory: return AppLocalized("Memory")
         case .ideas: return AppLocalized("Ideas")
         case .goals: return AppLocalized("Goals")
         case .library: return AppLocalized("Library")
@@ -52,6 +53,7 @@ enum NanoMuseTab: String, CaseIterable, Identifiable {
         switch self {
         case .chat: return "bubble.left.and.bubble.right"
         case .feed: return "newspaper"
+        case .memory: return "brain"
         case .ideas: return "lightbulb"
         case .goals: return "target"
         case .library: return "books.vertical"
@@ -62,6 +64,7 @@ enum NanoMuseTab: String, CaseIterable, Identifiable {
         switch self {
         case .chat: return "bubble.left.and.bubble.right.fill"
         case .feed: return "newspaper.fill"
+        case .memory: return "brain.fill"
         case .ideas: return "lightbulb.fill"
         case .goals: return "target"
         case .library: return "books.vertical.fill"
@@ -735,6 +738,8 @@ struct NanoMuseHomeView: View {
                 onDiscuss: { post in discussPost(post) },
                 onOpenSession: { id in openSideChat(id) }
             )
+        case .memory:
+            NanoMuseMemoryRoom(chrome: chrome)
         case .ideas:
             NanoMuseIdeasRoom(
                 chrome: chrome,
@@ -826,7 +831,7 @@ private struct NanoMuseClassicCover: View {
 
 // MARK: - Bottom bar
 
-/// Android's MuseBottomBar: a floating frosted-glass pill a little above the bottom edge, five
+/// Android's MuseBottomBar: a floating frosted-glass pill a little above the bottom edge, six
 /// glyphs and no labels. The pill is `.ultraThinMaterial` under the shell's surface tone at 55
 /// percent, with a 1 pt hairline; the current tab shows its filled glyph on a soft indicator
 /// capsule that springs across to the tab tapped next, the others stay outlined and muted. The
@@ -838,7 +843,7 @@ struct NanoMuseBottomBar: View {
     /// Reduce Motion on: the indicator moves to the tapped tab without the spring.
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// The indicator capsule behind the selected glyph, centred in its slot; the five slots share
+    /// The indicator capsule behind the selected glyph, centred in its slot; the six slots share
     /// the pill's width equally.
     static let tabSize = CGSize(width: 60, height: 46)
     /// The pill's padding above and below the slots.
