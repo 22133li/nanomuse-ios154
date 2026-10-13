@@ -12,30 +12,75 @@ struct SimpleChatMessageList: View {
     var onEdit: (UUID) -> Void = { _ in }
     var onDeleteFrom: (UUID) -> Void = { _ in }
 
+    @State private var isNearBottom: Bool = true
+
     var body: some View {
         ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(spacing: 12) {
-                    ForEach(vm.messages) { message in
-                        SimpleMessageRow(
-                            message: message,
-                            onRetryMessage: onRetryMessage,
-                            onEdit: onEdit,
-                            onDeleteFrom: onDeleteFrom,
-                            isActiveMessage: message.id == vm.messages.last?.id && vm.isProcessing
-                        )
-                            .id(message.id)
+            ZStack(alignment: .bottomTrailing) {
+                ScrollView {
+                    LazyVStack(spacing: 12) {
+                        ForEach(vm.messages) { message in
+                            SimpleMessageRow(
+                                message: message,
+                                onRetryMessage: onRetryMessage,
+                                onEdit: onEdit,
+                                onDeleteFrom: onDeleteFrom,
+                                isActiveMessage: message.id == vm.messages.last?.id && vm.isProcessing
+                            )
+                                .id(message.id)
+                        }
+                        // Bottom anchor for scroll tracking
+                        Color.clear
+                            .frame(height: 1)
+                            .id("bottomAnchor")
+                            .onAppear { isNearBottom = true }
+                            .onDisappear { isNearBottom = false }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                }
+                .onChange(of: vm.messages.count) { _ in
+                    // Scroll to bottom when new messages arrive
+                    if let last = vm.messages.last {
+                        withAnimation {
+                            proxy.scrollTo(last.id, anchor: .bottom)
+                        }
                     }
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-            }
-            .onChange(of: vm.messages.count) { _ in
-                // Scroll to bottom when new messages arrive
-                if let last = vm.messages.last {
-                    withAnimation {
-                        proxy.scrollTo(last.id, anchor: .bottom)
+
+                // Floating scroll buttons (like Android and the full iOS list)
+                if !vm.messages.isEmpty && !isNearBottom {
+                    VStack(spacing: 10) {
+                        Button {
+                            withAnimation {
+                                proxy.scrollTo(vm.messages.first?.id, anchor: .top)
+                            }
+                        } label: {
+                            Image(systemName: "chevron.up")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(Color.primary)
+                                .frame(width: 36, height: 36)
+                                .background(Color(UIColor.systemGray6))
+                                .clipShape(Circle())
+                                .shadow(radius: 2)
+                        }
+                        Button {
+                            withAnimation {
+                                proxy.scrollTo(vm.messages.last?.id, anchor: .bottom)
+                            }
+                        } label: {
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(Color.primary)
+                                .frame(width: 36, height: 36)
+                                .background(Color(UIColor.systemGray6))
+                                .clipShape(Circle())
+                                .shadow(radius: 2)
+                        }
                     }
+                    .padding(.trailing, 16)
+                    .padding(.bottom, 16)
+                    .transition(.opacity.combined(with: .scale(scale: 0.8)))
                 }
             }
         }
