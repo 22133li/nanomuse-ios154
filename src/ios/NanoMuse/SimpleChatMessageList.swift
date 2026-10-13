@@ -59,6 +59,28 @@ struct SimpleMessageRow: View {
         return message.content
     }
 
+    /// Convert the view model's cached NSAttributedString (rendered by the
+    /// upstream MarkdownNSRenderer) to SwiftUI AttributedString. This
+    /// preserves all formatting (bold, lists, paragraphs) without needing
+    /// a UITextView, so SwiftUI handles wrapping natively.
+    private var assistantAttributedString: AttributedString {
+        let textBlocks = message.blocks.filter { $0.kind == .text }
+        if textBlocks.isEmpty {
+            return AttributedString(displayText)
+        }
+        var combined = AttributedString()
+        for (i, block) in textBlocks.enumerated() {
+            if i > 0 {
+                combined += AttributedString("\n\n")
+            }
+            // Fall back to raw content while the renderer hasn't cached yet
+            // (e.g. mid-stream), matching the upstream SelectableMarkdownView path.
+            let nsStr = block.cachedAttributedString ?? NSAttributedString(string: block.content)
+            combined += AttributedString(nsStr)
+        }
+        return combined
+    }
+
     var body: some View {
         HStack {
             if message.role == .user {
@@ -72,8 +94,8 @@ struct SimpleMessageRow: View {
             } else {
                 // Observe blocks so streaming text updates the row.
                 BlocksObserver(blocks: message.blocks)
-                SimpleMarkdownText(message: message, textWidth: 312)
-                    .frame(width: 312, alignment: .leading)
+                Text(assistantAttributedString)
+                    .textSelection(.enabled)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 8)
                     .background(NanoMuseTones.agentPill, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
@@ -125,45 +147,3 @@ private struct BlockObserver: View {
     var body: some View { EmptyView() }
 }
 
-/// Renders an assistant message's text blocks using the already-cached
-/// NSAttributedString from the view model (same renderer the main list
-/// uses), inside a non-editable UITextView with explicit width so
-/// SwiftUI's LazyVStack lays it out correctly on iOS 15.
-private struct SimpleMarkdownText: UIViewRepresentable {
-    @ObservedObject var message: ChatMessage
-    var textWidth: CGFloat = 312
-
-    func makeUIView(context: Context) -> UITextView {
-        let tv = UITextView()
-        tv.isEditable = false
-        tv.isScrollEnabled = false
-        tv.backgroundColor = .clear
-        tv.textContainerInset = .zero
-        tv.textContainer.lineFragmentPadding = 0
-        tv.setContentHuggingPriority(.required, for: .vertical)
-        tv.setContentCompressionResistancePriority(.required, for: .vertical)
-        return tv
-    }
-
-    func updateUIView(_ tv: UITextView, context: Context) {
-        let attr: NSAttributedString
-        if message.role == .user {
-            attr = NSAttributedString(string: message.content)
-        } else {
-            let parts = message.blocks
-                .filter { $0.kind == .text }
-                .map { $0.cachedAttributedString ?? NSAttributedString(string: $0.content) }
-            let combined = NSMutableAttributedString()
-            for (i, p) in parts.enumerated() {
-                if i > 0 { combined.append(NSAttributedString(string: "\n\n")) }
-                combined.append(p)
-            }
-            attr = combined.length > 0 ? combined : NSAttributedString(string: message.content)
-        }
-        if tv.attributedText == nil || !tv.attributedText.isEqual(to: attr) {
-            tv.attributedText = attr
-        }
-        tv.textContainer.size = CGSize(width: textWidth, height: .greatestFiniteMagnitude)
-    }
-
-}
