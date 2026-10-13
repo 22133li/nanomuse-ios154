@@ -62,22 +62,22 @@ struct SimpleMessageRow: View {
     var body: some View {
         HStack {
             if message.role == .user {
-                Spacer()
+                Spacer(minLength: 60)
                 Text(verbatim: displayText)
-                    .frame(maxWidth: UIScreen.main.bounds.width * 0.75, alignment: .trailing)
-                    .fixedSize(horizontal: true, vertical: false)
-                    .padding(10)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
                     .background(Color.blue)
                     .foregroundColor(.white)
-                    .cornerRadius(12)
+                    .cornerRadius(18)
             } else {
                 // Observe blocks so streaming text updates the row.
                 BlocksObserver(blocks: message.blocks)
                 SimpleMarkdownText(message: message)
-                    .frame(maxWidth: UIScreen.main.bounds.width * 0.75, alignment: .leading)
-                    .padding(10)
-                    .background(Color(.systemGray5))
-                    .cornerRadius(12)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(NanoMuseTones.agentPill, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    .frame(maxWidth: 340, alignment: .leading)
                 Spacer()
             }
         }
@@ -139,6 +139,8 @@ private struct SimpleMarkdownText: UIViewRepresentable {
         tv.backgroundColor = .clear
         tv.textContainerInset = .zero
         tv.textContainer.lineFragmentPadding = 0
+        tv.setContentHuggingPriority(.required, for: .vertical)
+        tv.setContentCompressionResistancePriority(.required, for: .vertical)
         return tv
     }
 
@@ -160,15 +162,5 @@ private struct SimpleMarkdownText: UIViewRepresentable {
         if tv.attributedText == nil || !tv.attributedText.isEqual(to: attr) {
             tv.attributedText = attr
         }
-        // Force the text container to the target width so the text wraps
-        // instead of running off-screen.
-        let targetWidth = UIScreen.main.bounds.width * 0.75 - 20
-        tv.textContainer.size = CGSize(width: targetWidth, height: .greatestFiniteMagnitude)
-    }
-
-    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize? {
-        let width = proposal.width ?? UIScreen.main.bounds.width * 0.75
-        let size = uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
-        return CGSize(width: width, height: size.height)
     }
 }
