@@ -209,7 +209,11 @@ final class OffloadPermissionManager: ObservableObject {
     /// move to the dispatch site itself; see the issue.
     static func extractOffloadCommand(from shellCommand: String) -> String? {
         let trimmed = shellCommand.trimmingCharacters(in: .whitespacesAndNewlines)
-        let firstToken = trimmed.split(separator: " ", maxSplits: 1).first.map(String.init) ?? trimmed
+        // Unwrap shell indirection: `sh -c '...'` / `bash -c "..."` /
+        // `env VAR=val ...` would otherwise hide an apple-* command behind
+        // a non-registry first token and bypass approval entirely.
+        let unwrapped = unwrapShellIndirection(trimmed)
+        let firstToken = unwrapped.split(separator: " ", maxSplits: 1).first.map(String.init) ?? unwrapped
         let basename = (firstToken as NSString).lastPathComponent
         // Return the REGISTERED name, not the caller's spelling: every consumer
         // (permissionLevel, sessionGrants, the prompt's display label) keys off
@@ -219,6 +223,42 @@ final class OffloadPermissionManager: ObservableObject {
             return basename
         }
         return nil
+    }
+
+    /// Strip one layer of shell indirection so approval can't be bypassed via
+    /// `sh -c 'apple-...'`, `bash -c "..."`, or `env FOO=bar apple-...`.
+    /// Returns the original string when no indirection pattern matches.
+    private static func unwrapShellIndirection(_ command: String) -> String {
+        var rest = command
+        // `env VAR=val ...` prefix: skip VAR= assignments
+        if rest.hasPrefix("env ") || rest.hasPrefix("env\t") {
+            rest = String(rest.dropFirst(3)).trimmingCharacters(in: .whitespaces)
+            while let eqRange = rest.range(of: "="),
+                  !rest[..<eqRange.lowerBound].contains(" "),
+                  !rest[..<eqRange.lowerBound].contains("\t") {
+                // Skip this VAR=val token
+                if let spaceIdx = rest.firstIndex(where: { $0 == " " || $0 == "\t" }) {
+                    rest = String(rest[rest.index(after: spaceIdx)...]).trimmingCharacters(in: .whitespaces)
+                } else {
+                    return command
+                }
+            }
+        }
+        // `sh -c '...'` / `bash -c '...'` / `zsh -c '...'` / `dash -c '...'`
+        let shells = ["sh", "bash", "zsh", "dash"]
+        for shell in shells {
+            let prefix = shell + " -c "
+            if rest.hasPrefix(prefix) {
+                var inner = String(rest.dropFirst(prefix.count)).trimmingCharacters(in: .whitespaces)
+                // Strip one layer of matching quotes
+                if (inner.hasPrefix("'") && inner.hasSuffix("'")) ||
+                   (inner.hasPrefix("\"") && inner.hasSuffix("\"")) {
+                    inner = String(inner.dropFirst().dropLast())
+                }
+                return inner.trimmingCharacters(in: .whitespaces)
+            }
+        }
+        return rest
     }
 
     // MARK: - Permission Check
