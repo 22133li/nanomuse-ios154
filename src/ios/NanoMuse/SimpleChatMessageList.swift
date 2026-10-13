@@ -36,17 +36,31 @@ struct SimpleChatMessageList: View {
 struct SimpleMessageRow: View {
     @ObservedObject var message: ChatMessage
 
+    /// Assistant messages carry their text in blocks, not content.
+    private var displayText: String {
+        if message.role == .user { return message.content }
+        let blockText = message.blocks
+            .filter { $0.kind == .text }
+            .map { $0.content }
+            .joined(separator: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if !blockText.isEmpty { return blockText }
+        return message.content
+    }
+
     var body: some View {
         HStack {
             if message.role == .user {
                 Spacer()
-                Text(message.content)
+                Text(displayText)
                     .padding(10)
                     .background(Color.blue)
                     .foregroundColor(.white)
                     .cornerRadius(12)
             } else {
-                Text(message.content)
+                // Observe blocks so streaming text updates the row.
+                BlocksObserver(blocks: message.blocks)
+                Text(displayText)
                     .padding(10)
                     .background(Color(.systemGray5))
                     .foregroundColor(.primary)
@@ -55,4 +69,20 @@ struct SimpleMessageRow: View {
             }
         }
     }
+}
+
+/// Subscribes to each block's objectWillChange so the row refreshes as
+/// assistant text streams in on iOS 15.
+private struct BlocksObserver: View {
+    var blocks: [AssistantBlock]
+    var body: some View {
+        ForEach(blocks) { block in
+            BlockObserver(block: block)
+        }
+    }
+}
+
+private struct BlockObserver: View {
+    @ObservedObject var block: AssistantBlock
+    var body: some View { EmptyView() }
 }
