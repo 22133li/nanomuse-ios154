@@ -47,25 +47,16 @@ struct SimpleChatMessageList: View {
                         }
                     }
                 }
-                .background(
-                    // Stick to bottom while tokens stream into the last
-                    // assistant message. The full list only fires its
-                    // scrollToBottomSignal when isNearBottom; mirror that
-                    // here so reading history isn't yanked back down.
-                    Group {
-                        if vm.isProcessing,
-                           let last = vm.messages.last,
-                           last.role == .assistant {
-                            StreamScrollTrigger(message: last) {
-                                if isNearBottom {
-                                    withAnimation {
-                                        proxy.scrollTo(last.id, anchor: .bottom)
-                                    }
-                                }
-                            }
+                // Follow the view model's scroll signal (fired on every
+                // streaming text update when isNearBottom, same as the full
+                // list's CollectionViewMessageListV3 subscription).
+                .onReceive(vm.scrollToBottomSignal) { _ in
+                    if let last = vm.messages.last {
+                        withAnimation(.linear(duration: 0.15)) {
+                            proxy.scrollTo(last.id, anchor: .bottom)
                         }
                     }
-                )
+                }
 
                 // Floating scroll buttons (like Android and the full iOS list)
                 if !vm.messages.isEmpty && !isNearBottom {
@@ -326,30 +317,6 @@ private struct SimpleToolCapsule: View {
 
 /// Fires `onStreamUpdate` whenever a block of `message` changes (tokens
 /// streaming in), so the iOS 15 list can stick to bottom mid-message.
-private struct StreamScrollTrigger: View {
-    @ObservedObject var message: ChatMessage
-    var onStreamUpdate: () -> Void
-
-    var body: some View {
-        ForEach(message.blocks) { block in
-            BlockScrollObserver(block: block, onUpdate: onStreamUpdate)
-        }
-    }
-}
-
-private struct BlockScrollObserver: View {
-    @ObservedObject var block: AssistantBlock
-    var onUpdate: () -> Void
-
-    var body: some View {
-        Color.clear
-            .frame(width: 0, height: 0)
-            .onChange(of: block.content) { _ in
-                onUpdate()
-            }
-    }
-}
-
 /// Simplified attachment tiles for the iOS 15 message list.
 /// Shows file chips (icon + name) instead of the full thumbnail tiles.
 private struct SimpleAttachmentList: View {
