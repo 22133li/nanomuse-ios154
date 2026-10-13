@@ -2660,7 +2660,15 @@ struct AIChatView: View {
             Group {
                 if #unavailable(iOS 16.0) {
                     // iOS 15: CollectionView has update issues, use SwiftUI list
-                    SimpleChatMessageList(vm: vm)
+                    SimpleChatMessageList(
+                        vm: vm,
+                        onRetryMessage: { vm.retryFromMessage($0); vm.forceScrollToBottom.send() },
+                        onEdit: { [self] msgId in
+                            vm.editMessage(msgId)
+                            inputFocused = true
+                        },
+                        onDeleteFrom: { vm.deleteFromMessage($0) }
+                    )
                 } else {
                 CollectionViewMessageListV3(
                 vm: vm,

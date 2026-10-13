@@ -8,13 +8,21 @@ import SwiftUI
 
 struct SimpleChatMessageList: View {
     @ObservedObject var vm: AIChatViewModel
+    var onRetryMessage: (UUID) -> Void = { _ in }
+    var onEdit: (UUID) -> Void = { _ in }
+    var onDeleteFrom: (UUID) -> Void = { _ in }
 
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 12) {
                     ForEach(vm.messages) { message in
-                        SimpleMessageRow(message: message)
+                        SimpleMessageRow(
+                            message: message,
+                            onRetryMessage: onRetryMessage,
+                            onEdit: onEdit,
+                            onDeleteFrom: onDeleteFrom
+                        )
                             .id(message.id)
                     }
                 }
@@ -35,6 +43,9 @@ struct SimpleChatMessageList: View {
 
 struct SimpleMessageRow: View {
     @ObservedObject var message: ChatMessage
+    var onRetryMessage: (UUID) -> Void = { _ in }
+    var onEdit: (UUID) -> Void = { _ in }
+    var onDeleteFrom: (UUID) -> Void = { _ in }
 
     /// Assistant messages carry their text in blocks, not content.
     private var displayText: String {
@@ -66,6 +77,31 @@ struct SimpleMessageRow: View {
                     .foregroundColor(.primary)
                     .cornerRadius(12)
                 Spacer()
+            }
+        }
+        .contextMenu {
+            Button {
+                UIPasteboard.general.string = displayText
+            } label: {
+                Label("复制", systemImage: "doc.on.doc")
+            }
+            if message.role == .user {
+                Button {
+                    onEdit(message.id)
+                } label: {
+                    Label("编辑", systemImage: "pencil")
+                }
+            } else {
+                Button {
+                    onRetryMessage(message.id)
+                } label: {
+                    Label("重试", systemImage: "arrow.clockwise")
+                }
+            }
+            Button(role: .destructive) {
+                onDeleteFrom(message.id)
+            } label: {
+                Label("删除", systemImage: "trash")
             }
         }
     }
