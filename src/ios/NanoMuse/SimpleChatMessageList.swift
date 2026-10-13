@@ -65,6 +65,7 @@ struct SimpleMessageRow: View {
                 Spacer()
                 Text(verbatim: displayText)
                     .frame(maxWidth: UIScreen.main.bounds.width * 0.75, alignment: .trailing)
+                    .fixedSize(horizontal: true, vertical: false)
                     .padding(10)
                     .background(Color.blue)
                     .foregroundColor(.white)
