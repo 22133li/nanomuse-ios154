@@ -2391,7 +2391,7 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
             for block in msg.blocks {
                 if let status = block.toolStatus {
                     switch status {
-                    case .streaming, .running:
+                    case .streaming, .running, .waiting:
                         block.toolStatus = .cancelled
                     default: break
                     }
@@ -4505,7 +4505,7 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
                 for block in last.blocks {
                     if let status = block.toolStatus {
                         switch status {
-                        case .streaming, .running:
+                        case .streaming, .running, .waiting:
                             block.toolStatus = .cancelled
                         default: break
                         }
