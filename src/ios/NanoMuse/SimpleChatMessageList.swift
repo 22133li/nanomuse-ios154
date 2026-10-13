@@ -21,7 +21,8 @@ struct SimpleChatMessageList: View {
                             message: message,
                             onRetryMessage: onRetryMessage,
                             onEdit: onEdit,
-                            onDeleteFrom: onDeleteFrom
+                            onDeleteFrom: onDeleteFrom,
+                            isActiveMessage: message.id == vm.messages.last?.id && vm.isProcessing
                         )
                             .id(message.id)
                     }
@@ -46,6 +47,8 @@ struct SimpleMessageRow: View {
     var onRetryMessage: (UUID) -> Void = { _ in }
     var onEdit: (UUID) -> Void = { _ in }
     var onDeleteFrom: (UUID) -> Void = { _ in }
+    var isActiveMessage: Bool = false
+    @AppStorage(NanoMuseSteps.key) private var showSteps: Bool = NanoMuseSteps.defaultValue
 
     /// Assistant messages carry their text in blocks, not content.
     private var displayText: String {
@@ -57,6 +60,26 @@ struct SimpleMessageRow: View {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         if !blockText.isEmpty { return blockText }
         return message.content
+    }
+
+    /// Tool blocks to show as step capsules, respecting the
+    /// "Show the agent's steps" setting (like the full message list).
+    private var visibleToolBlocks: [AssistantBlock] {
+        message.blocks.filter { block in
+            !NanoMuseSteps.hidden(block.kind, active: isActiveMessage, showSteps: showSteps)
+        }.filter { block in
+            switch block.kind {
+            case .shellTool, .fileReadTool, .fileWriteTool, .fileEditTool,
+                 .browserTool, .readImageTool, .memoryTool:
+                return true
+            case .text, .thinking, .info:
+                return false
+            }
+        }
+    }
+
+    private var hasTextContent: Bool {
+        !message.blocks.filter({ $0.kind == .text }).isEmpty || !message.content.isEmpty
     }
 
     /// Convert the view model's cached NSAttributedString (rendered by the
@@ -94,12 +117,21 @@ struct SimpleMessageRow: View {
             } else {
                 // Observe blocks so streaming text updates the row.
                 BlocksObserver(blocks: message.blocks)
-                Text(assistantAttributedString)
-                    .textSelection(.enabled)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .background(NanoMuseTones.agentPill, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-                    .frame(maxWidth: 340, alignment: .leading)
+                VStack(alignment: .leading, spacing: 8) {
+                    // Tool step capsules (agent's steps), like Android.
+                    ForEach(visibleToolBlocks) { block in
+                        SimpleToolCapsule(block: block)
+                    }
+                    // Text bubble.
+                    if hasTextContent {
+                        Text(assistantAttributedString)
+                            .textSelection(.enabled)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(NanoMuseTones.agentPill, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                            .frame(maxWidth: 340, alignment: .leading)
+                    }
+                }
                 Spacer()
             }
         }
@@ -147,3 +179,58 @@ private struct BlockObserver: View {
     var body: some View { EmptyView() }
 }
 
+/// Simplified tool step capsule for the iOS 15 message list.
+/// Mirrors ToolCapsuleView's appearance (icon + description in a pill)
+/// without the interactive features (stop button, detail sheet, etc.).
+private struct SimpleToolCapsule: View {
+    @ObservedObject var block: AssistantBlock
+
+    private var icon: String {
+        switch block.kind {
+        case .shellTool: return "terminal"
+        case .fileReadTool: return "doc.text"
+        case .fileWriteTool: return "doc.text.fill"
+        case .fileEditTool: return "square.and.pencil"
+        case .browserTool: return "globe"
+        case .readImageTool: return "photo"
+        case .memoryTool: return "brain.head.profile"
+        case .text, .thinking, .info: return "circle"
+        }
+    }
+
+    private var accentColor: Color {
+        switch block.kind {
+        case .shellTool: return .green
+        case .fileReadTool: return .cyan
+        case .fileWriteTool: return .blue
+        case .fileEditTool: return .orange
+        case .browserTool: return .blue
+        case .readImageTool: return .purple
+        case .memoryTool: return .pink
+        case .text, .thinking, .info: return .gray
+        }
+    }
+
+    private var displayText: String {
+        if let summary = block.toolSummary, !summary.isEmpty {
+            return summary
+        }
+        return block.toolDescription
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 13))
+                .foregroundStyle(accentColor)
+            Text(displayText)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(Color.primary)
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 12)
+        .frame(height: 36)
+        .background(Color(UIColor.systemGray6))
+        .clipShape(Capsule())
+    }
+}
