@@ -153,12 +153,22 @@ struct SimpleMessageRow: View {
         HStack {
             if message.role == .user {
                 Spacer(minLength: 60)
-                Text(verbatim: displayText)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(Color.blue)
-                    .foregroundColor(.white)
-                    .cornerRadius(18)
+                VStack(alignment: .trailing, spacing: 6) {
+                    // Attachments above the text bubble (like the full list)
+                    if !message.attachments.isEmpty {
+                        SimpleAttachmentList(attachments: message.attachments)
+                    } else if !message.inputAttachments.isEmpty {
+                        SimpleInputAttachmentList(attachments: message.inputAttachments)
+                    }
+                    if !displayText.isEmpty {
+                        Text(verbatim: displayText)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                            .background(Color.blue)
+                            .foregroundColor(.white)
+                            .cornerRadius(18)
+                    }
+                }
             } else {
                 // Observe blocks so streaming text updates the row.
                 BlocksObserver(blocks: message.blocks)
@@ -277,5 +287,60 @@ private struct SimpleToolCapsule: View {
         .frame(height: 36)
         .background(Color(UIColor.systemGray6))
         .clipShape(Capsule())
+    }
+}
+
+/// Simplified attachment tiles for the iOS 15 message list.
+/// Shows file chips (icon + name) instead of the full thumbnail tiles.
+private struct SimpleAttachmentList: View {
+    let attachments: [AttachmentMeta]
+
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 4) {
+            ForEach(attachments) { meta in
+                HStack(spacing: 8) {
+                    Image(systemName: meta.isImage ? "photo" : (meta.isVideo ? "video" : "doc"))
+                        .font(.system(size: 14))
+                        .foregroundStyle(Color.white.opacity(0.9))
+                    Text(meta.fileName)
+                        .font(.system(size: 13))
+                        .foregroundStyle(Color.white)
+                        .lineLimit(1)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color.blue.opacity(0.7))
+                .cornerRadius(10)
+            }
+        }
+    }
+}
+
+/// Queued (not yet uploaded) attachments preview.
+private struct SimpleInputAttachmentList: View {
+    let attachments: [InputAttachment]
+
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 4) {
+            ForEach(attachments) { att in
+                HStack(spacing: 8) {
+                    Image(systemName: att.kind == .image ? "photo" : (att.kind == .video ? "video" : "doc"))
+                        .font(.system(size: 14))
+                        .foregroundStyle(Color.white.opacity(0.9))
+                    Text(att.fileName)
+                        .font(.system(size: 13))
+                        .foregroundStyle(Color.white)
+                        .lineLimit(1)
+                    if att.loadState == .loading {
+                        ProgressView()
+                            .scaleEffect(0.7)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color.blue.opacity(0.7))
+                .cornerRadius(10)
+            }
+        }
     }
 }
