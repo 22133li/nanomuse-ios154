@@ -159,5 +159,15 @@ private struct SimpleMarkdownText: UIViewRepresentable {
         if tv.attributedText == nil || !tv.attributedText.isEqual(to: attr) {
             tv.attributedText = attr
         }
+        // Force the text container to the target width so the text wraps
+        // instead of running off-screen.
+        let targetWidth = UIScreen.main.bounds.width * 0.75 - 20
+        tv.textContainer.size = CGSize(width: targetWidth, height: .greatestFiniteMagnitude)
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize? {
+        let width = proposal.width ?? UIScreen.main.bounds.width * 0.75
+        let size = uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
+        return CGSize(width: width, height: size.height)
     }
 }
