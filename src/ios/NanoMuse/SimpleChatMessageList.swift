@@ -13,6 +13,7 @@ struct SimpleChatMessageList: View {
     var onDeleteFrom: (UUID) -> Void = { _ in }
 
     @State private var isNearBottom: Bool = true
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -25,7 +26,8 @@ struct SimpleChatMessageList: View {
                                 onRetryMessage: onRetryMessage,
                                 onEdit: onEdit,
                                 onDeleteFrom: onDeleteFrom,
-                                isActiveMessage: message.id == vm.messages.last?.id && vm.isProcessing
+                                isActiveMessage: message.id == vm.messages.last?.id && vm.isProcessing,
+                                horizontalSizeClass: horizontalSizeClass
                             )
                                 .id(message.id)
                         }
@@ -40,21 +42,28 @@ struct SimpleChatMessageList: View {
                     .padding(.vertical, 8)
                 }
                 .onChange(of: vm.messages.count) { _ in
-                    // Scroll to bottom when new messages arrive
-                    if let last = vm.messages.last {
-                        withAnimation {
-                            proxy.scrollTo(last.id, anchor: .bottom)
-                        }
-                    }
+                    // Pin to bottom on new messages only when the user is
+                    // already near the bottom (matches the full list's
+                    // autoScrolling mode; a user scrolled up stays put).
+                    guard isNearBottom, let last = vm.messages.last else { return }
+                    proxy.scrollTo(last.id, anchor: .bottom)
                 }
-                // Follow the view model's scroll signal (fired on every
-                // streaming text update when isNearBottom, same as the full
-                // list's CollectionViewMessageListV3 subscription).
+                // Follow the view model's scroll signal (fired on streaming
+                // text updates), gated on isNearBottom like the full list's
+                // CollectionViewMessageListV3 subscription. Auto-scroll sets
+                // the offset directly with no animation so rapid streaming
+                // flushes don't jitter.
                 .onReceive(vm.scrollToBottomSignal) { _ in
-                    if let last = vm.messages.last {
-                        withAnimation(.linear(duration: 0.15)) {
-                            proxy.scrollTo(last.id, anchor: .bottom)
-                        }
+                    guard isNearBottom, let last = vm.messages.last else { return }
+                    proxy.scrollTo(last.id, anchor: .bottom)
+                }
+                // Feed the locally tracked scroll position back to the view
+                // model: on iOS 15 the CollectionView list never runs, so
+                // this is the only writer of vm.isNearBottom (it also drives
+                // the header scrim, composer fade and floating buttons).
+                .onChange(of: isNearBottom) { newValue in
+                    if vm.isNearBottom != newValue {
+                        vm.isNearBottom = newValue
                     }
                 }
 
@@ -103,6 +112,7 @@ struct SimpleMessageRow: View {
     var onEdit: (UUID) -> Void = { _ in }
     var onDeleteFrom: (UUID) -> Void = { _ in }
     var isActiveMessage: Bool = false
+    var horizontalSizeClass: UserInterfaceSizeClass?
     @AppStorage(NanoMuseSteps.key) private var showSteps: Bool = NanoMuseSteps.defaultValue
     /// Tool block tapped for input/output inspection (mirrors the full
     /// list's detailBlock -> ToolLiveSheet presentation).
@@ -146,6 +156,21 @@ struct SimpleMessageRow: View {
         !message.blocks.filter({ $0.kind == .text }).isEmpty || !message.content.isEmpty
     }
 
+    /// Body text metrics matching MarkdownNSRenderer's base attributes
+    /// (scaled 16.5pt base font, lineSpacing = 25% of size, label color),
+    /// applied to the plain-text streaming fallback so streaming and
+    /// completed rendering share line heights (no jump at completion).
+    private static var streamingFallbackAttributes: [NSAttributedString.Key: Any] {
+        let size = FontSettings.shared.scaledMessage(16.5)
+        let style = NSMutableParagraphStyle()
+        style.lineSpacing = size * 0.25
+        return [
+            .font: UIFont.systemFont(ofSize: size),
+            .foregroundColor: UIColor.label,
+            .paragraphStyle: style,
+        ]
+    }
+
     /// Convert the view model's cached NSAttributedString (rendered by the
     /// upstream MarkdownNSRenderer) to SwiftUI AttributedString. This
     /// preserves all formatting (bold, lists, paragraphs) without needing
@@ -161,8 +186,11 @@ struct SimpleMessageRow: View {
                 combined += AttributedString("\n\n")
             }
             // Fall back to raw content while the renderer hasn't cached yet
-            // (e.g. mid-stream), matching the upstream SelectableMarkdownView path.
-            let nsStr = block.cachedAttributedString ?? NSAttributedString(string: block.content)
+            // (e.g. mid-stream), styled with the renderer's body metrics so
+            // the switch to the fully-rendered string at completion doesn't
+            // shift line heights.
+            let nsStr = block.cachedAttributedString
+                ?? NSAttributedString(string: block.content, attributes: Self.streamingFallbackAttributes)
             combined += AttributedString(nsStr)
         }
         return combined
@@ -183,8 +211,8 @@ struct SimpleMessageRow: View {
                         Text(verbatim: displayText)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 10)
-                            .background(Color.blue)
-                            .foregroundColor(.white)
+                            .background(NanoMuseTones.ink)
+                            .foregroundColor(NanoMuseTones.onInk)
                             .cornerRadius(18)
                     }
                 }
@@ -207,7 +235,7 @@ struct SimpleMessageRow: View {
                             .padding(.horizontal, 14)
                             .padding(.vertical, 8)
                             .background(NanoMuseTones.agentPill, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-                            .frame(maxWidth: 340, alignment: .leading)
+                            .frame(maxWidth: NanoMuseColumn.agentPillWidth(for: horizontalSizeClass), alignment: .leading)
                     }
                 }
                 Spacer()
@@ -338,15 +366,15 @@ private struct SimpleAttachmentList: View {
                 HStack(spacing: 8) {
                     Image(systemName: meta.isImage ? "photo" : (meta.isVideo ? "video" : "doc"))
                         .font(.system(size: 14))
-                        .foregroundStyle(Color.white.opacity(0.9))
+                        .foregroundStyle(NanoMuseTones.onInk.opacity(0.9))
                     Text(meta.fileName)
                         .font(.system(size: 13))
-                        .foregroundStyle(Color.white)
+                        .foregroundStyle(NanoMuseTones.onInk)
                         .lineLimit(1)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-                .background(Color.blue.opacity(0.7))
+                .background(NanoMuseTones.ink.opacity(0.7))
                 .cornerRadius(10)
             }
         }
@@ -363,10 +391,10 @@ private struct SimpleInputAttachmentList: View {
                 HStack(spacing: 8) {
                     Image(systemName: att.kind == .image ? "photo" : (att.kind == .video ? "video" : "doc"))
                         .font(.system(size: 14))
-                        .foregroundStyle(Color.white.opacity(0.9))
+                        .foregroundStyle(NanoMuseTones.onInk.opacity(0.9))
                     Text(att.fileName)
                         .font(.system(size: 13))
-                        .foregroundStyle(Color.white)
+                        .foregroundStyle(NanoMuseTones.onInk)
                         .lineLimit(1)
                     if att.loadState == .loading {
                         ProgressView()
@@ -375,7 +403,7 @@ private struct SimpleInputAttachmentList: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-                .background(Color.blue.opacity(0.7))
+                .background(NanoMuseTones.ink.opacity(0.7))
                 .cornerRadius(10)
             }
         }
