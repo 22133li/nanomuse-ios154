@@ -364,6 +364,14 @@ final class BackgroundKeepAliveManager: NSObject, ObservableObject, CLLocationMa
         guard !didSetup else { return }
         didSetup = true
         configureLocationManager()
+        // [T-enhanced-bg-auto-speak-repair] Repair for users who enabled the
+        // master switch in an older build before the didSet auto-opt-in
+        // existed: their persisted `true` never fires didSet again, leaving
+        // Background Speak off and keep-alive ineffective. Heal it once here.
+        if enhancedBackgroundEnabled && !backgroundSpeakEnabled {
+            logger.info("[BackgroundKeepAlive] Repair: master was on but Background Speak off — auto-enabling")
+            backgroundSpeakEnabled = true
+        }
         logger.info("[BackgroundKeepAlive] Setup: enabled=\(self.enhancedBackgroundEnabled), locationTracking=\(self.locationTrackingEnabled)")
 
         if #available(iOS 17.0, *) {
