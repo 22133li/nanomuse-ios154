@@ -14,6 +14,11 @@ struct SimpleChatMessageList: View {
 
     @State private var isNearBottom: Bool = true
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    /// nanoMuse: iOS 15 equivalent of CollectionViewMessageListV3's `topOverlay` — the shell's Muse
+    /// header floats over the list's top edge; the ScrollView keeps the status-bar safe area and
+    /// takes the header as a top safe-area inset, so the rows scroll under the header and start
+    /// below it. 0 without the shell: no-op.
+    @Environment(\.nmTopOverlay) private var nmTopOverlay
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -40,6 +45,9 @@ struct SimpleChatMessageList: View {
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
+                }
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    Color.clear.frame(height: nmTopOverlay)
                 }
                 .onChange(of: vm.messages.count) { _ in
                     // Pin to bottom on new messages only when the user is

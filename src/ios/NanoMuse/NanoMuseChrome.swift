@@ -300,6 +300,8 @@ struct NanoMuseTopBar<Trailing: View>: View {
     var title: String
     var onBack: (() -> Void)?
     @ViewBuilder var trailing: () -> Trailing
+    /// Dynamic Type, capped as the header's lines are (NanoMuseHeaderMetrics), so the title stays on its one line.
+    @ScaledMetric(relativeTo: .headline) private var titleSize: CGFloat = 17
 
     init(title: String, onBack: (() -> Void)?, @ViewBuilder trailing: @escaping () -> Trailing) {
         self.title = title
@@ -310,7 +312,7 @@ struct NanoMuseTopBar<Trailing: View>: View {
     var body: some View {
         ZStack {
             Text(title)
-                .font(.system(size: 17, weight: .semibold))
+                .font(.system(size: NanoMuseHeaderMetrics.capped(titleSize, base: 17), weight: .semibold))
                 .lineLimit(1)
                 .padding(.horizontal, 60)
             HStack {

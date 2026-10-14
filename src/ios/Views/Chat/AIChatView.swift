@@ -2713,8 +2713,19 @@ struct AIChatView: View {
                 },
                 maxContentWidth: maxContentWidth ?? 0,
                 floatingBarHeight: 0, // nanoMuse: the tool strip is part of the composer column, measured with it (NanoMuseComposerHost)
-                inputBarHeight: nmColumnHeight + nmBottomOverlay // nanoMuse: the column lies over the list's bottom edge and the shell's bottom bar under it; the rows scroll under both and the last one stops above the column
+                inputBarHeight: nmColumnHeight + nmBottomOverlay, // nanoMuse: the column lies over the list's bottom edge and the shell's bottom bar under it; the rows scroll under both and the last one stops above the column
+                topOverlay: nmTopOverlay // nanoMuse: the shell's Muse header over the list's top edge; the rows scroll under it and start below it
                 )
+                // nanoMuse: with the shell's header over the chat, the list runs up under it (and the
+                // status bar, which UIKit's own safe area handles) and keeps its rows down by
+                // `topOverlay`, so they dissolve under the header's scrim instead of ending at a hard
+                // edge under the face. A `safeAreaInset` on a UIKit view shortens the view, unlike a
+                // SwiftUI ScrollView, which is why the list needs to ignore it. The chat's own banners
+                // (the error strip, a notice) stay a safe-area inset and lie over the list's top rows
+                // while they show. Without the shell nothing changes.
+                // iOS 15: `.container` is iOS 16+, so the regions default to `.all` — identical for
+                // the top edge (the keyboard region has no top edge).
+                .ignoresSafeArea(edges: nmTopOverlay > 0 ? Edge.Set.top : [])
 
                 }
             }
@@ -3539,6 +3550,9 @@ struct AIChatView: View {
     // nanoMuse: the shell's floating bottom bar under this chat (0 without the shell, or while the
     // keyboard has it away): the composer column stands this much above the bottom edge.
     @Environment(\.nmBottomOverlay) private var nmBottomOverlay // nanoMuse:
+    // nanoMuse: the shell's Muse header over this chat's top edge (0 without the shell and in a
+    // pushed side chat): the message list extends under it and keeps its rows this much down.
+    @Environment(\.nmTopOverlay) private var nmTopOverlay // nanoMuse:
     // nanoMuse: the composer column's height as NanoMuseComposerHost measured it; with the bar it is
     // the list's bottom inset and the lift of the scroll buttons.
     @State private var nmColumnHeight: CGFloat = 0 // nanoMuse:
@@ -5057,7 +5071,7 @@ private struct NavBarStyleModifier: ViewModifier {
                 .ignoresSafeArea(.container, edges: .top)
         } else {
             // iOS 16–18: opaque navbar background
-            content
+            scrimAwareContent(content)
                 // nanoMuse: a side chat pushed from the shell gets the main chat's scrim behind the
                 // system bar (NanoMuseHeaderScrim, docs/design.md): the bar's own background and
                 // its hairline go, and a zero-height inset's background fades the canvas colour
@@ -5083,6 +5097,20 @@ private struct NavBarStyleModifier: ViewModifier {
                         .ignoresSafeArea()
                         .frame(height: 0)
                 }
+        }
+    }
+
+    /// nanoMuse: 1.0.5 — the content runs up under the system bar as in the iOS 26 branch, so the
+    /// rows have somewhere to fade under the scrim; the bar is UIKit's, so the collection list's
+    /// `.automatic` adjustment keeps the first row below it, as there. iOS 15 keeps the old
+    /// behaviour: the list is a SwiftUI ScrollView (no such adjustment), so ignoring the top safe
+    /// area would slide the first row under the bar.
+    @ViewBuilder
+    private func scrimAwareContent(_ content: Content) -> some View {
+        if #available(iOS 16, *) {
+            content.ignoresSafeArea(.container, edges: systemBarScrim ? Edge.Set.top : [])
+        } else {
+            content
         }
     }
 }

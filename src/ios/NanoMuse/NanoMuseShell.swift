@@ -359,11 +359,15 @@ struct NanoMuseHomeView: View {
     @State private var tab: NanoMuseTab = .chat
     @State private var drawerOpen = false
     @State private var chatPath: [String] = []
+    /// The Muse header's measured height over the main chat (`nmTopOverlay`), without the status bar.
+    @State private var chatHeaderHeight: CGFloat = 0
     @State private var showClassic = false
     @State private var classicWantsSettings = false
     @State private var showNanoMuseSettings = false
     @State private var showCoding = false
     @State private var showRoutines = false
+    /// The routine an idea just became, while its editor is up (the Ideas room has no sheet of its own).
+    @State private var editingRoutine: NanoMuseRoutine?
     @State private var showSystemFiles = false
     @State private var showSharedFolders = false
     @State private var showChatFiles = false
@@ -472,6 +476,9 @@ struct NanoMuseHomeView: View {
         }
         .sheet(isPresented: $showRoutines) {
             NanoMusePageSheet(title: AppLocalized("All routines")) { NanoMuseRoutinesView() }
+        }
+        .sheet(item: $editingRoutine) { routine in
+            NanoMuseRoutineEditor(routine: routine)
         }
         .sheet(isPresented: $showSystemFiles) {
             NanoMusePageSheet(title: AppLocalized("System files")) { NanoMuseSystemFilesView() }
@@ -615,10 +622,15 @@ struct NanoMuseHomeView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
-            // Android: the header floats over the transcript, which scrolls under it. A safe-area
-            // inset (not a VStack row) so the message list keeps its full height and only its
-            // content inset moves; behind it a scrim of the canvas colour fading to clear, not a
-            // blur and not a bar, and there is no divider line (NanoMuseHeaderScrim).
+            // Android: the header floats over the transcript, which scrolls under it. The header
+            // is a safe-area inset with its measured height handed to the chat as `nmTopOverlay`:
+            // the chat lets its message list extend under the header and gives the list that
+            // much top content inset (AIChatView.messagesArea), so the rows pass under the face
+            // the way they pass under the composer and the bottom bar. Behind the header a scrim
+            // of the canvas colour fading to clear, not a blur and not a bar, and there is no
+            // divider line (NanoMuseHeaderScrim). Up to 1.0.4 the inset alone shortened the
+            // list, a UIKit view, and the rows stopped at a hard edge under the face.
+            .environment(\.nmTopOverlay, chatHeaderHeight)
             .safeAreaInset(edge: .top, spacing: 0) {
                 VStack(spacing: 0) {
                     // MuseHeader over the main chat — the face, the name pill, the drawer and ••• discs.
@@ -659,6 +671,11 @@ struct NanoMuseHomeView: View {
                         .transition(.move(edge: .top).combined(with: .opacity))
                     }
                 }
+                .onGeometryChangeBackport(for: CGFloat.self) { proxy in
+                    proxy.size.height
+                } action: { height in
+                    if abs(height - chatHeaderHeight) > 0.5 { chatHeaderHeight = height }
+                }
                 .background {
                     NanoMuseChatScrimHost(liveId: main.liveId)
                         .ignoresSafeArea(edges: .top)
@@ -695,8 +712,10 @@ struct NanoMuseHomeView: View {
             let draft = id.hasPrefix(NanoMuseMainChat.draftPrefix)
             AIChatView(sessionId: draft ? nil : id, draftId: draft ? id : nil)
                 .id(id)
-                // The side chat keeps the system bar, with the main chat's scrim behind it.
+                // The side chat keeps the system bar, with the main chat's scrim behind it,
+                // and no Muse header over its list.
                 .environment(\.nmSystemBarScrim, true)
+                .environment(\.nmTopOverlay, 0)
         } else {
             EmptyView()
         }
@@ -790,7 +809,9 @@ struct NanoMuseHomeView: View {
         sendToMainChat(trimmed.isEmpty ? opener : opener + " " + trimmed)
     }
 
-    /// A routine from an idea: created at the idea's time (9:00 when it has none), then the editor.
+    /// A routine from an idea: created at the idea's time (9:00 when it has none), then the editor,
+    /// as a sheet of this view. Up to 1.0.4 the Goals room was asked to open it, and that room is
+    /// not on screen while the Ideas room is, so the routine was made and nothing opened.
     private func createRoutine(from idea: NanoMuseIdea) {
         let at = NanoMuseDay.parseClock(idea.time) ?? (hour: 9, minute: 0)
         let routine = NanoMuseScheduler.shared.create(NanoMuseRoutine(
@@ -800,7 +821,7 @@ struct NanoMuseHomeView: View {
             minute: at.minute,
             repeatMode: .daily
         ))
-        NotificationCenter.default.post(name: .nanoMuseEditRoutine, object: routine.id)
+        editingRoutine = routine
     }
 
     /// "Discuss" on a feed card: a side chat that opens on the post.
@@ -826,8 +847,6 @@ struct NanoMuseHomeView: View {
 extension Notification.Name {
     /// `object` is a session id (or a `__new__…` draft id): the shell shows it.
     static let nanoMuseOpenChat = Notification.Name("nanoMuse.openChat")
-    /// `object` is a routine id: the Goals room opens its editor.
-    static let nanoMuseEditRoutine = Notification.Name("nanoMuse.editRoutine")
 }
 
 /// The upstream layout, presented from the drawer as a sheet (swipe down
@@ -1109,6 +1128,8 @@ struct NanoMuseDrawer: View {
     var onAllChats: () -> Void
     /// Reduce Motion on: the panel fades in instead of sliding in from the edge.
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// The agent's name follows Dynamic Type, capped as the header's lines are (NanoMuseHeaderMetrics).
+    @ScaledMetric(relativeTo: .title2) private var nameSize: CGFloat = 24
     var onSettings: () -> Void
 
     @ObservedObject private var hub = NanoMuseHub.shared
@@ -1184,7 +1205,7 @@ struct NanoMuseDrawer: View {
     private var panel: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(agentName)
-                .font(.system(size: 24, weight: .bold))
+                .font(.system(size: NanoMuseHeaderMetrics.capped(nameSize, base: 24), weight: .bold))
                 .lineLimit(1)
                 .padding(.horizontal, 20)
                 .padding(.top, 18)
