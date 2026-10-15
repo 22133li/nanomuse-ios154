@@ -47,7 +47,11 @@ struct SimpleChatMessageList: View {
                                     detailBlock = block
                                 }
                             )
-                                .id(message.id)
+                                // iOS 15: ForEach rows with @ObservedObject don't reliably refresh
+                                // when blocks are appended (placeholder -> streaming text).
+                                // Include block count in the ID to force recreation when the
+                                // message structure changes (empty -> has text blocks).
+                                .id("\(message.id)-\(message.blocks.count)")
                         }
                         // Bottom anchor for scroll tracking
                         Color.clear
