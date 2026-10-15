@@ -11,6 +11,9 @@ struct SimpleChatMessageList: View {
     var onRetryMessage: (UUID) -> Void = { _ in }
     var onEdit: (UUID) -> Void = { _ in }
     var onDeleteFrom: (UUID) -> Void = { _ in }
+    /// Bottom inset for the composer (input bar) height, so the last message
+    /// isn't blocked by the composer overlay. Matches CollectionView's inputBarHeight.
+    var bottomInset: CGFloat = 0
 
     @State private var isNearBottom: Bool = true
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -45,6 +48,11 @@ struct SimpleChatMessageList: View {
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
+                }
+                // Bottom inset so the last message isn't blocked by the composer.
+                // Matches the CollectionView's inputBarHeight behavior.
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    Color.clear.frame(height: bottomInset)
                 }
                 .onChange(of: vm.messages.count) { _ in
                     // Pin to bottom on new messages only when the user is

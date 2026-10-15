@@ -2672,7 +2672,8 @@ struct AIChatView: View {
                             vm.editMessage(msgId)
                             inputFocused = true
                         },
-                        onDeleteFrom: { vm.deleteFromMessage($0) }
+                        onDeleteFrom: { vm.deleteFromMessage($0) },
+                        bottomInset: nmColumnHeight + nmBottomOverlay
                     )
                 } else {
                 CollectionViewMessageListV3(
