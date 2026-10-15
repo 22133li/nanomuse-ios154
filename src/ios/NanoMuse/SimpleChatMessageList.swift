@@ -47,11 +47,6 @@ struct SimpleChatMessageList: View {
                                     detailBlock = block
                                 }
                             )
-                                // iOS 15: ForEach rows with @ObservedObject don't reliably refresh
-                                // when blocks are appended (placeholder -> streaming text).
-                                // Include block count in the ID to force recreation when the
-                                // message structure changes (empty -> has text blocks).
-                                .id("\(message.id)-\(message.blocks.count)")
                         }
                         // Bottom anchor for scroll tracking
                         Color.clear
@@ -81,10 +76,8 @@ struct SimpleChatMessageList: View {
                     guard isUserMessage || isNearBottom else { return }
                     // Dispatch async: scrollTo during a view update (e.g. a
                     // very fast reply arriving mid-render) can crash.
-                    // Note: row ID includes blocks.count (iOS 15 refresh hack),
-                    // so scroll must use the same format.
                     DispatchQueue.main.async {
-                        proxy.scrollTo("\(last.id)-\(last.blocks.count)", anchor: .bottom)
+                        proxy.scrollTo(last.id, anchor: .bottom)
                     }
                 }
                 // Follow the view model's scroll signal (fired on streaming
@@ -97,7 +90,7 @@ struct SimpleChatMessageList: View {
                     // Dispatch async to avoid crashing when the signal fires
                     // during an in-flight view update (fast reply race).
                     DispatchQueue.main.async {
-                        proxy.scrollTo("\(last.id)-\(last.blocks.count)", anchor: .bottom)
+                        proxy.scrollTo(last.id, anchor: .bottom)
                     }
                 }
                 // Feed the locally tracked scroll position back to the view
@@ -117,7 +110,7 @@ struct SimpleChatMessageList: View {
                             withAnimation {
                                 DispatchQueue.main.async {
                                     if let first = vm.messages.first {
-                                        proxy.scrollTo("\(first.id)-\(first.blocks.count)", anchor: .top)
+                                        proxy.scrollTo(first.id, anchor: .top)
                                     }
                                 }
                             }
@@ -134,7 +127,7 @@ struct SimpleChatMessageList: View {
                             withAnimation {
                                 DispatchQueue.main.async {
                                     if let last = vm.messages.last {
-                                        proxy.scrollTo("\(last.id)-\(last.blocks.count)", anchor: .bottom)
+                                        proxy.scrollTo(last.id, anchor: .bottom)
                                     }
                                 }
                             }
@@ -179,6 +172,11 @@ struct SimpleMessageRow: View {
     var horizontalSizeClass: UserInterfaceSizeClass?
     var onToolTap: (AssistantBlock) -> Void = { _ in }
     @AppStorage(NanoMuseSteps.key) private var showSteps: Bool = NanoMuseSteps.defaultValue
+    // iOS 15: ForEach rows with @ObservedObject don't reliably refresh when
+    // blocks are appended (placeholder -> streaming text). Toggle this on
+    // objectWillChange to force the row to re-evaluate without changing IDs
+    // (which would break ScrollViewReader scroll targets).
+    @State private var refreshToken = false
 
     /// Assistant messages carry their text in blocks, not content.
     private var displayText: String {
@@ -339,6 +337,10 @@ struct SimpleMessageRow: View {
             } label: {
                 Label("删除", systemImage: "trash")
             }
+        }
+        .onReceive(message.objectWillChange) { _ in
+            // iOS 15: force row re-evaluation when blocks stream in.
+            refreshToken.toggle()
         }
     }
 }
