@@ -51,15 +51,23 @@ struct SimpleChatMessageList: View {
                 }
                 // Bottom inset so the last message isn't blocked by the composer.
                 // Matches the CollectionView's inputBarHeight behavior.
+                // Use max() with a 110pt minimum: nmColumnHeight starts at 0 and is
+                // measured async, and on iPhone 13 Pro Max the composer + home
+                // indicator needs at least this much. Without the minimum, the
+                // last message hides behind the input bar on first render.
                 .safeAreaInset(edge: .bottom, spacing: 0) {
-                    Color.clear.frame(height: bottomInset)
+                    Color.clear.frame(height: max(bottomInset, 110))
                 }
                 .onChange(of: vm.messages.count) { _ in
                     // Pin to bottom on new messages only when the user is
                     // already near the bottom (matches the full list's
                     // autoScrolling mode; a user scrolled up stays put).
                     guard isNearBottom, let last = vm.messages.last else { return }
-                    proxy.scrollTo(last.id, anchor: .bottom)
+                    // Dispatch async: scrollTo during a view update (e.g. a
+                    // very fast reply arriving mid-render) can crash.
+                    DispatchQueue.main.async {
+                        proxy.scrollTo(last.id, anchor: .bottom)
+                    }
                 }
                 // Follow the view model's scroll signal (fired on streaming
                 // text updates), gated on isNearBottom like the full list's
@@ -68,7 +76,11 @@ struct SimpleChatMessageList: View {
                 // flushes don't jitter.
                 .onReceive(vm.scrollToBottomSignal) { _ in
                     guard isNearBottom, let last = vm.messages.last else { return }
-                    proxy.scrollTo(last.id, anchor: .bottom)
+                    // Dispatch async to avoid crashing when the signal fires
+                    // during an in-flight view update (fast reply race).
+                    DispatchQueue.main.async {
+                        proxy.scrollTo(last.id, anchor: .bottom)
+                    }
                 }
                 // Feed the locally tracked scroll position back to the view
                 // model: on iOS 15 the CollectionView list never runs, so
@@ -85,7 +97,9 @@ struct SimpleChatMessageList: View {
                     VStack(spacing: 10) {
                         Button {
                             withAnimation {
-                                proxy.scrollTo(vm.messages.first?.id, anchor: .top)
+                                DispatchQueue.main.async {
+                                    proxy.scrollTo(vm.messages.first?.id, anchor: .top)
+                                }
                             }
                         } label: {
                             Image(systemName: "chevron.up")
@@ -98,7 +112,9 @@ struct SimpleChatMessageList: View {
                         }
                         Button {
                             withAnimation {
-                                proxy.scrollTo(vm.messages.last?.id, anchor: .bottom)
+                                DispatchQueue.main.async {
+                                    proxy.scrollTo(vm.messages.last?.id, anchor: .bottom)
+                                }
                             }
                         } label: {
                             Image(systemName: "chevron.down")
@@ -233,6 +249,18 @@ struct SimpleMessageRow: View {
                 // Observe blocks so streaming text updates the row.
                 BlocksObserver(blocks: message.blocks)
                 VStack(alignment: .leading, spacing: 8) {
+                    // Typing indicator — "request out, nothing back yet".
+                    // Shows when the user sends a message and we're waiting
+                    // for the first token. Matches the full list's
+                    // showsTypingIndicator (bridge.isActiveMessage &&
+                    // message.shouldShowTypingIndicator).
+                    if isActiveMessage && message.shouldShowTypingIndicator {
+                        TypingIndicator()
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(NanoMuseTones.agentPill, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                            .frame(maxWidth: NanoMuseColumn.agentPillWidth(for: horizontalSizeClass), alignment: .leading)
+                    }
                     // Tool step capsules (agent's steps), like Android.
                     ForEach(visibleToolBlocks) { block in
                         SimpleToolCapsule(block: block, detailBlock: $detailBlock)
