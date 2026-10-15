@@ -22,6 +22,12 @@ struct SimpleChatMessageList: View {
     /// top safe-area inset (NanoMuseShell), so the ScrollView starts below the header naturally.
     /// We do NOT add an additional inset here — that would double-count and push messages too far down.
     @Environment(\.nmTopOverlay) private var nmTopOverlay
+    /// Tool detail sheet state. Held at the list level (not the row) — matches upstream
+    /// CollectionViewMessageListV3 which presents ToolLiveSheet from a VC-level presenter.
+    /// Attaching .sheet to a LazyVStack row on iOS 15 renders as a small floating black
+    /// box overlapping messages instead of a full sheet.
+    @State private var detailBlock: AssistantBlock?
+    @State private var detailMessage: ChatMessage?
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -35,7 +41,11 @@ struct SimpleChatMessageList: View {
                                 onEdit: onEdit,
                                 onDeleteFrom: onDeleteFrom,
                                 isActiveMessage: message.id == vm.messages.last?.id && vm.isProcessing,
-                                horizontalSizeClass: horizontalSizeClass
+                                horizontalSizeClass: horizontalSizeClass,
+                                onToolTap: { block in
+                                    detailMessage = message
+                                    detailBlock = block
+                                }
                             )
                                 .id(message.id)
                         }
@@ -130,6 +140,19 @@ struct SimpleChatMessageList: View {
                     .transition(.opacity.combined(with: .scale(scale: 0.8)))
                 }
             }
+            // Tool detail sheet, presented from the list level (not the row).
+            // Matches upstream CollectionViewMessageListV3's VC-level sheet presenter.
+            // Attaching .sheet to a LazyVStack row on iOS 15 renders as a small
+            // floating black box overlapping messages instead of a full sheet.
+            .sheet(item: $detailBlock) { block in
+                if let message = detailMessage {
+                    ToolLiveSheet(
+                        toolBlocks: message.blocks.filter { $0.toolStatus != nil },
+                        initialIdx: message.blocks.filter({ $0.toolStatus != nil }).firstIndex(where: { $0.id == block.id }) ?? 0,
+                        browserPool: nil
+                    )
+                }
+            }
         }
     }
 }
@@ -141,10 +164,8 @@ struct SimpleMessageRow: View {
     var onDeleteFrom: (UUID) -> Void = { _ in }
     var isActiveMessage: Bool = false
     var horizontalSizeClass: UserInterfaceSizeClass?
+    var onToolTap: (AssistantBlock) -> Void = { _ in }
     @AppStorage(NanoMuseSteps.key) private var showSteps: Bool = NanoMuseSteps.defaultValue
-    /// Tool block tapped for input/output inspection (mirrors the full
-    /// list's detailBlock -> ToolLiveSheet presentation).
-    @State private var detailBlock: AssistantBlock?
 
     /// Assistant messages carry their text in blocks, not content.
     private var displayText: String {
@@ -262,7 +283,7 @@ struct SimpleMessageRow: View {
                     }
                     // Tool step capsules (agent's steps), like Android.
                     ForEach(visibleToolBlocks) { block in
-                        SimpleToolCapsule(block: block, detailBlock: $detailBlock)
+                        SimpleToolCapsule(block: block, onTap: { onToolTap(block) })
                     }
                     // Thinking process (collapsible, simplified).
                     ForEach(thinkingBlocks) { block in
@@ -306,13 +327,6 @@ struct SimpleMessageRow: View {
                 Label("删除", systemImage: "trash")
             }
         }
-        .sheet(item: $detailBlock) { block in
-            ToolLiveSheet(
-                toolBlocks: message.blocks.filter { $0.toolStatus != nil },
-                initialIdx: message.blocks.filter({ $0.toolStatus != nil }).firstIndex(where: { $0.id == block.id }) ?? 0,
-                browserPool: nil
-            )
-        }
     }
 }
 
@@ -337,7 +351,7 @@ private struct BlockObserver: View {
 /// Tapping opens the same ToolLiveSheet detail as the full list.
 private struct SimpleToolCapsule: View {
     @ObservedObject var block: AssistantBlock
-    @Binding var detailBlock: AssistantBlock?
+    var onTap: () -> Void = {}
 
     private var icon: String {
         switch block.kind {
@@ -388,7 +402,7 @@ private struct SimpleToolCapsule: View {
         .clipShape(Capsule())
         .contentShape(Capsule())
         .onTapGesture {
-            detailBlock = block
+            onTap()
         }
     }
 }
