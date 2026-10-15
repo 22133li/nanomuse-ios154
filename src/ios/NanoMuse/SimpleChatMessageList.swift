@@ -68,10 +68,15 @@ struct SimpleChatMessageList: View {
                     .padding(.bottom, max(bottomInset + 8, 158))
                 }
                 .onChange(of: vm.messages.count) { _ in
-                    // Pin to bottom on new messages only when the user is
-                    // already near the bottom (matches the full list's
-                    // autoScrolling mode; a user scrolled up stays put).
-                    guard isNearBottom, let last = vm.messages.last else { return }
+                    // Pin to bottom on new messages.
+                    // - User's own message: ALWAYS scroll (user expects to see what they just sent).
+                    // - Assistant message: only when already near bottom (matches the full list's
+                    //   autoScrolling mode; a user scrolled up to read history stays put).
+                    // The old code gated both on isNearBottom, so sending a message while
+                    // slightly scrolled up left the new message hidden below the fold.
+                    guard let last = vm.messages.last else { return }
+                    let isUserMessage = last.role == .user
+                    guard isUserMessage || isNearBottom else { return }
                     // Dispatch async: scrollTo during a view update (e.g. a
                     // very fast reply arriving mid-render) can crash.
                     DispatchQueue.main.async {
