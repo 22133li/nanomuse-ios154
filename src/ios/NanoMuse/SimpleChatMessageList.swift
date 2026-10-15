@@ -61,11 +61,11 @@ struct SimpleChatMessageList: View {
                     // Bottom padding so the last message isn't blocked by the composer.
                     // Matches upstream CollectionViewMessageListV3: inputBarHeight + floatingBarHeight + 8.
                     // (floatingBarHeight is 0 in nanoMuse, measured as part of nmColumnHeight).
-                    // Use max() with a 158pt minimum for iPhone 13 Pro Max: nmColumnHeight
+                    // Use max() with a 250pt minimum for iPhone 13 Pro Max: nmColumnHeight
                     // starts at 0 and is measured async. The composer + tab bar + home
-                    // indicator needs at least this much. Padding on the content is more
-                    // reliable than safeAreaInset on iOS 15.
-                    .padding(.bottom, max(bottomInset + 8, 158))
+                    // indicator + error banner + thinking status needs at least this much.
+                    // Padding on the content is more reliable than safeAreaInset on iOS 15.
+                    .padding(.bottom, max(bottomInset + 8, 250))
                 }
                 .onChange(of: vm.messages.count) { _ in
                     // Pin to bottom on new messages.
