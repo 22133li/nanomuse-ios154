@@ -63,13 +63,11 @@ struct SimpleChatMessageList: View {
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
                     // Bottom padding so the last message isn't blocked by the composer.
-                    // Matches upstream CollectionViewMessageListV3: inputBarHeight + floatingBarHeight + 8.
+                    // Strictly matches upstream CollectionViewMessageListV3:
+                    // inputBarHeight + floatingBarHeight + 8.
                     // (floatingBarHeight is 0 in nanoMuse, measured as part of nmColumnHeight).
-                    // Use max() with a 250pt minimum for iPhone 13 Pro Max: nmColumnHeight
-                    // starts at 0 and is measured async. The composer + tab bar + home
-                    // indicator + error banner + thinking status needs at least this much.
-                    // Padding on the content is more reliable than safeAreaInset on iOS 15.
-                    .padding(.bottom, max(bottomInset + 8, 250))
+                    // No arbitrary minimum — trust the measured nmColumnHeight + nmBottomOverlay.
+                    .padding(.bottom, bottomInset + 8)
                 }
                 .onChange(of: vm.messages.count) { _ in
                     // Pin to bottom on new messages.
@@ -83,8 +81,10 @@ struct SimpleChatMessageList: View {
                     guard isUserMessage || isNearBottom else { return }
                     // Dispatch async: scrollTo during a view update (e.g. a
                     // very fast reply arriving mid-render) can crash.
+                    // Note: row ID includes blocks.count (iOS 15 refresh hack),
+                    // so scroll must use the same format.
                     DispatchQueue.main.async {
-                        proxy.scrollTo(last.id, anchor: .bottom)
+                        proxy.scrollTo("\(last.id)-\(last.blocks.count)", anchor: .bottom)
                     }
                 }
                 // Follow the view model's scroll signal (fired on streaming
@@ -97,7 +97,7 @@ struct SimpleChatMessageList: View {
                     // Dispatch async to avoid crashing when the signal fires
                     // during an in-flight view update (fast reply race).
                     DispatchQueue.main.async {
-                        proxy.scrollTo(last.id, anchor: .bottom)
+                        proxy.scrollTo("\(last.id)-\(last.blocks.count)", anchor: .bottom)
                     }
                 }
                 // Feed the locally tracked scroll position back to the view
@@ -116,7 +116,9 @@ struct SimpleChatMessageList: View {
                         Button {
                             withAnimation {
                                 DispatchQueue.main.async {
-                                    proxy.scrollTo(vm.messages.first?.id, anchor: .top)
+                                    if let first = vm.messages.first {
+                                        proxy.scrollTo("\(first.id)-\(first.blocks.count)", anchor: .top)
+                                    }
                                 }
                             }
                         } label: {
@@ -131,7 +133,9 @@ struct SimpleChatMessageList: View {
                         Button {
                             withAnimation {
                                 DispatchQueue.main.async {
-                                    proxy.scrollTo(vm.messages.last?.id, anchor: .bottom)
+                                    if let last = vm.messages.last {
+                                        proxy.scrollTo("\(last.id)-\(last.blocks.count)", anchor: .bottom)
+                                    }
                                 }
                             }
                         } label: {
