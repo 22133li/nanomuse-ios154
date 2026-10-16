@@ -65,7 +65,8 @@ struct SimpleChatMessageList: View {
                     // NanoMuseBottomBar.height (70pt, from source: 46+6*2+12)
                     // + iPhone 13 Pro Max bottom safe area (34pt, home indicator)
                     // + minimum composer input bar (50pt) + 8 (upstream) = 162.
-                    .padding(.bottom, max(bottomInset + 8, 162))
+                    // User requested 180pt minimum for extra clearance.
+                    .padding(.bottom, max(bottomInset + 8, 180))
                 }
                 .onChange(of: vm.messages.count) { _ in
                     // Pin to bottom on new messages.
@@ -105,52 +106,9 @@ struct SimpleChatMessageList: View {
                         vm.isNearBottom = newValue
                     }
                 }
-
-                // Floating scroll buttons (like Android and the full iOS list)
-                if !vm.messages.isEmpty && !isNearBottom {
-                    VStack(spacing: 10) {
-                        Button {
-                            withAnimation {
-                                DispatchQueue.main.async {
-                                    if let first = vm.messages.first {
-                                        proxy.scrollTo(first.id, anchor: .top)
-                                    }
-                                }
-                            }
-                        } label: {
-                            Image(systemName: "chevron.up")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(Color.primary)
-                                .frame(width: 36, height: 36)
-                                .background(Color(UIColor.systemGray6))
-                                .clipShape(Circle())
-                                .shadow(radius: 2)
-                        }
-                        Button {
-                            withAnimation {
-                                DispatchQueue.main.async {
-                                    if let last = vm.messages.last {
-                                        proxy.scrollTo(last.id, anchor: .bottom)
-                                    }
-                                }
-                            }
-                        } label: {
-                            Image(systemName: "chevron.down")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(Color.primary)
-                                .frame(width: 36, height: 36)
-                                .background(Color(UIColor.systemGray6))
-                                .clipShape(Circle())
-                                .shadow(radius: 2)
-                        }
-                    }
-                    .padding(.trailing, 16)
-                    // Lift above the composer + shell bottom bar + safe area.
-                    // Same source-derived minimum as the list padding (162),
-                    // plus 8 for visual separation = 170.
-                    .padding(.bottom, max(bottomInset + 16, 170))
-                    .transition(.opacity.combined(with: .scale(scale: 0.8)))
-                }
+                // NOTE: Floating scroll buttons are provided by AIChatView's
+                // overlay (same as iOS 16+); SimpleChatMessageList does not
+                // define its own to avoid duplication.
             }
             // Tool detail sheet, presented from the list level (not the row).
             // Matches upstream CollectionViewMessageListV3's VC-level sheet presenter.

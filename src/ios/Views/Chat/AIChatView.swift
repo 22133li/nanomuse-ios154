@@ -2762,11 +2762,7 @@ struct AIChatView: View {
             // conditions. Otherwise an in-between state (e.g. far from top but
             // within one screen of the bottom, at rest) would mount an empty
             // VStack.
-            // iOS 15: SimpleChatMessageList has its own scroll buttons;
-            // don't show this overlay's buttons to avoid duplication.
-            if #unavailable(iOS 16.0) {
-                EmptyView()
-            } else if !vm.messages.isEmpty && !vm.isNearBottom {
+            if !vm.messages.isEmpty && !vm.isNearBottom {
                 VStack(spacing: 10) {
                     // Up-button: walk back one user turn at a time. Visible when
                     // off the bottom AND there's still an earlier turn to jump to
