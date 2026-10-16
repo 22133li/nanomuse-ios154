@@ -56,6 +56,7 @@ struct SimpleChatMessageList: View {
                                 onEdit: onEdit,
                                 onDeleteFrom: onDeleteFrom,
                                 onWithdraw: onWithdraw,
+                                onStop: onStop,
                                 isActiveMessage: message.id == vm.messages.last?.id && vm.isProcessing,
                                 horizontalSizeClass: horizontalSizeClass,
                                 onToolTap: { block in
@@ -150,6 +151,7 @@ struct SimpleMessageRow: View {
     var onEdit: (UUID) -> Void = { _ in }
     var onDeleteFrom: (UUID) -> Void = { _ in }
     var onWithdraw: (UUID) -> Void = { _ in }
+    var onStop: () -> Void = {}
     var isActiveMessage: Bool = false
     var horizontalSizeClass: UserInterfaceSizeClass?
     var onToolTap: (AssistantBlock) -> Void = { _ in }
