@@ -142,7 +142,9 @@ struct SimpleChatMessageList: View {
                         }
                     }
                     .padding(.trailing, 16)
-                    .padding(.bottom, 16)
+                    // Lift above the composer + shell bottom bar (bottomInset),
+                    // so the buttons float over the list, not under the messages.
+                    .padding(.bottom, bottomInset + 16)
                     .transition(.opacity.combined(with: .scale(scale: 0.8)))
                 }
             }
