@@ -746,6 +746,11 @@ struct NanoMuseHomeView: View {
             Button { chatAction(.files) } label: { Label(AppLocalized("Browse Chat Files"), systemImage: "folder") }
             Button { chatAction(.tokenUsage) } label: { Label(AppLocalized("Token Usage"), systemImage: "chart.bar") }
             Divider()
+            Button { chatAction(.sessionSkills) } label: { Label(AppLocalized("Session Skills"), systemImage: "wrench") }
+            Button { chatAction(.sessionMCPs) } label: { Label(AppLocalized("Session MCPs"), systemImage: "puzzlepiece") }
+            Button { chatAction(.sessionMemory) } label: { Label(AppLocalized("Session Memory"), systemImage: "brain.head.profile") }
+            Button { chatAction(.toggleAutoCompact) } label: { Label(AppLocalized("Auto Compact"), systemImage: "arrow.down.to.line") }
+            Divider()
             Button { showCoding = true } label: { Label(AppLocalized("Coding agents"), systemImage: "chevron.left.forwardslash.chevron.right") }
             Button { showRoutines = true } label: { Label(AppLocalized("All routines"), systemImage: "clock") }
             Button { showSystemFiles = true } label: { Label(AppLocalized("System files"), systemImage: "doc.text") }

@@ -1950,6 +1950,10 @@ struct AIChatView: View {
         case .browser: showBrowserSheet = true // nanoMuse:
         case .files: showFileBrowser = true // nanoMuse:
         case .tokenUsage: showTokenUsage = true // nanoMuse:
+        case .sessionSkills: showSessionSkills = true // nanoMuse:
+        case .sessionMCPs: showSessionMCPs = true // nanoMuse:
+        case .sessionMemory: showSessionMemory = true // nanoMuse:
+        case .toggleAutoCompact: vm.autoCompactEnabled.toggle() // nanoMuse:
         } // nanoMuse:
     } // nanoMuse:
 

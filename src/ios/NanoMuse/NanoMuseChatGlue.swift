@@ -23,6 +23,7 @@ extension Notification.Name {
 /// Android's ChatScreen menu has; the shell's own rows stay in the shell).
 enum NanoMuseChatAction: String {
     case newChat, model, clearChat, terminal, browser, files, tokenUsage
+    case sessionSkills, sessionMCPs, sessionMemory, toggleAutoCompact
 
     static func post(_ action: NanoMuseChatAction, session: String) {
         NotificationCenter.default.post(name: .nanoMuseChatAction, object: session, userInfo: ["action": action.rawValue])
