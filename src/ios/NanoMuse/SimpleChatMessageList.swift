@@ -58,11 +58,13 @@ struct SimpleChatMessageList: View {
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
                     // Bottom padding so the last message isn't blocked by the composer.
-                    // Strictly matches upstream CollectionViewMessageListV3:
-                    // inputBarHeight + floatingBarHeight + 8.
-                    // (floatingBarHeight is 0 in nanoMuse, measured as part of nmColumnHeight).
-                    // No arbitrary minimum — trust the measured nmColumnHeight + nmBottomOverlay.
-                    .padding(.bottom, bottomInset + 8)
+                    // Upstream formula: inputBarHeight + floatingBarHeight + 8
+                    // = nmColumnHeight + nmBottomOverlay + 8 (floatingBarHeight=0).
+                    // iOS 15 fallback: the async geometry measurement can stay 0,
+                    // so enforce a source-derived minimum:
+                    // NanoMuseBottomBar.height (70pt, from source: 46+6*2+12)
+                    // + minimum composer input bar (50pt) + 8 (upstream) = 128.
+                    .padding(.bottom, max(bottomInset + 8, 128))
                 }
                 .onChange(of: vm.messages.count) { _ in
                     // Pin to bottom on new messages.
@@ -142,9 +144,10 @@ struct SimpleChatMessageList: View {
                         }
                     }
                     .padding(.trailing, 16)
-                    // Lift above the composer + shell bottom bar (bottomInset),
-                    // so the buttons float over the list, not under the messages.
-                    .padding(.bottom, bottomInset + 16)
+                    // Lift above the composer + shell bottom bar.
+                    // Same source-derived minimum as the list padding (128),
+                    // plus 8 for visual separation = 136.
+                    .padding(.bottom, max(bottomInset + 16, 136))
                     .transition(.opacity.combined(with: .scale(scale: 0.8)))
                 }
             }
