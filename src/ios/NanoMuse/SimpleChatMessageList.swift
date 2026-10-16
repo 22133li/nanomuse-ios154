@@ -63,8 +63,9 @@ struct SimpleChatMessageList: View {
                     // iOS 15 fallback: the async geometry measurement can stay 0,
                     // so enforce a source-derived minimum:
                     // NanoMuseBottomBar.height (70pt, from source: 46+6*2+12)
-                    // + minimum composer input bar (50pt) + 8 (upstream) = 128.
-                    .padding(.bottom, max(bottomInset + 8, 128))
+                    // + iPhone 13 Pro Max bottom safe area (34pt, home indicator)
+                    // + minimum composer input bar (50pt) + 8 (upstream) = 162.
+                    .padding(.bottom, max(bottomInset + 8, 162))
                 }
                 .onChange(of: vm.messages.count) { _ in
                     // Pin to bottom on new messages.
@@ -144,10 +145,10 @@ struct SimpleChatMessageList: View {
                         }
                     }
                     .padding(.trailing, 16)
-                    // Lift above the composer + shell bottom bar.
-                    // Same source-derived minimum as the list padding (128),
-                    // plus 8 for visual separation = 136.
-                    .padding(.bottom, max(bottomInset + 16, 136))
+                    // Lift above the composer + shell bottom bar + safe area.
+                    // Same source-derived minimum as the list padding (162),
+                    // plus 8 for visual separation = 170.
+                    .padding(.bottom, max(bottomInset + 16, 170))
                     .transition(.opacity.combined(with: .scale(scale: 0.8)))
                 }
             }
