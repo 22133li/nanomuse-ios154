@@ -1,8 +1,9 @@
 // SimpleChatMessageList.swift
 // iOS 15 fallback: the UICollectionView-based CollectionViewMessageListV3
 // does not reliably update on iOS 15.4. This SwiftUI-native list is used
-// on iOS 15 only. It shows basic text bubbles; advanced features (tool
-// blocks, images, etc.) are not rendered here.
+// on iOS 15 only. It renders text bubbles, tool step capsules (with status),
+// thinking cards, info notices, images and attachments — simplified from
+// the full list but behavior-aligned with upstream.
 
 import SwiftUI
 
@@ -14,6 +15,20 @@ struct SimpleChatMessageList: View {
     /// Bottom inset for the composer (input bar) height, so the last message
     /// isn't blocked by the composer overlay. Matches CollectionView's inputBarHeight.
     var bottomInset: CGFloat = 0
+    /// Browser tab pool for ToolLiveSheet browser previews (matches upstream).
+    var browserPool: BrowserTabPool?
+    /// Tool snapshots for ToolLiveSheet (matches upstream).
+    var toolSnapshots: [ToolSnapshotItem] = []
+    // Upstream callbacks (match CollectionViewMessageListV3's interface).
+    var onRetryLast: () -> Void = {}
+    var onOpenSoulSettings: () -> Void = {}
+    var onWithdraw: (UUID) -> Void = { _ in }
+    var onResume: () -> Void = {}
+    var onStop: () -> Void = {}
+    var onCompact: (UUID) -> Void = { _ in }
+    var onRevertCompact: () -> Void = {}
+    var onForceSync: () -> Void = {}
+    var onScreenshotImage: (UIImage) -> Void = { _ in }
 
     @State private var isNearBottom: Bool = true
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -40,6 +55,7 @@ struct SimpleChatMessageList: View {
                                 onRetryMessage: onRetryMessage,
                                 onEdit: onEdit,
                                 onDeleteFrom: onDeleteFrom,
+                                onWithdraw: onWithdraw,
                                 isActiveMessage: message.id == vm.messages.last?.id && vm.isProcessing,
                                 horizontalSizeClass: horizontalSizeClass,
                                 onToolTap: { block in
@@ -119,7 +135,8 @@ struct SimpleChatMessageList: View {
                     ToolLiveSheet(
                         toolBlocks: message.blocks.filter { $0.toolStatus != nil },
                         initialIdx: message.blocks.filter({ $0.toolStatus != nil }).firstIndex(where: { $0.id == block.id }) ?? 0,
-                        browserPool: nil
+                        toolSnapshots: toolSnapshots,
+                        browserPool: browserPool
                     )
                 }
             }
@@ -132,6 +149,7 @@ struct SimpleMessageRow: View {
     var onRetryMessage: (UUID) -> Void = { _ in }
     var onEdit: (UUID) -> Void = { _ in }
     var onDeleteFrom: (UUID) -> Void = { _ in }
+    var onWithdraw: (UUID) -> Void = { _ in }
     var isActiveMessage: Bool = false
     var horizontalSizeClass: UserInterfaceSizeClass?
     var onToolTap: (AssistantBlock) -> Void = { _ in }
@@ -148,7 +166,7 @@ struct SimpleMessageRow: View {
         let blockText = message.blocks
             .filter { $0.kind == .text }
             .map { $0.content }
-            .joined(separator: "\n")
+            .joined(separator: "\n\n")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         if !blockText.isEmpty { return blockText }
         return message.content
@@ -174,6 +192,12 @@ struct SimpleMessageRow: View {
     /// the full ThinkingBlockView — no follow/freeze state machine).
     private var thinkingBlocks: [AssistantBlock] {
         message.blocks.filter { $0.kind == .thinking }
+    }
+
+    /// Info blocks (model downgrade notices, e.g. "⚠️ ... Switched to X").
+    /// Simplified from AssistantBlockView's .info rendering.
+    private var infoBlocks: [AssistantBlock] {
+        message.blocks.filter { $0.kind == .info }
     }
 
     private var hasTextContent: Bool {
@@ -258,11 +282,15 @@ struct SimpleMessageRow: View {
                     }
                     // Tool step capsules (agent's steps), like Android.
                     ForEach(visibleToolBlocks) { block in
-                        SimpleToolCapsule(block: block, onTap: { onToolTap(block) })
+                        SimpleToolCapsule(block: block, onTap: { onToolTap(block) }, onStop: { onStop() })
                     }
                     // Thinking process (collapsible, simplified).
                     ForEach(thinkingBlocks) { block in
                         SimpleThinkingCard(block: block)
+                    }
+                    // Info notices (model downgrade, etc.), simplified.
+                    ForEach(infoBlocks) { block in
+                        SimpleInfoCard(block: block)
                     }
                     // Text bubble.
                     if hasTextContent {
@@ -281,25 +309,39 @@ struct SimpleMessageRow: View {
             Button {
                 UIPasteboard.general.string = displayText
             } label: {
-                Label("复制", systemImage: "doc.on.doc")
+                Label(AppLocalized("Copy All"), systemImage: "doc.on.doc")
+            }
+            Button {
+                // Copy Markdown: same text content (already markdown source).
+                UIPasteboard.general.string = displayText
+            } label: {
+                Label(AppLocalized("Copy Markdown"), systemImage: "text.quote")
             }
             if message.role == .user {
                 Button {
                     onEdit(message.id)
                 } label: {
-                    Label("编辑", systemImage: "pencil")
+                    Label(AppLocalized("Edit"), systemImage: "pencil")
+                }
+                // Withdraw queued messages (matches upstream).
+                if message.isQueued {
+                    Button(role: .destructive) {
+                        onWithdraw(message.id)
+                    } label: {
+                        Label(AppLocalized("Withdraw"), systemImage: "arrow.uturn.backward")
+                    }
                 }
             } else {
                 Button {
                     onRetryMessage(message.id)
                 } label: {
-                    Label("重试", systemImage: "arrow.clockwise")
+                    Label(AppLocalized("Retry"), systemImage: "arrow.clockwise")
                 }
             }
             Button(role: .destructive) {
                 onDeleteFrom(message.id)
             } label: {
-                Label("删除", systemImage: "trash")
+                Label(AppLocalized("Delete"), systemImage: "trash")
             }
         }
         .onReceive(message.objectWillChange) { _ in
@@ -331,6 +373,7 @@ private struct BlockObserver: View {
 private struct SimpleToolCapsule: View {
     @ObservedObject var block: AssistantBlock
     var onTap: () -> Void = {}
+    var onStop: (() -> Void)? = nil
 
     private var icon: String {
         switch block.kind {
@@ -358,6 +401,32 @@ private struct SimpleToolCapsule: View {
         }
     }
 
+    /// Status-based icon color, matching upstream ToolCapsuleView.iconColor.
+    private var statusColor: Color {
+        switch block.toolStatus {
+        case .success: return .green
+        case .failed: return .red
+        case .cancelled: return .yellow
+        default: return accentColor
+        }
+    }
+
+    private var isActive: Bool {
+        switch block.toolStatus {
+        case .streaming, .running: return true
+        default: return false
+        }
+    }
+
+    private var durationText: String? {
+        guard let dur = block.toolDuration else { return nil }
+        if dur < 1 { return String(format: "%.1fs", dur) }
+        if dur < 60 { return String(format: "%.0fs", dur) }
+        let mins = Int(dur) / 60
+        let secs = Int(dur) % 60
+        return "\(mins)m \(secs)s"
+    }
+
     private var displayText: String {
         if let summary = block.toolSummary, !summary.isEmpty {
             return summary
@@ -367,13 +436,40 @@ private struct SimpleToolCapsule: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: icon)
-                .font(.system(size: 13))
-                .foregroundStyle(accentColor)
+            // Status indicator: spinner while active, status-colored icon otherwise.
+            if isActive {
+                ProgressView()
+                    .scaleEffect(0.7)
+                    .frame(width: 13, height: 13)
+            } else {
+                Image(systemName: icon)
+                    .font(.system(size: 13))
+                    .foregroundStyle(statusColor)
+            }
             Text(displayText)
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(Color.primary)
                 .lineLimit(1)
+            // Execution duration after completion (matches upstream).
+            if let dur = durationText, !isActive {
+                Text(dur)
+                    .font(.system(size: 11, weight: .regular, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+            }
+            // Stop button for running commands (matches upstream).
+            if case .running = block.toolStatus, let onStop {
+                Button {
+                    onStop()
+                } label: {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(.red)
+                        .frame(width: 10, height: 10)
+                        .frame(width: 24, height: 24)
+                        .contentShape(Rectangle())
+                        .padding(-3)
+                }
+                .buttonStyle(.plain)
+            }
         }
         .padding(.horizontal, 12)
         .frame(height: 36)
@@ -443,6 +539,51 @@ private struct SimpleInputAttachmentList: View {
     }
 }
 
+/// Simplified info block for the iOS 15 message list.
+/// Renders model downgrade notices (e.g. "⚠️ ... Switched to X"),
+/// simplified from AssistantBlockView's .info case.
+private struct SimpleInfoCard: View {
+    @ObservedObject var block: AssistantBlock
+
+    private var reasonLines: [String] {
+        let allLines = block.content.components(separatedBy: "\n").filter { !$0.isEmpty }
+        let reasons = allLines.filter { $0.hasPrefix("⚠️") }
+        // Truncate middle if more than 9 reason lines (matches upstream)
+        if reasons.count <= 9 { return reasons }
+        return Array(reasons.prefix(4)) + ["⋯ \(reasons.count - 8) more"] + Array(reasons.suffix(4))
+    }
+
+    private var switchedLine: String? {
+        let allLines = block.content.components(separatedBy: "\n").filter { !$0.isEmpty }
+        return allLines.first { !$0.hasPrefix("⚠️") && !$0.isEmpty }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            ForEach(Array(reasonLines.enumerated()), id: \.offset) { _, line in
+                Text(line)
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color.primary.opacity(0.45))
+                    .lineLimit(2)
+            }
+            if let switched = switchedLine {
+                HStack(spacing: 5) {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.orange.opacity(0.8))
+                    Text(switched)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Color.primary.opacity(0.75))
+                        .lineLimit(2)
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
 /// Simplified thinking block for the iOS 15 message list.
 /// Collapsible card showing the model's reasoning; simplified from the
 /// full ThinkingBlockView (no drag-follow/freeze state machine).
@@ -463,7 +604,7 @@ private struct SimpleThinkingCard: View {
                     Image(systemName: "brain.head.profile")
                         .font(.system(size: 13))
                         .foregroundStyle(.purple)
-                    Text("思考过程")
+                    Text(AppLocalized("Thinking"))
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(.secondary)
                     Spacer()

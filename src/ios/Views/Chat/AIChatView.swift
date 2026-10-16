@@ -2673,7 +2673,31 @@ struct AIChatView: View {
                             inputFocused = true
                         },
                         onDeleteFrom: { vm.deleteFromMessage($0) },
-                        bottomInset: nmColumnHeight + nmBottomOverlay
+                        bottomInset: nmColumnHeight + nmBottomOverlay,
+                        browserPool: vm.browserTabPool,
+                        toolSnapshots: vm.toolSnapshots,
+                        onRetryLast: { vm.retry(); vm.forceScrollToBottom.send() },
+                        onOpenSoulSettings: {
+                            guard let url = URL(string: "minis://settings/soul") else { return }
+                            _ = handleMinisURLTap(url)
+                        },
+                        onWithdraw: { vm.withdrawQueuedMessage($0) },
+                        onResume: { vm.resume(); vm.forceScrollToBottom.send() },
+                        onStop: { vm.stopCurrentCommand() },
+                        onCompact: { msgId in compactConfirmMessageId = msgId },
+                        onRevertCompact: { Task { await vm.revertCompact() } },
+                        onForceSync: { [self] in
+                            guard let sid = vm.sessionId else { return }
+                            Task {
+                                let count = await ChatStore.shared.forceSyncSession(sid)
+                                if #available(iOS 17.0, *), count > 0 {
+                                    SyncCore.shared.scheduleSend(delay: 1)
+                                }
+                            }
+                        },
+                        onScreenshotImage: { image in
+                            screenshotPreview = ChatScreenshotPreview(image: image)
+                        }
                     )
                 } else {
                 CollectionViewMessageListV3(
