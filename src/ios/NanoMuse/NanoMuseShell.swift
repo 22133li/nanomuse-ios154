@@ -736,9 +736,8 @@ struct NanoMuseHomeView: View {
             if let id = main.chatId, !main.isDraft {
                 Button { rename.open(id) } label: { Label(AppLocalized("Rename chat"), systemImage: "pencil") }
             }
-            if !NanoMuseAppearance.shared.headerModel {
-                Button { chatAction(.model) } label: { Label(AppLocalized("Model"), systemImage: "cpu") }
-            }
+            // Android: model always in the menu.
+            Button { chatAction(.model) } label: { Label(AppLocalized("Model"), systemImage: "cpu") }
             Button(role: .destructive) { chatAction(.clearChat) } label: { Label(AppLocalized("Clear Chat"), systemImage: "trash") }
             Divider()
             Button { chatAction(.terminal) } label: { Label(AppLocalized("Open Terminal"), systemImage: "terminal") }
