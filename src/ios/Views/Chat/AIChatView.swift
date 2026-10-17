@@ -5411,6 +5411,11 @@ private struct ChatTrailingMenu: View, Equatable {
                 Label(AppLocalized("New Chat"), systemImage: "square.and.pencil")
             }
 
+            // Android parity: model picker reachable from the side-chat menu.
+            Button { showModelPicker = true } label: {
+                Label(AppLocalized("Model"), systemImage: "cpu")
+            }
+
             Divider()
 
             // [T-chat-menu-compact-entry] Compact above Clear Chat.
@@ -5505,6 +5510,14 @@ private struct ChatTrailingMenu: View, Equatable {
 
             Button { onTokenUsage() } label: {
                 Label(AppLocalized("Token Usage"), systemImage: "number")
+            }
+
+            // Android parity: auto-compact toggle in the side-chat menu.
+            Toggle(isOn: Binding(
+                get: { vm.autoCompactEnabled },
+                set: { vm.autoCompactEnabled = $0 }
+            )) {
+                Label(AppLocalized("Auto Compact"), systemImage: "arrow.down.to.line")
             }
 
             #if DEBUG
