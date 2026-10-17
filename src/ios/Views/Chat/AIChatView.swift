@@ -1880,6 +1880,7 @@ struct AIChatView: View {
             showFastModeToggle: activeModelSupportsFastMode,
             fastModeEnabled: codexFastModeEnabled,
             onNewChat: { requestNewChatFromMenu() },
+            onModel: { showModelPicker = true },
             // [T-chat-menu-compact-entry] Same effect as the /compact slash
             // command (AIChatViewModel+SlashCommands case "compact").
             onCompact: { vm.compactAll() },
@@ -1915,6 +1916,8 @@ struct AIChatView: View {
             // to the very next Codex request.
             setFastMode: { enabled in codexFastModeEnabled = enabled },
             onTokenUsage: { showTokenUsage = true },
+            autoCompactEnabled: vm.autoCompactEnabled,
+            setAutoCompactEnabled: { vm.autoCompactEnabled = $0 },
             // LastAPIRequestBody + copySessionDataToClipboard are DEBUG-only (the
             // menu buttons that invoke these closures are #if DEBUG too); guard the
             // bodies so Release/archive builds — where those symbols are compiled
@@ -5369,6 +5372,7 @@ private struct ChatTrailingMenu: View, Equatable {
     let fastModeEnabled: Bool
 
     let onNewChat: () -> Void
+    let onModel: () -> Void
     let onCompact: () -> Void
     let onClearChat: () -> Void
     let onForceSync: () -> Void
@@ -5383,6 +5387,8 @@ private struct ChatTrailingMenu: View, Equatable {
     let setEnhancedCache: (Bool) -> Void
     let setFastMode: (Bool) -> Void
     let onTokenUsage: () -> Void
+    let autoCompactEnabled: Bool
+    let setAutoCompactEnabled: (Bool) -> Void
     let onCopyRequests: () -> Void
     let onCopySessionData: () -> Void
 
@@ -5409,11 +5415,6 @@ private struct ChatTrailingMenu: View, Equatable {
         return Menu {
             Button { onNewChat() } label: {
                 Label(AppLocalized("New Chat"), systemImage: "square.and.pencil")
-            }
-
-            // Android parity: model picker reachable from the side-chat menu.
-            Button { showModelPicker = true } label: {
-                Label(AppLocalized("Model"), systemImage: "cpu")
             }
 
             Divider()
@@ -5512,14 +5513,6 @@ private struct ChatTrailingMenu: View, Equatable {
                 Label(AppLocalized("Token Usage"), systemImage: "number")
             }
 
-            // Android parity: auto-compact toggle in the side-chat menu.
-            Toggle(isOn: Binding(
-                get: { vm.autoCompactEnabled },
-                set: { vm.autoCompactEnabled = $0 }
-            )) {
-                Label(AppLocalized("Auto Compact"), systemImage: "arrow.down.to.line")
-            }
-
             #if DEBUG
             Divider()
 
@@ -5565,6 +5558,7 @@ private struct ChatTrailingMenuButton: UIViewRepresentable {
     let fastModeEnabled: Bool
 
     let onNewChat: () -> Void
+    let onModel: () -> Void
     let onCompact: () -> Void
     let onClearChat: () -> Void
     let onForceSync: () -> Void
@@ -5579,6 +5573,8 @@ private struct ChatTrailingMenuButton: UIViewRepresentable {
     let setEnhancedCache: (Bool) -> Void
     let setFastMode: (Bool) -> Void
     let onTokenUsage: () -> Void
+    let autoCompactEnabled: Bool
+    let setAutoCompactEnabled: (Bool) -> Void
     let onCopyRequests: () -> Void
     let onCopySessionData: () -> Void
 
@@ -5594,6 +5590,7 @@ private struct ChatTrailingMenuButton: UIViewRepresentable {
         let enhancedCacheEnabled: Bool
         let showFastModeToggle: Bool
         let fastModeEnabled: Bool
+        let autoCompactEnabled: Bool
     }
 
     private var key: Key {
@@ -5603,7 +5600,8 @@ private struct ChatTrailingMenuButton: UIViewRepresentable {
             showEnhancedCacheToggle: showEnhancedCacheToggle,
             enhancedCacheEnabled: enhancedCacheEnabled,
             showFastModeToggle: showFastModeToggle,
-            fastModeEnabled: fastModeEnabled)
+            fastModeEnabled: fastModeEnabled,
+            autoCompactEnabled: autoCompactEnabled)
     }
 
     final class Coordinator {
@@ -5655,6 +5653,9 @@ private struct ChatTrailingMenuButton: UIViewRepresentable {
         groups.append(UIMenu(options: .displayInline, children: [
             UIAction(title: AppLocalized("New Chat"),
                      image: UIImage(systemName: "square.and.pencil")) { _ in coordinator.parent.onNewChat() },
+            // Android parity: model picker reachable from the side-chat menu.
+            UIAction(title: AppLocalized("Model"),
+                     image: UIImage(systemName: "cpu")) { _ in coordinator.parent.onModel() },
         ]))
 
         // [T-chat-menu-compact-entry] Compact sits ABOVE Clear Chat in its own
@@ -5738,6 +5739,12 @@ private struct ChatTrailingMenuButton: UIViewRepresentable {
         var tailGroup: [UIMenuElement] = [
             UIAction(title: AppLocalized("Token Usage"),
                      image: UIImage(systemName: "number")) { _ in coordinator.parent.onTokenUsage() },
+            // Android parity: auto-compact toggle in the side-chat menu.
+            UIAction(title: AppLocalized("Auto Compact"),
+                     image: UIImage(systemName: "arrow.down.to.line"),
+                     state: key.autoCompactEnabled ? .on : .off) { _ in
+                coordinator.parent.setAutoCompactEnabled(!key.autoCompactEnabled)
+            },
         ]
         #if DEBUG
         tailGroup.append(UIDeferredMenuElement.uncached { completion in
