@@ -744,11 +744,12 @@ struct NanoMuseHomeView: View {
             Button { chatAction(.terminal) } label: { Label(AppLocalized("Open Terminal"), systemImage: "terminal") }
             Button { chatAction(.browser) } label: { Label(AppLocalized("Open Browser"), systemImage: "safari") }
             Button { chatAction(.files) } label: { Label(AppLocalized("Browse Chat Files"), systemImage: "folder") }
-            Button { chatAction(.tokenUsage) } label: { Label(AppLocalized("Token Usage"), systemImage: "chart.bar") }
             Divider()
             Button { chatAction(.sessionSkills) } label: { Label(AppLocalized("Session Skills"), systemImage: "wrench") }
             Button { chatAction(.sessionMCPs) } label: { Label(AppLocalized("Session MCPs"), systemImage: "puzzlepiece") }
             Button { chatAction(.sessionMemory) } label: { Label(AppLocalized("Session Memory"), systemImage: "brain.head.profile") }
+            Divider()
+            Button { chatAction(.tokenUsage) } label: { Label(AppLocalized("Token Usage"), systemImage: "chart.bar") }
             Button { chatAction(.toggleAutoCompact) } label: { Label(AppLocalized("Auto Compact"), systemImage: "arrow.down.to.line") }
             Divider()
             Button { showCoding = true } label: { Label(AppLocalized("Coding agents"), systemImage: "chevron.left.forwardslash.chevron.right") }

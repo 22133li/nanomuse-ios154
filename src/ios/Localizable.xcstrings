@@ -68809,7 +68809,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "新对话"
+            "value": "新建对话"
           }
         },
         "zh-Hant": {
@@ -147872,7 +147872,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "重命名"
+            "value": "重命名对话"
           }
         },
         "zh-Hant": {
