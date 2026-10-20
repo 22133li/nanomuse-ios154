@@ -1880,6 +1880,21 @@ struct AIChatView: View {
             showFastModeToggle: activeModelSupportsFastMode,
             fastModeEnabled: codexFastModeEnabled,
             onNewChat: { requestNewChatFromMenu() },
+            onRename: {
+                guard let sid = vm.sessionId else { return }
+                if let session = titlePillSession, session.id == sid {
+                    titlePillEditSession = session
+                } else {
+                    Task {
+                        let session = await ChatStore.shared.getSession(sid)
+                        await MainActor.run {
+                            guard vm.sessionId == sid, let session else { return }
+                            titlePillSession = session
+                            titlePillEditSession = session
+                        }
+                    }
+                }
+            },
             onModel: { showModelPicker = true },
             // [T-chat-menu-compact-entry] Same effect as the /compact slash
             // command (AIChatViewModel+SlashCommands case "compact").
@@ -2092,7 +2107,8 @@ struct AIChatView: View {
             showEnhancedCacheToggle: cached.vm.showEnhancedCacheToggle,
             enhancedCacheEnabled: cached.vm.enhancedCacheEnabled,
             showFastModeToggle: activeModelSupportsFastMode,
-            fastModeEnabled: codexFastModeEnabled
+            fastModeEnabled: codexFastModeEnabled,
+            autoCompactEnabled: vm.autoCompactEnabled
         )
     }
 
@@ -2693,6 +2709,8 @@ struct AIChatView: View {
                         onStop: { vm.stopCurrentCommand() },
                         onCompact: { msgId in compactConfirmMessageId = msgId },
                         onRevertCompact: { Task { await vm.revertCompact() } },
+                        onDismissError: { vm.errorMessage = nil },
+                        onErrorRetry: { vm.retry() },
                         onForceSync: { [self] in
                             guard let sid = vm.sessionId else { return }
                             Task {
@@ -5258,6 +5276,7 @@ private struct ChatToolbarKey: Equatable {
     /// [T-codex-fast-mode] Menu row shown only for Codex OAuth models.
     let showFastModeToggle: Bool
     let fastModeEnabled: Bool
+    let autoCompactEnabled: Bool
 }
 
 /// [T-ios-navbar-toolbar-host] Zero-footprint host that owns the navigation
@@ -5309,6 +5328,7 @@ private struct ChatToolbarHost<Title: View, Trailing: View>: View, Equatable {
             if lhs.key.enhancedCacheEnabled != rhs.key.enhancedCacheEnabled { diffs.append("enhancedCacheEnabled") }
             if lhs.key.showFastModeToggle != rhs.key.showFastModeToggle { diffs.append("showFastModeToggle") }
             if lhs.key.fastModeEnabled != rhs.key.fastModeEnabled { diffs.append("fastModeEnabled") }
+            if lhs.key.autoCompactEnabled != rhs.key.autoCompactEnabled { diffs.append("autoCompactEnabled") }
             NavbarEvalStats.logger.info("[NavbarEval] host == FALSE diffs=[\(diffs.joined(separator: ","))]")
         }
         #endif
@@ -5558,6 +5578,7 @@ private struct ChatTrailingMenuButton: UIViewRepresentable {
     let fastModeEnabled: Bool
 
     let onNewChat: () -> Void
+    let onRename: () -> Void
     let onModel: () -> Void
     let onCompact: () -> Void
     let onClearChat: () -> Void
@@ -5650,13 +5671,17 @@ private struct ChatTrailingMenuButton: UIViewRepresentable {
     private static func buildMenu(key: Key, coordinator: Coordinator) -> UIMenu {
         var groups: [UIMenuElement] = []
 
-        groups.append(UIMenu(options: .displayInline, children: [
+        var chatGroup: [UIMenuElement] = [
             UIAction(title: AppLocalized("New Chat"),
-                     image: UIImage(systemName: "square.and.pencil")) { _ in coordinator.parent.onNewChat() },
-            // Android parity: model picker reachable from the side-chat menu.
-            UIAction(title: AppLocalized("Model"),
-                     image: UIImage(systemName: "cpu")) { _ in coordinator.parent.onModel() },
-        ]))
+                     image: UIImage(systemName: "square.and.pencil")) { _ in coordinator.parent.onNewChat() }
+        ]
+        if key.hasSession {
+            chatGroup.append(UIAction(title: AppLocalized("Rename chat"),
+                                      image: UIImage(systemName: "pencil")) { _ in coordinator.parent.onRename() })
+        }
+        chatGroup.append(UIAction(title: AppLocalized("Model"),
+                                  image: UIImage(systemName: "cpu")) { _ in coordinator.parent.onModel() })
+        groups.append(UIMenu(options: .displayInline, children: chatGroup))
 
         // [T-chat-menu-compact-entry] Compact sits ABOVE Clear Chat in its own
         // group with the destructive clear; the iCloud actions moved to a
