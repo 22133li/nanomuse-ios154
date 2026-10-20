@@ -397,10 +397,25 @@ struct AIChatView: View {
     }
 
     /// Load a video file URL from an NSItemProvider (PHPicker path).
+    /// PHPicker owns the callback URL and may delete it as soon as the
+    /// callback returns, so retain a private copy before returning it.
     private static func loadVideoFileURL(from provider: NSItemProvider) async -> URL? {
         await withCheckedContinuation { continuation in
             provider.loadFileRepresentation(forTypeIdentifier: UTType.movie.identifier) { url, _ in
-                continuation.resume(returning: url)
+                guard let url else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                let ext = url.pathExtension.isEmpty ? "mov" : url.pathExtension
+                let ownedURL = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("nanomuse-picked-\(UUID().uuidString).\(ext)")
+                do {
+                    try FileManager.default.copyItem(at: url, to: ownedURL)
+                    continuation.resume(returning: ownedURL)
+                } catch {
+                    AppLogger(category: "AIChatVM").error("Failed to retain PHPicker video: \(error.localizedDescription)")
+                    continuation.resume(returning: nil)
+                }
             }
         }
     }
@@ -2841,7 +2856,11 @@ struct AIChatView: View {
                 .padding(.trailing, 4)
                 .frame(maxWidth: maxContentWidth ?? .infinity, alignment: .trailing)
                 .padding(.horizontal, 12)
-                .padding(.bottom, nmColumnHeight + nmBottomOverlay + 12) // nanoMuse: was inputBarHeight + (hasFloatingPreview ? 80 : 12); the column and the shell's bottom bar lie over the list's bottom edge
+                // Leave a small clear band above the shell's bottom capsule. The
+                // overlay's measured height is the capsule's layout height, but
+                // its shadow/blur extends a few points into that boundary.
+                .padding(.bottom, nmColumnHeight + nmBottomOverlay + 28) // nanoMuse: was inputBarHeight + (hasFloatingPreview ? 80 : 12)
+                .zIndex(10)
                 .animation(.easeInOut(duration: 0.2), value: vm.isNearBottom)
                 .animation(.easeInOut(duration: 0.2), value: vm.isAtFirstTurn)
                 .animation(.easeInOut(duration: 0.2), value: hasFloatingPreview)
