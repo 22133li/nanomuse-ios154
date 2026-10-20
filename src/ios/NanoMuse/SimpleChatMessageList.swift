@@ -303,6 +303,18 @@ struct SimpleMessageRow: View {
                             .background(NanoMuseTones.agentPill, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
                             .frame(maxWidth: NanoMuseColumn.agentPillWidth(for: horizontalSizeClass), alignment: .leading)
                     }
+                    // Show failures inline on iOS 15. Without this, provider
+                    // resolution and request errors leave an empty assistant
+                    // bubble, making it appear that the sent message was ignored.
+                    if let error = message.error, !error.isEmpty {
+                        Text(error)
+                            .font(.footnote)
+                            .foregroundColor(.red)
+                            .textSelection(.enabled)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(Color.red.opacity(0.10), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    }
                 }
                 Spacer()
             }
