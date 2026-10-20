@@ -2709,8 +2709,6 @@ struct AIChatView: View {
                         onStop: { vm.stopCurrentCommand() },
                         onCompact: { msgId in compactConfirmMessageId = msgId },
                         onRevertCompact: { Task { await vm.revertCompact() } },
-                        onDismissError: { vm.errorMessage = nil },
-                        onErrorRetry: { vm.retry() },
                         onForceSync: { [self] in
                             guard let sid = vm.sessionId else { return }
                             Task {
