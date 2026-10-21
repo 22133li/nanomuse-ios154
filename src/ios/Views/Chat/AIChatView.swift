@@ -746,6 +746,30 @@ struct AIChatView: View {
 
             // Full-screen kernel boot overlay
             kernelBootOverlay
+
+            // Root-level hit-test layer. The composer/tool preview is mounted
+            // inside messagesArea, so a button placed there can be visually
+            // present while its hit region is owned by the preview. Mounting
+            // this layer last gives both scroll controls an unambiguous route.
+            if !vm.messages.isEmpty && !vm.isNearBottom {
+                VStack(spacing: 10) {
+                    if !vm.isAtFirstTurn {
+                        Button { vm.forceScrollToTop.send() } label: {
+                            scrollFloatingButtonLabel("arrow.up.to.line")
+                        }
+                        .contentShape(Circle())
+                    }
+                    Button { vm.forceScrollToBottom.send() } label: {
+                        scrollFloatingButtonLabel("chevron.down", ink: NanoMuseShellPrefs.shell)
+                    }
+                    .contentShape(Circle())
+                }
+                .padding(.trailing, 16)
+                .frame(maxWidth: maxContentWidth ?? .infinity, alignment: .trailing)
+                .padding(.bottom, nmColumnHeight + nmBottomOverlay + 44)
+                .zIndex(100)
+                .capsuleProtectedFrame("scrollButtons")
+            }
         }
         .background(ChatColors.background)
         .onDrop(of: [.image, .movie, .fileURL, .data], isTargeted: $isDropTargeted) { providers in
@@ -2860,7 +2884,11 @@ struct AIChatView: View {
                 // overlay's measured height is the capsule's layout height, but
                 // its shadow/blur extends a few points into that boundary.
                 .padding(.bottom, nmColumnHeight + nmBottomOverlay + 28) // nanoMuse: was inputBarHeight + (hasFloatingPreview ? 80 : 12)
-                .zIndex(10)
+                // The buttons are duplicated at the chat root below. Keep this
+                // legacy visual layer hidden so the composer/tool column cannot
+                // win hit-testing over the interactive root layer.
+                .opacity(0)
+                .allowsHitTesting(false)
                 .animation(.easeInOut(duration: 0.2), value: vm.isNearBottom)
                 .animation(.easeInOut(duration: 0.2), value: vm.isAtFirstTurn)
                 .animation(.easeInOut(duration: 0.2), value: hasFloatingPreview)

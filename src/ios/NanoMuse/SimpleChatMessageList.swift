@@ -341,7 +341,10 @@ struct SimpleMessageRow: View {
                                         .foregroundColor(.white)
                                         .padding(.horizontal, 12)
                                         .padding(.vertical, 6)
+                                        .frame(minWidth: 112, minHeight: 44)
+                                        .contentShape(Capsule())
                                         .background(Color.orange, in: Capsule())
+                                        .buttonStyle(PlainButtonStyle())
                                 }
                             }
                         }
