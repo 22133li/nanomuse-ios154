@@ -2929,8 +2929,13 @@ struct AIChatView: View {
             }, onTakeoverDone: {
                 vm.resumeFromBrowserTakeover()
             })
+                // Keep the trailing side clear for the scroll controls. The
+                // tool preview is mounted in the composer column and otherwise
+                // wins hit-testing over the floating buttons on iOS 15.
+                .padding(.trailing, 68)
+                .padding(.leading, 12)
                 .frame(maxWidth: maxContentWidth)
-                .padding(.horizontal, 12)
+                .zIndex(0)
                 // [T-ios-geometry-observer-crash] onGeometryChange replaces the
                 // GeometryReader+onAppear+onChange scaffold: writing state from
                 // onChange(of: geo.*) inside the geometry-observer path re-drives

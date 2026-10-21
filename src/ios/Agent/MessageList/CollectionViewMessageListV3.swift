@@ -458,7 +458,7 @@ private struct BridgedAssistantFooterV3: View {
     private var hasFooterContent: Bool {
         let showTyping = showsTypingIndicator
         let showError = message.error != nil
-        let showResume = bridge.canResume && message.error == nil
+        let showResume = bridge.canResume
         let showUsageRow = message.streamInterruptCount > 0 || bridge.showUsage
         return showTyping || showError || showResume || showUsageRow
     }
@@ -476,8 +476,9 @@ private struct BridgedAssistantFooterV3: View {
                 inlineError(error)
             }
 
-            // Resume banner
-            if bridge.canResume && message.error == nil {
+            // Resume banner. A turn-limit interruption also carries an
+            // error string, but remains resumable and must show this action.
+            if bridge.canResume {
                 resumeBanner
             }
 

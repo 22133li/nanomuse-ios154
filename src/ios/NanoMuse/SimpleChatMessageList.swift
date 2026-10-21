@@ -57,6 +57,8 @@ struct SimpleChatMessageList: View {
                                 onDeleteFrom: onDeleteFrom,
                                 onWithdraw: onWithdraw,
                                 onStop: onStop,
+                                onResume: onResume,
+                                canResume: vm.canResume && message.id == vm.messages.last?.id && !vm.isProcessing,
                                 isActiveMessage: message.id == vm.messages.last?.id && vm.isProcessing,
                                 horizontalSizeClass: horizontalSizeClass,
                                 onToolTap: { block in
@@ -114,6 +116,24 @@ struct SimpleChatMessageList: View {
                         proxy.scrollTo(last.id, anchor: .bottom)
                     }
                 }
+                // iOS 15 uses this SwiftUI list instead of the UICollectionView
+                // bridge. Consume the explicit floating-button signals here too.
+                .onReceive(vm.forceScrollToBottom) { _ in
+                    guard let last = vm.messages.last else { return }
+                    DispatchQueue.main.async {
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            proxy.scrollTo(last.id, anchor: .bottom)
+                        }
+                    }
+                }
+                .onReceive(vm.forceScrollToTop) { _ in
+                    guard let target = vm.messages.first else { return }
+                    DispatchQueue.main.async {
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            proxy.scrollTo(target.id, anchor: .top)
+                        }
+                    }
+                }
                 // Feed the locally tracked scroll position back to the view
                 // model: on iOS 15 the CollectionView list never runs, so
                 // this is the only writer of vm.isNearBottom (it also drives
@@ -152,6 +172,8 @@ struct SimpleMessageRow: View {
     var onDeleteFrom: (UUID) -> Void = { _ in }
     var onWithdraw: (UUID) -> Void = { _ in }
     var onStop: () -> Void = {}
+    var onResume: () -> Void = {}
+    var canResume: Bool = false
     var isActiveMessage: Bool = false
     var horizontalSizeClass: UserInterfaceSizeClass?
     var onToolTap: (AssistantBlock) -> Void = { _ in }
@@ -307,13 +329,25 @@ struct SimpleMessageRow: View {
                     // resolution and request errors leave an empty assistant
                     // bubble, making it appear that the sent message was ignored.
                     if let error = message.error, !error.isEmpty {
-                        Text(error)
-                            .font(.footnote)
-                            .foregroundColor(.red)
-                            .textSelection(.enabled)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 8)
-                            .background(Color.red.opacity(0.10), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(error)
+                                .font(.footnote)
+                                .foregroundColor(.red)
+                                .textSelection(.enabled)
+                            if canResume {
+                                Button(action: onResume) {
+                                    Label(AppLocalized("Resume"), systemImage: "play.fill")
+                                        .font(.footnote.weight(.semibold))
+                                        .foregroundColor(.white)
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 6)
+                                        .background(Color.orange, in: Capsule())
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(Color.red.opacity(0.10), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                     }
                 }
                 Spacer()
