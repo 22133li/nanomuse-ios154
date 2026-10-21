@@ -35,6 +35,9 @@ struct SimpleChatMessageList: View {
     /// Keep automatic scroll commands out of that gesture, otherwise a newly
     /// appended block briefly reclaims the bottom and makes the list jitter.
     @State private var userIsDragging: Bool = false
+    /// Coalesce the many scroll signals emitted while tool/text streams flush.
+    /// Calling ScrollViewReader.scrollTo for every token is expensive on iOS 15.
+    @State private var streamScrollPending: Bool = false
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     /// nanoMuse: iOS 15 equivalent of CollectionViewMessageListV3's `topOverlay` — the shell's Muse
     /// header floats over the list's top edge. NOTE: The shell already places the header as a
@@ -113,10 +116,15 @@ struct SimpleChatMessageList: View {
                 // the offset directly with no animation so rapid streaming
                 // flushes don't jitter.
                 .onReceive(vm.scrollToBottomSignal) { _ in
-                    guard !userIsDragging, isNearBottom, let last = vm.messages.last else { return }
-                    // Dispatch async to avoid crashing when the signal fires
-                    // during an in-flight view update (fast reply race).
-                    DispatchQueue.main.async {
+                    guard !userIsDragging, isNearBottom, !streamScrollPending else { return }
+                    streamScrollPending = true
+                    // Coalesce token/tool updates into one main-queue scroll.
+                    // This keeps the live edge responsive without repeatedly
+                    // forcing a full LazyVStack layout pass on iOS 15.
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.10) {
+                        streamScrollPending = false
+                        guard !userIsDragging, isNearBottom,
+                              let last = vm.messages.last else { return }
                         proxy.scrollTo(last.id, anchor: .bottom)
                     }
                 }
