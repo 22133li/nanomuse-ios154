@@ -31,6 +31,10 @@ struct SimpleChatMessageList: View {
     var onScreenshotImage: (UIImage) -> Void = { _ in }
 
     @State private var isNearBottom: Bool = true
+    /// Streaming tool blocks can arrive while the user is dragging upward.
+    /// Keep automatic scroll commands out of that gesture, otherwise a newly
+    /// appended block briefly reclaims the bottom and makes the list jitter.
+    @State private var userIsDragging: Bool = false
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     /// nanoMuse: iOS 15 equivalent of CollectionViewMessageListV3's `topOverlay` — the shell's Muse
     /// header floats over the list's top edge. NOTE: The shell already places the header as a
@@ -96,7 +100,7 @@ struct SimpleChatMessageList: View {
                     // slightly scrolled up left the new message hidden below the fold.
                     guard let last = vm.messages.last else { return }
                     let isUserMessage = last.role == .user
-                    guard isUserMessage || isNearBottom else { return }
+                    guard !userIsDragging, isUserMessage || isNearBottom else { return }
                     // Dispatch async: scrollTo during a view update (e.g. a
                     // very fast reply arriving mid-render) can crash.
                     DispatchQueue.main.async {
@@ -109,7 +113,7 @@ struct SimpleChatMessageList: View {
                 // the offset directly with no animation so rapid streaming
                 // flushes don't jitter.
                 .onReceive(vm.scrollToBottomSignal) { _ in
-                    guard isNearBottom, let last = vm.messages.last else { return }
+                    guard !userIsDragging, isNearBottom, let last = vm.messages.last else { return }
                     // Dispatch async to avoid crashing when the signal fires
                     // during an in-flight view update (fast reply race).
                     DispatchQueue.main.async {
@@ -120,6 +124,8 @@ struct SimpleChatMessageList: View {
                 // bridge. Consume the explicit floating-button signals here too.
                 .onReceive(vm.forceScrollToBottom) { _ in
                     guard let last = vm.messages.last else { return }
+                    userIsDragging = false
+                    isNearBottom = true
                     DispatchQueue.main.async {
                         withAnimation(.easeOut(duration: 0.2)) {
                             proxy.scrollTo(last.id, anchor: .bottom)
@@ -128,6 +134,7 @@ struct SimpleChatMessageList: View {
                 }
                 .onReceive(vm.forceScrollToTop) { _ in
                     guard let target = vm.messages.first else { return }
+                    userIsDragging = false
                     DispatchQueue.main.async {
                         withAnimation(.easeOut(duration: 0.2)) {
                             proxy.scrollTo(target.id, anchor: .top)
@@ -142,7 +149,30 @@ struct SimpleChatMessageList: View {
                     if vm.isNearBottom != newValue {
                         vm.isNearBottom = newValue
                     }
+                    // Once the bottom anchor is genuinely visible again, the
+                    // user has returned to the live edge and auto-scroll may
+                    // resume. Do not clear this while the user is reading up.
+                    if newValue {
+                        userIsDragging = false
+                    }
                 }
+                // SwiftUI's iOS 15 ScrollView has no public drag-state hook.
+                // Observe the gesture simultaneously so tracking does not steal
+                // the scroll view's pan gesture, and suppress stream-driven
+                // scrolls for the whole upward browsing interval.
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 5)
+                        .onChanged { value in
+                            if abs(value.translation.height) > abs(value.translation.width) {
+                                userIsDragging = true
+                            }
+                        }
+                        .onEnded { _ in
+                            if isNearBottom {
+                                userIsDragging = false
+                            }
+                        }
+                )
                 // NOTE: Floating scroll buttons are provided by AIChatView's
                 // overlay (same as iOS 16+); SimpleChatMessageList does not
                 // define its own to avoid duplication.
