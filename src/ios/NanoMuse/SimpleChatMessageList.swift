@@ -171,13 +171,23 @@ struct SimpleChatMessageList: View {
                 .simultaneousGesture(
                     DragGesture(minimumDistance: 5)
                         .onChanged { value in
-                            if abs(value.translation.height) > abs(value.translation.width) {
-                                userIsDragging = true
+                            guard abs(value.translation.height) > abs(value.translation.width) else { return }
+                            userIsDragging = true
+                            // On iOS 15 the bottom anchor can remain visible while
+                            // the list is being dragged. Leave the live edge as soon
+                            // as an upward drag is detected, otherwise a streaming
+                            // signal can pull the list back down under the finger.
+                            if value.translation.height < -8, isNearBottom {
+                                isNearBottom = false
+                                if vm.isNearBottom { vm.isNearBottom = false }
                             }
                         }
                         .onEnded { _ in
-                            if isNearBottom {
-                                userIsDragging = false
+                            // Do not resume live-edge scrolling just because the
+                            // finger lifted. It resumes only after the bottom anchor
+                            // becomes visible again.
+                            if !isNearBottom {
+                                userIsDragging = true
                             }
                         }
                 )
