@@ -142,7 +142,11 @@ struct SimpleChatMessageList: View {
                 // iOS 15 uses this SwiftUI list instead of the UICollectionView
                 // bridge. Consume the explicit floating-button signals here too.
                 .onReceive(vm.forceScrollToBottom) { _ in
-                    guard let last = vm.messages.last else { return }
+                    // Resume intentionally keeps the current reading position.
+                    // Ignore any legacy force-scroll signal emitted during the
+                    // resumed turn; the user can still tap the bottom control.
+                    guard !holdScrollAfterResume,
+                          let last = vm.messages.last else { return }
                     userIsDragging = false
                     holdScrollAfterResume = false
                     isNearBottom = true

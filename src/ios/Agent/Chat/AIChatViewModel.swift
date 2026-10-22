@@ -2851,8 +2851,8 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
         let existingBlockCount = lastMsg.blocks.count
         errorMessage = nil
         isProcessing = true
-        isNearBottom = true
-        forceScrollToBottom.send()
+        // Resume must preserve the reader's current position. New tool/text
+        // blocks are allowed to stream without forcing the list to the live edge.
 
         ensureKernelBooted()
         beginBackgroundProcessing()
