@@ -38,6 +38,9 @@ struct SimpleChatMessageList: View {
     /// Coalesce the many scroll signals emitted while tool/text streams flush.
     /// Calling ScrollViewReader.scrollTo for every token is expensive on iOS 15.
     @State private var streamScrollPending: Bool = false
+    /// Resume adds new tool/text blocks, but should not pull a reader away from
+    /// the position they were inspecting. Cleared when they return to the live edge.
+    @State private var holdScrollAfterResume: Bool = false
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     /// nanoMuse: iOS 15 equivalent of CollectionViewMessageListV3's `topOverlay` — the shell's Muse
     /// header floats over the list's top edge. NOTE: The shell already places the header as a
@@ -64,7 +67,13 @@ struct SimpleChatMessageList: View {
                                 onDeleteFrom: onDeleteFrom,
                                 onWithdraw: onWithdraw,
                                 onStop: onStop,
-                                onResume: onResume,
+                                onResume: {
+                                    // Keep the current reading position while a
+                                    // resumed loop appends new tool/text blocks.
+                                    holdScrollAfterResume = true
+                                    streamScrollPending = false
+                                    onResume()
+                                },
                                 canResume: vm.canResume && message.id == vm.messages.last?.id && !vm.isProcessing,
                                 isActiveMessage: message.id == vm.messages.last?.id && vm.isProcessing,
                                 horizontalSizeClass: horizontalSizeClass,
@@ -103,7 +112,8 @@ struct SimpleChatMessageList: View {
                     // slightly scrolled up left the new message hidden below the fold.
                     guard let last = vm.messages.last else { return }
                     let isUserMessage = last.role == .user
-                    guard !userIsDragging, isUserMessage || isNearBottom else { return }
+                    guard !holdScrollAfterResume,
+                          !userIsDragging, isUserMessage || isNearBottom else { return }
                     // Dispatch async: scrollTo during a view update (e.g. a
                     // very fast reply arriving mid-render) can crash.
                     DispatchQueue.main.async {
@@ -116,7 +126,8 @@ struct SimpleChatMessageList: View {
                 // the offset directly with no animation so rapid streaming
                 // flushes don't jitter.
                 .onReceive(vm.scrollToBottomSignal) { _ in
-                    guard !userIsDragging, isNearBottom, !streamScrollPending else { return }
+                    guard !holdScrollAfterResume,
+                          !userIsDragging, isNearBottom, !streamScrollPending else { return }
                     streamScrollPending = true
                     // Coalesce token/tool updates into one main-queue scroll.
                     // This keeps the live edge responsive without repeatedly
@@ -133,6 +144,7 @@ struct SimpleChatMessageList: View {
                 .onReceive(vm.forceScrollToBottom) { _ in
                     guard let last = vm.messages.last else { return }
                     userIsDragging = false
+                    holdScrollAfterResume = false
                     isNearBottom = true
                     DispatchQueue.main.async {
                         withAnimation(.easeOut(duration: 0.2)) {
@@ -162,6 +174,7 @@ struct SimpleChatMessageList: View {
                     // resume. Do not clear this while the user is reading up.
                     if newValue {
                         userIsDragging = false
+                        holdScrollAfterResume = false
                     }
                 }
                 // SwiftUI's iOS 15 ScrollView has no public drag-state hook.
@@ -177,8 +190,8 @@ struct SimpleChatMessageList: View {
                             // the list is being dragged. Leave the live edge as soon
                             // as an upward drag is detected, otherwise a streaming
                             // signal can pull the list back down under the finger.
-                            if value.translation.height < -8, isNearBottom {
-                                isNearBottom = false
+                            if value.translation.height < -8 {
+                                if isNearBottom { isNearBottom = false }
                                 if vm.isNearBottom { vm.isNearBottom = false }
                             }
                         }
