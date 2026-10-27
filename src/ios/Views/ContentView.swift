@@ -7870,7 +7870,6 @@ private struct SettingsSheet: View {
             .onChange(of: deepLink.pendingSettingsTarget) { _ in
                 applyPendingDeepLink()
             }
-        }
         .preferredColorScheme(appearanceMode == 1 ? .light : appearanceMode == 2 ? .dark : nil)
         .appFontScale()
     }
