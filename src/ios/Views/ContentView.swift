@@ -219,7 +219,7 @@ private struct SearchBarSurface: ViewModifier {
         if #available(iOS 26.0, *) {
             // No .clipShape needed — glassEffect(in:) already clips to the
             // capsule, and no .shadow: the material carries its own.
-            content.glassEffect(.regular, in: .capsule)
+            content.nanoMuseRegularGlass(in: Capsule())
         } else {
             content
                 .background(Color(UIColor.secondarySystemBackground))
@@ -244,7 +244,7 @@ private struct FABGlassMorphID: ViewModifier {
 
     func body(content: Content) -> some View {
         if #available(iOS 26.0, *) {
-            content.glassEffectID("fabSearch", in: namespace)
+            content.nanoMuseGlassID("fabSearch", in: namespace)
         } else {
             content
         }
@@ -286,7 +286,7 @@ private struct FolderSurface: ViewModifier {
             : UIColor(red: 252/255.0, green: 252/255.0, blue: 252/255.0, alpha: 1)
     })
 
-    private var shape: AnyShape {
+    private var shape: BackportAnyShape {
         switch kind {
         case .lone:
             return BackportAnyShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -366,7 +366,7 @@ private struct FolderCardBackground: ViewModifier {
     let isDropTarget: Bool
     let isExpanded: Bool
 
-    private var dropShape: AnyShape {
+    private var dropShape: BackportAnyShape {
         isExpanded
             ? BackportAnyShape(BackportUnevenRoundedRectangle(
                 topLeadingRadius: 16, bottomLeadingRadius: 0,
@@ -2082,6 +2082,7 @@ struct ContentView: View {
 
     // MARK: - Stack Layout (iPhone / narrow window)
 
+    @ViewBuilder
     private var stackLayout: some View {
         if #available(iOS 16.0, *) {
             NavigationStack(path: $navigationPath) {
@@ -4346,10 +4347,7 @@ struct ContentView: View {
         if #available(iOS 26.0, *) {
             icon()
                 .frame(width: 56, height: 56)
-                .glassEffect(
-                    tint.map { Glass.regular.tint($0) } ?? Glass.regular,
-                    in: .circle
-                )
+                .nanoMuseTintedGlass(tint)
                 // [T-fab-glass-contextmenu-regression] Without this the long-press
                 // menu on the new-chat FAB stops opening.
                 //
@@ -7470,87 +7468,59 @@ private struct SettingsSheet: View {
     @State private var showFeedbackDialog = false
 
     var body: some View {
-        if #available(iOS 16.0, *) {
-            settingsStack16
-        } else {
-            settingsStack15
-        }
-    }
-
-    @available(iOS 16.0, *)
-    private var settingsStack16: some View {
-        NavigationStack(path: $navPath) {
-            settingsList
-                .navigationDestination(for: SettingsDestination.self) { dest in
-                    settingsDestination(dest)
+        Group {
+            if #available(iOS 16.0, *) {
+                NavigationStack(path: $navPath) {
+                    settingsList
+                        .navigationDestination(for: SettingsDestination.self) { dest in
+                            settingsDestination(dest)
+                        }
                 }
-        }
-    }
-
-    private var settingsStack15: some View {
-        NavigationView {
-            settingsList
-                .background(
-                    NavigationLink(
-                        destination: Group {
-                            if let dest = navPath.last {
-                                settingsDestination(dest)
-                            } else {
-                                EmptyView()
-                            }
-                        },
-                        isActive: Binding(
-                            get: { !navPath.isEmpty },
-                            set: { if !$0 { navPath.removeLast() } }
+            } else {
+                NavigationView {
+                    settingsList
+                        .background(
+                            NavigationLink(
+                                destination: Group {
+                                    if let dest = navPath.last { settingsDestination(dest) }
+                                    else { EmptyView() }
+                                },
+                                isActive: Binding(
+                                    get: { !navPath.isEmpty },
+                                    set: { if !$0 { navPath.removeLast() } }
+                                )
+                            ) { EmptyView() }
                         )
-                    ) { EmptyView() }
-                )
+                }
+                .navigationViewStyle(.stack)
+            }
         }
-        .navigationViewStyle(.stack)
     }
 
     @ViewBuilder
     private func settingsDestination(_ dest: SettingsDestination) -> some View {
         switch dest {
-        case .providers:
-            ProviderInstancesView()
-        case .providerDetail(let id):
-            ProviderInstanceDetailView(instanceId: id)
-        case .modelGroups:
-            ModelGroupsView()
-        case .modelGroupDetail(let id):
-            ModelGroupDetailView(groupId: id)
-        case .usage:
-            UsageStatsView()
-        case .skills:
-            SkillsManagementView()
-        case .soul:
-            SoulSettingsView()
-        case .memory:
-            MemoryManagementView()
-        case .storage:
-            StorageManagementView()
-        case .mountedFolders:
-            MountedFoldersSettingsView()
-        case .sharedFolders:
-            SharedFoldersSettingsView()
+        case .providers: ProviderInstancesView()
+        case .providerDetail(let id): ProviderInstanceDetailView(instanceId: id)
+        case .modelGroups: ModelGroupsView()
+        case .modelGroupDetail(let id): ModelGroupDetailView(groupId: id)
+        case .usage: UsageStatsView()
+        case .skills: SkillsManagementView()
+        case .soul: SoulSettingsView()
+        case .memory: MemoryManagementView()
+        case .storage: StorageManagementView()
+        case .mountedFolders: MountedFoldersSettingsView()
+        case .sharedFolders: SharedFoldersSettingsView()
         case .logs:
             LogManagementView(initialTab: deepLink.pendingLogsTab ?? "logs")
                 .onAppear { deepLink.pendingLogsTab = nil }
-        case .appearance:
-            AppearanceSettingsView()
-        case .background:
-            EnhancedBackgroundSettingsView()
-        case .about:
-            AboutView()
-        case .environments:
-            EnvironmentVariablesView()
-        case .permissions:
-            OffloadPermissionSettingsView()
-        case .mcpIntegrations:
-            MCPIntegrationsView()
-        case .mcpServerDetail(let serverId):
-            MCPIntegrationsView(initialEditServerId: serverId)
+        case .appearance: AppearanceSettingsView()
+        case .background: EnhancedBackgroundSettingsView()
+        case .about: AboutView()
+        case .permissions: OffloadPermissionSettingsView()
+        case .environments: EnvironmentVariablesView()
+        case .mcpIntegrations: MCPIntegrationsView()
+        case .mcpServerDetail(let serverId): MCPIntegrationsView(initialEditServerId: serverId)
         }
     }
 

@@ -99,7 +99,7 @@ private struct ContextMenuPreviewSurface: ViewModifier {
             content
                 // Opaque floor first — see the note above.
                 .background(shape.fill(ChatColors.background))
-                .glassEffect(.regular, in: shape)
+                .nanoMuseRegularGlass(in: shape)
         } else {
             content.background(ChatColors.background)
         }
@@ -150,7 +150,7 @@ private struct UserBubbleSurface: ViewModifier {
         } else if NanoMuseShellPrefs.shell { // nanoMuse: Muse's user pill: the ink colour, black in light and white in dark, 18 pt, no glass (Android: ChatColors.userBubble)
             content.background(shape.fill(NanoMuseTones.ink)) // nanoMuse:
         } else if #available(iOS 26.0, *) {
-            content.glassEffect(.regular, in: shape)
+            content.nanoMuseRegularGlass(in: shape)
         } else {
             content.background(shape.fill(ChatColors.userBubble))
         }

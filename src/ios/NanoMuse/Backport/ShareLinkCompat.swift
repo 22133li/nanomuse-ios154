@@ -14,6 +14,11 @@ struct NanoMuseShareLink<Label: View>: View {
         self.label = label()
     }
 
+    init(item: URL) where Label == Text {
+        self.url = item
+        self.label = Text(item.lastPathComponent)
+    }
+
     var body: some View {
         if #available(iOS 16.0, *) {
             ShareLink(item: url) { label }
@@ -26,16 +31,26 @@ struct NanoMuseShareLink<Label: View>: View {
     }
 }
 
-extension NanoMuseShareLink where Label == DefaultLabel {
-    init(item: URL) {
-        self.init(item: item) { DefaultLabel(title: item.lastPathComponent) }
+struct NanoMuseDefaultShareLink: View {
+    private let url: URL
+
+    init(item: URL) { self.url = item }
+
+    var body: some View {
+        if #available(iOS 16.0, *) {
+            ShareLink(item: url)
+        } else {
+            Button { share() } label: {
+                Label(url.lastPathComponent, systemImage: "square.and.arrow.up")
+            }
+        }
     }
 
-    struct DefaultLabel: View {
-        let title: String
-        var body: some View {
-            Label(title, systemImage: "square.and.arrow.up")
-        }
+    private func share() {
+        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let root = scene.windows.first(where: \.isKeyWindow)?.rootViewController else { return }
+        let activity = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+        root.present(activity, animated: true)
     }
 }
 

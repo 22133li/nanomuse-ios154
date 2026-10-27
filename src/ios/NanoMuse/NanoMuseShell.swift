@@ -608,6 +608,7 @@ struct NanoMuseHomeView: View {
 
     // MARK: Chat layer
 
+    @ViewBuilder
     private var chatLayer: some View {
         if #available(iOS 16.0, *) {
             NavigationStack(path: $chatPath) {

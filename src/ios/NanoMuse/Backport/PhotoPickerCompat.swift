@@ -16,7 +16,7 @@ struct NanoMusePick {
     let fileExtension: String?
 
     // iOS 16+ payload.
-    let photoItem: AnyObject?
+    let photoItem: Any?
     // iOS 15 payload.
     let provider: NSItemProvider?
 

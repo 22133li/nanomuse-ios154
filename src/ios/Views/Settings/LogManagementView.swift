@@ -221,7 +221,7 @@ struct LogDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
-                NanoMuseShareLink(item: url)
+                NanoMuseDefaultShareLink(item: url)
             }
         }
         .task {
