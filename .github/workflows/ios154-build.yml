@@ -44,7 +44,7 @@ jobs:
           cd src/ios
           xcodebuild -project Minis.xcodeproj -scheme Minis -configuration Release \
             -sdk iphoneos -derivedDataPath ../../build/derived \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY="" DEVELOPMENT_TEAM="" \\
+            CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY="" DEVELOPMENT_TEAM="" \
             IPHONEOS_DEPLOYMENT_TARGET=15.4
       - run: |
           APP_PATH=$(find build/derived/Build/Products/Release-iphoneos -name "Minis.app" -maxdepth 1)
