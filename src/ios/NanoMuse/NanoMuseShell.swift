@@ -35,14 +35,13 @@ enum NanoMuseShellPrefs {
 // MARK: - Tabs
 
 enum NanoMuseTab: String, CaseIterable, Identifiable {
-    case chat, feed, memory, ideas, goals, library
+    case chat, feed, ideas, goals, library
     var id: String { rawValue }
 
     var title: String {
         switch self {
         case .chat: return AppLocalized("tab.chat") // its own key: 聊天 as on Android, not upstream's 闲聊
         case .feed: return AppLocalized("Feed")
-        case .memory: return AppLocalized("Memory")
         case .ideas: return AppLocalized("Ideas")
         case .goals: return AppLocalized("Goals")
         case .library: return AppLocalized("Library")
@@ -51,23 +50,21 @@ enum NanoMuseTab: String, CaseIterable, Identifiable {
 
     var symbol: String {
         switch self {
-        case .chat: return "bubble.left.and.bubble.right"
-        case .feed: return "newspaper"
-        case .memory: return "brain"
+        case .chat: return "bubble.left"
+        case .feed: return "doc.text"
         case .ideas: return "lightbulb"
-        case .goals: return "target"
-        case .library: return "books.vertical"
+        case .goals: return "checkmark.square"
+        case .library: return "square.grid.2x2"
         }
     }
 
     var selectedSymbol: String {
         switch self {
-        case .chat: return "bubble.left.and.bubble.right.fill"
-        case .feed: return "newspaper.fill"
-        case .memory: return "brain.fill"
+        case .chat: return "bubble.left.fill"
+        case .feed: return "doc.text.fill"
         case .ideas: return "lightbulb.fill"
-        case .goals: return "target"
-        case .library: return "books.vertical.fill"
+        case .goals: return "checkmark.square.fill"
+        case .library: return "square.grid.2x2.fill"
         }
     }
 }
@@ -115,7 +112,7 @@ struct NanoMuseRoot: View {
                 )
                 // The gear opens Muse's settings page; the OpenMinis list is under "All settings".
                 .sheet(isPresented: $showSetupSettings) {
-                    NavigationView {
+                    NavigationStack {
                         NanoMuseSettingsHomeView(onAllSettings: {
                             showSetupSettings = false
                             showClassicSettings = true
@@ -190,7 +187,7 @@ struct NanoMuseAgentPagePresenter: ViewModifier {
                 )
             }
             .sheet(isPresented: $showRoutines) {
-                NavigationView {
+                NavigationStack {
                     NanoMuseRoutinesView()
                         .toolbar { ToolbarItem(placement: .cancellationAction) { Button(AppLocalized("Done")) { showRoutines = false } } }
                 }
@@ -496,7 +493,7 @@ struct NanoMuseHomeView: View {
             NanoMusePageSheet(title: AppLocalized("Computers")) { NanoMuseComputersView() }
         }
         .sheet(isPresented: $showNanoMuseSettings) {
-            NavigationView {
+            NavigationStack {
                 NanoMuseSettingsHomeView(onAllSettings: {
                     showNanoMuseSettings = false
                     classicWantsSettings = true
@@ -612,7 +609,7 @@ struct NanoMuseHomeView: View {
     // MARK: Chat layer
 
     private var chatLayer: some View {
-        NavigationView {
+        NavigationStack(path: $chatPath) {
             Group {
                 if let id = main.chatId {
                     AIChatView(sessionId: main.isDraft ? nil : id, draftId: main.isDraft ? id : nil)
@@ -671,7 +668,7 @@ struct NanoMuseHomeView: View {
                         .transition(.move(edge: .top).combined(with: .opacity))
                     }
                 }
-                .onGeometryChangeBackport(for: CGFloat.self) { proxy in
+                .onGeometryChange(for: CGFloat.self) { proxy in
                     proxy.size.height
                 } action: { height in
                     if abs(height - chatHeaderHeight) > 0.5 { chatHeaderHeight = height }
@@ -687,37 +684,18 @@ struct NanoMuseHomeView: View {
             .background(NanoMuseEdgeSwipe(enabled: tab == .chat && chatPath.isEmpty && !drawerOpen) { drawerOpen = true })
             .nmRenameAlert(rename)
             // The system bar stays out of the main chat; side chats pushed from here keep theirs.
-            .navigationBarHidden(true)
+            .toolbar(.hidden, for: .navigationBar)
             .animation(.easeInOut(duration: 0.25), value: star.pending)
             .animation(.easeInOut(duration: 0.25), value: allowance.pending)
-            .background(
-                NavigationLink(
-                    destination: chatDestinationView,
-                    isActive: Binding(
-                        get: { !chatPath.isEmpty },
-                        set: { if !$0 { chatPath.removeAll() } }
-                    )
-                ) {
-                    EmptyView()
-                }
-            )
-        }
-        .navigationViewStyle(.stack)
-    }
-
-    /// iOS 15 backport: replaces `.navigationDestination(for: String.self)`.
-    @ViewBuilder
-    private var chatDestinationView: some View {
-        if let id = chatPath.last {
-            let draft = id.hasPrefix(NanoMuseMainChat.draftPrefix)
-            AIChatView(sessionId: draft ? nil : id, draftId: draft ? id : nil)
-                .id(id)
-                // The side chat keeps the system bar, with the main chat's scrim behind it,
-                // and no Muse header over its list.
-                .environment(\.nmSystemBarScrim, true)
-                .environment(\.nmTopOverlay, 0)
-        } else {
-            EmptyView()
+            .navigationDestination(for: String.self) { id in
+                let draft = id.hasPrefix(NanoMuseMainChat.draftPrefix)
+                AIChatView(sessionId: draft ? nil : id, draftId: draft ? id : nil)
+                    .id(id)
+                    // The side chat keeps the system bar, with the main chat's scrim behind it,
+                    // and no Muse header over its list.
+                    .environment(\.nmSystemBarScrim, true)
+                    .environment(\.nmTopOverlay, 0)
+            }
         }
     }
 
@@ -736,20 +714,15 @@ struct NanoMuseHomeView: View {
             if let id = main.chatId, !main.isDraft {
                 Button { rename.open(id) } label: { Label(AppLocalized("Rename chat"), systemImage: "pencil") }
             }
-            // Android: model always in the menu.
-            Button { chatAction(.model) } label: { Label(AppLocalized("Model"), systemImage: "cpu") }
+            if !NanoMuseAppearance.shared.headerModel {
+                Button { chatAction(.model) } label: { Label(AppLocalized("Model"), systemImage: "cpu") }
+            }
             Button(role: .destructive) { chatAction(.clearChat) } label: { Label(AppLocalized("Clear Chat"), systemImage: "trash") }
             Divider()
             Button { chatAction(.terminal) } label: { Label(AppLocalized("Open Terminal"), systemImage: "terminal") }
             Button { chatAction(.browser) } label: { Label(AppLocalized("Open Browser"), systemImage: "safari") }
             Button { chatAction(.files) } label: { Label(AppLocalized("Browse Chat Files"), systemImage: "folder") }
-            Divider()
-            Button { chatAction(.sessionSkills) } label: { Label(AppLocalized("Session Skills"), systemImage: "wrench") }
-            Button { chatAction(.sessionMCPs) } label: { Label(AppLocalized("Session MCPs"), systemImage: "puzzlepiece") }
-            Button { chatAction(.sessionMemory) } label: { Label(AppLocalized("Session Memory"), systemImage: "brain.head.profile") }
-            Divider()
             Button { chatAction(.tokenUsage) } label: { Label(AppLocalized("Token Usage"), systemImage: "chart.bar") }
-            Button { chatAction(.toggleAutoCompact) } label: { Label(AppLocalized("Auto Compact"), systemImage: "arrow.down.to.line") }
             Divider()
             Button { showCoding = true } label: { Label(AppLocalized("Coding agents"), systemImage: "chevron.left.forwardslash.chevron.right") }
             Button { showRoutines = true } label: { Label(AppLocalized("All routines"), systemImage: "clock") }
@@ -781,8 +754,6 @@ struct NanoMuseHomeView: View {
                 onDiscuss: { post in discussPost(post) },
                 onOpenSession: { id in openSideChat(id) }
             )
-        case .memory:
-            NanoMuseMemoryRoom(chrome: chrome)
         case .ideas:
             NanoMuseIdeasRoom(
                 chrome: chrome,
@@ -909,7 +880,7 @@ enum NanoMuseColumn {
 
 // MARK: - Bottom bar
 
-/// Android's MuseBottomBar: a floating frosted-glass pill a little above the bottom edge, six
+/// Android's MuseBottomBar: a floating frosted-glass pill a little above the bottom edge, five
 /// glyphs and no labels. The pill is `.ultraThinMaterial` under the shell's surface tone at 55
 /// percent, with a 1 pt hairline; the current tab shows its filled glyph on a soft indicator
 /// capsule that springs across to the tab tapped next, the others stay outlined and muted. The
@@ -924,7 +895,7 @@ struct NanoMuseBottomBar: View {
     /// Regular on an iPad: the pill takes the column's width, the composer's.
     @Environment(\.horizontalSizeClass) private var sizeClass
 
-    /// The indicator capsule behind the selected glyph, centred in its slot; the six slots share
+    /// The indicator capsule behind the selected glyph, centred in its slot; the five slots share
     /// the pill's width equally.
     static let tabSize = CGSize(width: 60, height: 46)
     /// The pill's padding above and below the slots.
@@ -949,22 +920,30 @@ struct NanoMuseBottomBar: View {
                 Button {
                     onPick(tab)
                 } label: {
-                    Image(systemName: isSelected ? tab.selectedSymbol : tab.symbol)
-                        .font(.system(size: 22, weight: isSelected ? .semibold : .regular))
-                        .foregroundStyle(isSelected ? NanoMuseTones.tabIndicatorGlyph : Color.secondary)
-                        // The capsule keeps its 60 by 46 (narrower only when the slot is).
-                        .frame(maxWidth: Self.tabSize.width)
-                        .frame(height: Self.tabSize.height)
-                        .background {
-                            if isSelected {
-                                Capsule()
-                                    .fill(NanoMuseTones.tabIndicator)
-                                    .matchedGeometryEffect(id: "indicator", in: indicator)
-                            }
+                    Group {
+                        if tab == .library {
+                            NanoMuseCategoryShape(filled: isSelected)
+                                .fill(style: FillStyle(eoFill: true))
+                                .frame(width: 24, height: 24)
+                        } else {
+                            Image(systemName: isSelected ? tab.selectedSymbol : tab.symbol)
+                                .font(.system(size: 22, weight: isSelected ? .semibold : .regular))
                         }
-                        // The slot: an equal share of the pill, all of it tappable.
-                        .frame(maxWidth: .infinity)
-                        .contentShape(Rectangle())
+                    }
+                    .foregroundStyle(isSelected ? NanoMuseTones.tabIndicatorGlyph : Color.secondary)
+                    // The capsule keeps its 60 by 46 (narrower only when the slot is).
+                    .frame(maxWidth: Self.tabSize.width)
+                    .frame(height: Self.tabSize.height)
+                    .background {
+                        if isSelected {
+                            Capsule()
+                                .fill(NanoMuseTones.tabIndicator)
+                                .matchedGeometryEffect(id: "indicator", in: indicator)
+                        }
+                    }
+                    // The slot: an equal share of the pill, all of it tappable.
+                    .frame(maxWidth: .infinity)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(Text(tab.title))
@@ -983,6 +962,47 @@ struct NanoMuseBottomBar: View {
         .frame(maxWidth: .infinity)
         .padding(.horizontal, Self.inset)
         .padding(.bottom, Self.bottomGap)
+    }
+}
+
+/// Material's `Category` icon (top triangle, bottom-left square, bottom-right circle on a 24x24
+/// grid), matching Android's Library tab icon (`Icons.Outlined.Category` / `Icons.Filled.Category`).
+private struct NanoMuseCategoryShape: Shape {
+    let filled: Bool
+
+    func path(in rect: CGRect) -> Path {
+        let s = min(rect.width, rect.height) / 24.0
+        let ox = rect.minX + (rect.width - 24.0 * s) / 2.0
+        let oy = rect.minY + (rect.height - 24.0 * s) / 2.0
+        func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+            CGPoint(x: ox + x * s, y: oy + y * s)
+        }
+        func box(_ x: CGFloat, _ y: CGFloat, _ w: CGFloat, _ h: CGFloat) -> CGRect {
+            CGRect(x: ox + x * s, y: oy + y * s, width: w * s, height: h * s)
+        }
+
+        var p = Path()
+        p.move(to: pt(12, 2))
+        p.addLine(to: pt(6.5, 11))
+        p.addLine(to: pt(17.5, 11))
+        p.closeSubpath()
+        if !filled {
+            p.move(to: pt(12, 5.84))
+            p.addLine(to: pt(13.93, 9))
+            p.addLine(to: pt(10.07, 9))
+            p.closeSubpath()
+        }
+
+        p.addEllipse(in: box(13, 13, 9, 9))
+        if !filled {
+            p.addEllipse(in: box(15, 15, 5, 5))
+        }
+
+        p.addRect(box(3, 13.5, 8, 8))
+        if !filled {
+            p.addRect(box(5, 15.5, 4, 4))
+        }
+        return p
     }
 }
 
@@ -1099,7 +1119,7 @@ struct NanoMusePageSheet<Content: View>: View {
     }
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             content()
                 .navigationTitle(title)
                 .navigationBarTitleDisplayMode(.inline)
@@ -1131,10 +1151,6 @@ struct NanoMuseDrawer: View {
     var onCoding: () -> Void
     var onSystemFiles: () -> Void
     var onAllChats: () -> Void
-    /// Reduce Motion on: the panel fades in instead of sliding in from the edge.
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    /// The agent's name follows Dynamic Type, capped as the header's lines are (NanoMuseHeaderMetrics).
-    @ScaledMetric(relativeTo: .title2) private var nameSize: CGFloat = 24
     var onSettings: () -> Void
 
     @ObservedObject private var hub = NanoMuseHub.shared
@@ -1144,6 +1160,10 @@ struct NanoMuseDrawer: View {
     @State private var query = ""
     @State private var dragOffset: CGFloat = 0
     @State private var deleteCandidate: String?
+    /// Reduce Motion on: the panel fades in instead of sliding in from the edge.
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// The agent's name follows Dynamic Type, capped as the header's lines are (NanoMuseHeaderMetrics).
+    @ScaledMetric(relativeTo: .title2) private var nameSize: CGFloat = 24
 
     /// The panel's width: most of the window, at most 320 pt. Measured from the window the
     /// drawer is in rather than the screen, so an iPad window narrower than the screen (Stage
@@ -1158,7 +1178,7 @@ struct NanoMuseDrawer: View {
                         .ignoresSafeArea()
                         .onTapGesture { close() }
                         .transition(.opacity)
-                    panel
+                    panel(width: width(in: geo.size.width))
                         .frame(width: width(in: geo.size.width))
                         .offset(x: min(0, dragOffset))
                         .transition(reduceMotion ? .opacity : .move(edge: .leading))
@@ -1207,7 +1227,7 @@ struct NanoMuseDrawer: View {
         hub.others.filter { $0.online && $0.isComputer && ($0.actions.isEmpty || $0.actions.contains("coding.sessions")) }.count
     }
 
-    private var panel: some View {
+    private func panel(width: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(agentName)
                 .font(.system(size: NanoMuseHeaderMetrics.capped(nameSize, base: 24), weight: .bold))
@@ -1296,10 +1316,21 @@ struct NanoMuseDrawer: View {
                             } label: {
                                 Label(AppLocalized("Delete chat"), systemImage: "trash")
                             }
+                        } preview: {
+                            // The default preview lifts the List cell, which the system lays out
+                            // wider than the drawer; the drawer then clips it at its edge and the
+                            // chat shows through. An explicit preview does not: the system sets it
+                            // 16 pt in from the edge, so it is the panel's width less 16 pt each side.
+                            row(session)
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 12)
+                                .frame(width: width - 32, alignment: .leading)
+                                .background(NanoMuseTones.surface)
                         }
                     }
                 }
                 .listStyle(.plain)
+                .scrollContentBackground(.hidden)
                 .nmRenameAlert(rename)
                 .alert(AppLocalized("Delete chat"), isPresented: Binding(get: { deleteCandidate != nil }, set: { if !$0 { deleteCandidate = nil } })) {
                     Button(AppLocalized("Cancel"), role: .cancel) {}
@@ -1332,7 +1363,7 @@ struct NanoMuseDrawer: View {
                     TextField(AppLocalized("Search"), text: $query)
                         .font(.subheadline)
                         .textInputAutocapitalization(.never)
-                        .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
+                        .autocorrectionDisabled()
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 7)

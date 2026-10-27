@@ -22,16 +22,146 @@ struct ProviderInstancesView: View {
 
     var body: some View {
         List {
-            cloudSection
-            providerTypeSections
-            voiceServicesSection
-            emptyStateSection
+            // nanoMuse: the relay first — a phone number or an e-mail address, no key needed.
+            Section {
+                NavigationLink {
+                    NanoMuseCloudView()
+                } label: {
+                    NanoMuseCloudRow()
+                }
+            }
+            // [T-mimo-shadow-voice] EVERY instance appears under its providerType
+            // section now (no voice-only exclusion) — a mixed vendor like MiMo
+            // shows its text models here AND a shadow voice row below ("dual
+            // visibility"). Pure-voice vendors (ElevenLabs etc.) still appear here
+            // too; they just have no usable text models, which is expected.
+            ForEach(ProviderType.allCases, id: \.self) { type in
+                let instancesOfType = store.instances.filter { $0.providerType == type }
+                if !instancesOfType.isEmpty {
+                    Section(type.displayName) {
+                        ForEach(instancesOfType) { instance in
+                            NavigationLink {
+                                ProviderInstanceDetailView(instanceId: instance.id)
+                            } label: {
+                                InstanceRow(instance: instance)
+                            }
+                            // [T-provider-group-swipe-actions] Swipe actions and
+                            // `.onMove` coexist without extra work: UIKit routes a
+                            // horizontal drag to the row's swipe actions and a
+                            // vertical one to the reorder engine, and in edit mode
+                            // the drag handles take over entirely. No custom
+                            // gesture is introduced here precisely so that
+                            // arbitration stays UIKit's.
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                // Destructive first = rightmost, the platform's
+                                // position for Delete. `allowsFullSwipe: false`
+                                // so a long swipe cannot delete a provider (and
+                                // its keys) without the confirmation below.
+                                // nanoMuse: not on the Cloud instance; it is the account (see ProviderInstanceDetailView).
+                                if instance.id != NanoMuseCloud.instance?.id {
+                                    Button(role: .destructive) {
+                                        pendingDeleteInstance = instance
+                                    } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
+                                }
+                                Button {
+                                    editingInstanceId = instance.id
+                                } label: {
+                                    Label("Edit", systemImage: "pencil")
+                                }
+                                .tint(.blue)
+                            }
+                        }
+                        .onMove { source, destination in
+                            moveInstances(in: type, from: source, to: destination)
+                        }
+                    }
+                }
+            }
+            // [T-mimo-shadow-voice] Voice Services = a read-only SHADOW view of any
+            // instance that has audio-modality models, FOLDED by base URL so two
+            // instances on the same host show one row (shares that instance's
+            // credential/endpoint). Tapping opens the shadow detail (voice models
+            // + a "disable this voice row" toggle).
+            let shadows = store.shadowVoiceProviders()
+            if !shadows.isEmpty {
+                Section("Voice Services") {
+                    if store.hasFoldedShadowDuplicates() {
+                        // Non-destructive hint: same MiMo service configured twice.
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: "info.circle")
+                                .foregroundStyle(.secondary)
+                            Text("A voice service is configured more than once. Voice is merged into a single row here; you can delete the extra provider above if you want.",
+                                 comment: "Duplicate voice provider hint")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    ForEach(shadows) { shadow in
+                        NavigationLink {
+                            ShadowVoiceProviderDetailView(instanceId: shadow.instanceId)
+                        } label: {
+                            ShadowVoiceRow(shadow: shadow)
+                        }
+                    }
+                }
+            }
+
+            if store.instances.isEmpty {
+                Section {
+                    VStack(spacing: 8) {
+                        Image(systemName: "key.slash")
+                            .font(.system(size: 32))
+                            .foregroundStyle(.quaternary)
+                        Text("No providers configured")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        Text("Add a provider to get started.")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 20)
+                }
+            }
         }
         .navigationTitle("Providers")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar { instancesToolbar }
+        .toolbar {
+            if !store.instances.isEmpty {
+                ToolbarItem(placement: .topBarLeading) {
+                    EditButton()
+                }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button {
+                        showAddProvider = true
+                    } label: {
+                        Label(AppLocalized("Add Provider"), systemImage: "plus")
+                    }
+                    Button {
+                        showImportFile = true
+                    } label: {
+                        Label(AppLocalized("Import Provider"), systemImage: "square.and.arrow.down")
+                    }
+                    if #available(iOS 17.0, *), iCloudSyncEnabled {
+                        Divider()
+                        Button {
+                            Task { await forceSyncProviders() }
+                        } label: {
+                            Label(AppLocalized("Force iCloud Sync"),
+                                  systemImage: "arrow.triangle.2.circlepath.icloud")
+                        }
+                    }
+                } label: {
+                    Image(systemName: "plus")
+                }
+            }
+        }
         .sheet(isPresented: $showAddProvider) {
-            NavigationView {
+            NavigationStack {
                 AddProviderView()
             }
         }
@@ -119,171 +249,6 @@ struct ProviderInstancesView: View {
             }
         }
         .animation(.spring(response: 0.3), value: forceSyncToast)
-    }
-
-
-    // MARK: - Body sections (extracted so the body type-checks quickly)
-
-    /// nanoMuse: the relay first — a phone number or an e-mail address, no key needed.
-    @ViewBuilder
-    private var cloudSection: some View {
-        Section {
-            NavigationLink {
-                NanoMuseCloudView()
-            } label: {
-                NanoMuseCloudRow()
-            }
-        }
-    }
-
-    // [T-mimo-shadow-voice] EVERY instance appears under its providerType
-    // section now (no voice-only exclusion) — a mixed vendor like MiMo
-    // shows its text models here AND a shadow voice row below ("dual
-    // visibility"). Pure-voice vendors (ElevenLabs etc.) still appear here
-    // too; they just have no usable text models, which is expected.
-    @ViewBuilder
-    private var providerTypeSections: some View {
-        ForEach(ProviderType.allCases, id: \.self) { type in
-            providerTypeSection(for: type)
-        }
-    }
-
-    @ViewBuilder
-    private func providerTypeSection(for type: ProviderType) -> some View {
-        let instancesOfType = store.instances.filter { $0.providerType == type }
-        if !instancesOfType.isEmpty {
-            Section(type.displayName) {
-                ForEach(instancesOfType) { instance in
-                    instanceRow(instance)
-                }
-                .onMove { source, destination in
-                    moveInstances(in: type, from: source, to: destination)
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func instanceRow(_ instance: ProviderInstance) -> some View {
-        NavigationLink {
-            ProviderInstanceDetailView(instanceId: instance.id)
-        } label: {
-            InstanceRow(instance: instance)
-        }
-        // [T-provider-group-swipe-actions] Swipe actions and
-        // `.onMove` coexist without extra work: UIKit routes a
-        // horizontal drag to the row's swipe actions and a
-        // vertical one to the reorder engine, and in edit mode
-        // the drag handles take over entirely. No custom
-        // gesture is introduced here precisely so that
-        // arbitration stays UIKit's.
-        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            // Destructive first = rightmost, the platform's
-            // position for Delete. `allowsFullSwipe: false`
-            // so a long swipe cannot delete a provider (and
-            // its keys) without the confirmation below.
-            // nanoMuse: not on the Cloud instance; it is the account (see ProviderInstanceDetailView).
-            if instance.id != NanoMuseCloud.instance?.id {
-                Button(role: .destructive) {
-                    pendingDeleteInstance = instance
-                } label: {
-                    Label("Delete", systemImage: "trash")
-                }
-            }
-            Button {
-                editingInstanceId = instance.id
-            } label: {
-                Label("Edit", systemImage: "pencil")
-            }
-            .tint(.blue)
-        }
-    }
-
-    // [T-mimo-shadow-voice] Voice Services = a read-only SHADOW view of any
-    // instance that has audio-modality models, FOLDED by base URL so two
-    // instances on the same host show one row (shares that instance's
-    // credential/endpoint). Tapping opens the shadow detail (voice models
-    // + a "disable this voice row" toggle).
-    @ViewBuilder
-    private var voiceServicesSection: some View {
-        let shadows = store.shadowVoiceProviders()
-        if !shadows.isEmpty {
-            Section("Voice Services") {
-                if store.hasFoldedShadowDuplicates() {
-                    // Non-destructive hint: same MiMo service configured twice.
-                    HStack(alignment: .top, spacing: 8) {
-                        Image(systemName: "info.circle")
-                            .foregroundStyle(.secondary)
-                        Text("A voice service is configured more than once. Voice is merged into a single row here; you can delete the extra provider above if you want.",
-                             comment: "Duplicate voice provider hint")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                ForEach(shadows) { shadow in
-                    NavigationLink {
-                        ShadowVoiceProviderDetailView(instanceId: shadow.instanceId)
-                    } label: {
-                        ShadowVoiceRow(shadow: shadow)
-                    }
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var emptyStateSection: some View {
-        if store.instances.isEmpty {
-            Section {
-                VStack(spacing: 8) {
-                    Image(systemName: "key.slash")
-                        .font(.system(size: 32))
-                        .foregroundStyle(.quaternary)
-                    Text("No providers configured")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    Text("Add a provider to get started.")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 20)
-            }
-        }
-    }
-
-    @ToolbarContentBuilder
-    private var instancesToolbar: some ToolbarContent {
-        ToolbarItem(placement: .topBarLeading) {
-            if !store.instances.isEmpty {
-                EditButton()
-            }
-        }
-        ToolbarItem(placement: .topBarTrailing) {
-            Menu {
-                Button {
-                    showAddProvider = true
-                } label: {
-                    Label(AppLocalized("Add Provider"), systemImage: "plus")
-                }
-                Button {
-                    showImportFile = true
-                } label: {
-                    Label(AppLocalized("Import Provider"), systemImage: "square.and.arrow.down")
-                }
-                if #available(iOS 17.0, *), iCloudSyncEnabled {
-                    Divider()
-                    Button {
-                        Task { await forceSyncProviders() }
-                    } label: {
-                        Label(AppLocalized("Force iCloud Sync"),
-                              systemImage: "arrow.triangle.2.circlepath.icloud")
-                    }
-                }
-            } label: {
-                Image(systemName: "plus")
-            }
-        }
     }
 
     @available(iOS 17.0, *)

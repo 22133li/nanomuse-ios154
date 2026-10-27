@@ -38,8 +38,6 @@ struct NanoMuseWaysList: View {
 
     @Environment(\.openURL) private var openURL
     @State private var more = false
-    // iOS 15 backport: ShareLink is iOS 16+; Button + NanoMuseShareSheet instead.
-    @State private var showShare = false
 
     private var chinese: Bool { NanoMuseCatalogue.chinese }
     private var mainland: Bool { NanoMuseRegion.isMainland }
@@ -72,13 +70,8 @@ struct NanoMuseWaysList: View {
                     title: String(format: AppLocalized("Invite a friend: +¥%@ for you and +¥%@ for them, once a new person who signed up with your link makes their first request."), NanoMuseAllowance.money(bonus), NanoMuseAllowance.money(inviteeBonusCny ?? bonus)),
                     text: inviteBelow ? AppLocalized("Your code and link are just below.") : (inviteURL.isEmpty ? AppLocalized("Your code and link are under Settings → nanoMuse Cloud.") : AppLocalized("Your link is ready to share.")))
                 if !inviteBelow, !inviteURL.isEmpty, let url = URL(string: inviteURL) {
-                    Button { showShare = true } label: {
-                        Label(AppLocalized("Share the link"), systemImage: "square.and.arrow.up").font(.footnote)
-                    }
-                    .buttonStyle(.plain).foregroundStyle(NanoMuseTones.action)
-                    .sheet(isPresented: $showShare) {
-                        NanoMuseShareSheet(items: [url])
-                    }
+                    ShareLink(item: url) { Label(AppLocalized("Share the link"), systemImage: "square.and.arrow.up").font(.footnote) }
+                        .buttonStyle(.plain).foregroundStyle(NanoMuseTones.action)
                 }
             }
         }

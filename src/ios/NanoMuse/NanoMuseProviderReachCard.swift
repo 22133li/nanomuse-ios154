@@ -87,7 +87,7 @@ struct NanoMuseProviderReachCard: View {
         .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(NanoMuseTones.hairline, lineWidth: 1))
         .padding(.top, 4)
         .sheet(isPresented: $network) {
-            NavigationView { NanoMuseNetworkView() }
+            NavigationStack { NanoMuseNetworkView() }
         }
     }
 

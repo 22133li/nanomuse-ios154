@@ -95,20 +95,22 @@ struct ISHTerminalView: View {
         .background(Color.black)
         .navigationTitle("nanoMuse Shell")
         .navigationBarTitleDisplayMode(.inline)
-        .navigationBarItems(
-            leading: Group {
-                if showCloseButton {
+        .toolbar {
+            if showCloseButton {
+                ToolbarItem(placement: .navigationBarLeading) {
                     Button { dismiss() } label: {
                         Image(systemName: "xmark")
                     }
                 }
-            },
-            trailing: Button {
-                viewModel.clearScreen()
-            } label: {
-                Image(systemName: "paintbrush")
             }
-        )
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button {
+                    viewModel.clearScreen()
+                } label: {
+                    Image(systemName: "paintbrush")
+                }
+            }
+        }
         .onAppear {
             viewModel.startShell(sessionId: sessionId, initCommand: initCommand)
             // Claim the broker so AIChatView (which sits beneath our
@@ -146,12 +148,12 @@ struct ISHTerminalView: View {
             }
         }
         .sheet(isPresented: $showFileBrowser) {
-            NavigationView {
+            NavigationStack {
                 FileBrowserView()
             }
         }
         .sheet(isPresented: $showRootfsManagement) {
-            NavigationView {
+            NavigationStack {
                 RootfsManagementView()
             }
         }
@@ -498,7 +500,7 @@ struct QuickCommandButton: View {
 }
 
 #Preview {
-    NavigationView {
+    NavigationStack {
         ISHTerminalView()
     }
 }

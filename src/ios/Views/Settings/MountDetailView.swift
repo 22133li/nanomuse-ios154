@@ -142,7 +142,7 @@ struct MountDetailView: View {
             }
         }
         .sheet(isPresented: $showingBrowser) {
-            NavigationView {
+            NavigationStack {
                 FileBrowserView(
                     rootPath: context.hostURL,
                     rootLabel: context.linuxPath
@@ -213,7 +213,7 @@ struct MountDetailView: View {
         Section {
             TextField("name", text: $nameText)
                 .textInputAutocapitalization(.never)
-                .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
+                .autocorrectionDisabled()
             if nameChanged && !nameIsValid {
                 Text("Mount name must not be empty, contain '/', or be '.' or '..'.")
                     .font(.caption)

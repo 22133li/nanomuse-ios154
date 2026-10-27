@@ -141,14 +141,14 @@ struct NanoMuseFirstRunView: View {
             .animation(.easeInOut(duration: 0.26), value: stage)
         }
         .background(NanoMuseTones.surface.ignoresSafeArea())
-        .sheet(isPresented: $showSignIn) { NavigationView { NanoMuseCloudView() } }
+        .sheet(isPresented: $showSignIn) { NavigationStack { NanoMuseCloudView() } }
         // Signed in: the sheet has done its job and goes, so the next page (the password, the
         // source) is in view at once instead of behind the account page.
         .nmOnChange(of: signedIn) { now in
             if now, showSignIn { showSignIn = false }
         }
         .sheet(isPresented: $showOwnKey) { NanoMuseOwnKeySheet { _ in } }
-        .sheet(isPresented: $showGroups) { NavigationView { ModelGroupsView() } }
+        .sheet(isPresented: $showGroups) { NavigationStack { ModelGroupsView() } }
         .onReceive(NotificationCenter.default.publisher(for: .soulMdChanged)) { _ in
             agentName = SoulStore.cachedMetadata.name
         }
@@ -190,7 +190,7 @@ struct NanoMuseFirstRunView: View {
             onSecondary: { NanoMuseFirstRun.markSourceChosen(); sourceChosen = true; showOwnKey = true },
             finePrint: AppLocalized("The two do not compete: the Cloud model stays available, and each model group picks its own.")
         ) {
-            NanoMuseFeatureRow(symbol: "cloud", title: AppLocalized("Use the nanoMuse Cloud model"), subtitle: AppLocalized("DeepSeek for chat, with pictures and clips too, and a free allowance per account paid by the developer. Nothing to configure."))
+            NanoMuseFeatureRow(symbol: "cloud", title: AppLocalized("Use the nanoMuse Cloud model"), subtitle: AppLocalized("Qwen/Qwen3.6-27B-FP8 handles chat, image input and screen operation with an account allowance. Drawing pictures and making clips requires a provider and API key of your own."))
             NanoMuseFeatureRow(symbol: "key", title: AppLocalized("I have my own API key"), subtitle: AppLocalized("Alibaba Cloud Bailian, OpenRouter, OpenAI, Anthropic, DeepSeek and other OpenAI-compatible endpoints. The key stays on this phone."))
         }
     }

@@ -259,32 +259,18 @@ extension AIChatViewModel {
     /// FileProvider extension. Keep ONLY user-facing subdirs (shared, skills,
     /// memory) here — anything else leaks into "On My iPhone → nanoMuse".
     nonisolated static var minisAppGroupRoot: URL {
-        // iOS 15.4 sideload: App Group container may be nil (no entitlement).
-        // Fall back to Library so the app doesn't crash on launch.
-        if let container = FileManager.default.containerURL(
+        FileManager.default.containerURL(
             forSecurityApplicationGroupIdentifier: SharedContainerStore.appGroupID
-        ) {
-            return container.appendingPathComponent("MinisFileProvider", isDirectory: true)
-        }
-        return FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first!
-            .appendingPathComponent("MinisFileProvider", isDirectory: true)
+        )!.appendingPathComponent("MinisFileProvider", isDirectory: true)
     }
 
     /// App Group subdirectory for private metadata that must NOT be exposed
     /// to iOS Files (mounted-folders.json, FileProvider extension logs, etc).
     /// Sibling of `minisAppGroupRoot` inside the same App Group container.
     nonisolated static var minisConfigRoot: URL {
-        // iOS 15.4 sideload: App Group container may be nil (no entitlement).
-        // Fall back to Library so the app doesn't crash on launch.
-        let base: URL
-        if let container = FileManager.default.containerURL(
+        let url = FileManager.default.containerURL(
             forSecurityApplicationGroupIdentifier: SharedContainerStore.appGroupID
-        ) {
-            base = container
-        } else {
-            base = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first!
-        }
-        let url = base.appendingPathComponent("MinisConfig", isDirectory: true)
+        )!.appendingPathComponent("MinisConfig", isDirectory: true)
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
     }

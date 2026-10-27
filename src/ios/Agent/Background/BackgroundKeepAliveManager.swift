@@ -364,14 +364,6 @@ final class BackgroundKeepAliveManager: NSObject, ObservableObject, CLLocationMa
         guard !didSetup else { return }
         didSetup = true
         configureLocationManager()
-        // [T-enhanced-bg-auto-speak-repair] Repair for users who enabled the
-        // master switch in an older build before the didSet auto-opt-in
-        // existed: their persisted `true` never fires didSet again, leaving
-        // Background Speak off and keep-alive ineffective. Heal it once here.
-        if enhancedBackgroundEnabled && !backgroundSpeakEnabled {
-            logger.info("[BackgroundKeepAlive] Repair: master was on but Background Speak off — auto-enabling")
-            backgroundSpeakEnabled = true
-        }
         logger.info("[BackgroundKeepAlive] Setup: enabled=\(self.enhancedBackgroundEnabled), locationTracking=\(self.locationTrackingEnabled)")
 
         if #available(iOS 17.0, *) {
@@ -825,11 +817,16 @@ final class BackgroundKeepAliveManager: NSObject, ObservableObject, CLLocationMa
     }
 
     private func refreshActiveTaskBadge(sessions: Set<String>, enabled: Bool) {
+        let center = UNUserNotificationCenter.current()
         guard enabled else {
-            UIApplication.shared.applicationIconBadgeNumber = 0
+            center.setBadgeCount(0) { _ in }
             return
         }
-        UIApplication.shared.applicationIconBadgeNumber = sessions.count
+        center.setBadgeCount(sessions.count) { err in
+            if let err {
+                logger.error("[Badge] setBadgeCount failed: \(err.localizedDescription)")
+            }
+        }
     }
 
     // MARK: - Background Task Notifications
@@ -1742,7 +1739,7 @@ struct BackgroundInterruptionBanner: View {
                 .gesture(swipeToDismiss)
                 .animation(.spring(response: 0.35), value: tracker.showBanner)
                 .sheet(isPresented: $showSettings) {
-                    NavigationView { EnhancedBackgroundSettingsView() }
+                    NavigationStack { EnhancedBackgroundSettingsView() }
                 }
                 // [T-ios-scene-create-watchdog-corelocation] Subscribe only once
                 // the banner is actually on screen — the subscription exists to
@@ -1801,7 +1798,7 @@ struct BackgroundInterruptionBanner: View {
         .padding(.top, 4)
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(LinearGradient(colors: [Color.orange, Color.orange.opacity(0.75)], startPoint: .top, endPoint: .bottom)) // iOS 15 backport: ShapeStyle.gradient is iOS 16+
+                .fill(Color.orange.gradient)
                 .shadow(color: .black.opacity(0.15), radius: 8, y: 4)
         )
         .padding(.horizontal, 12)

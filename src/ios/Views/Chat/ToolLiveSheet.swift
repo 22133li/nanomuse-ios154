@@ -217,6 +217,9 @@ struct FloatingToolBar: View {
     @State private var selectedIdx: Int? = nil
     @State private var expanded = false
     @AppStorage("toolPreviewEnabled") private var toolPreviewEnabled: Bool = true
+    // nanoMuse: in the Muse shell a glyph inside the bar stands in for the thumbnail (NanoMuseToolBar.swift)
+    private var nmShell: Bool { NanoMuseShellPrefs.shell } // nanoMuse:
+    private var showsThumbnail: Bool { toolPreviewEnabled && !nmShell } // nanoMuse:
 
     private var displayedIdx: Int {
         if let idx = selectedIdx, idx < toolBlocks.count { return idx }
@@ -249,10 +252,11 @@ struct FloatingToolBar: View {
                 displayedIdx: displayedIdx,
                 expanded: $expanded,
                 selectedIdx: $selectedIdx,
-                leadingInset: toolPreviewEnabled ? Self.thumbnailWidth + 18 : 0
+                leadingInset: showsThumbnail ? Self.thumbnailWidth + 18 : 0, // nanoMuse: showsThumbnail
+                nmShell: nmShell // nanoMuse:
             )
 
-            if toolPreviewEnabled {
+            if showsThumbnail { // nanoMuse: showsThumbnail
                 ToolPreviewThumbnail(
                     block: displayedBlock,
                     snapshot: displayedSnapshot,
@@ -474,6 +478,7 @@ struct ToolLiveSheet: View {
         .onReceive(block.objectWillChange) { _ in
             blockUpdateTick += 1
         }
+        .presentationDragIndicator(.hidden)
         // Tapping a URL in shell output (underlined via attributedShellLine)
         // routes through `activeSheet` so it shares one `.sheet(item:)`
         // modifier with the browser takeover below.
@@ -653,7 +658,7 @@ struct ToolLiveSheet: View {
         .padding(.vertical, 10)
         .background(Color(UIColor.systemBackground))
         .fullScreenCover(isPresented: $showTerminal) {
-            NavigationView {
+            NavigationStack {
                 // Pre-fill the shell command the tool is currently running,
                 // WITHOUT a trailing newline — the user can review/edit and
                 // press Enter themselves (intentional, not auto-run).
@@ -1969,14 +1974,6 @@ struct ToolLiveSheet: View {
             Image(systemName: "stop.circle.fill")
                 .font(.system(size: 18))
                 .foregroundStyle(.yellow)
-        case .waiting:
-            Image(systemName: "hourglass")
-                .font(.system(size: 18))
-                .foregroundStyle(.blue)
-        case .rejected:
-            Image(systemName: "slash.circle.fill")
-                .font(.system(size: 18))
-                .foregroundStyle(.orange)
         case nil:
             EmptyView()
         }
@@ -2120,7 +2117,7 @@ private struct ToolPreviewThumbnail: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 2)
                     .background(Color.black.opacity(0.6))
-                    .clipShape(BackportUnevenRoundedRectangle(bottomLeadingRadius: 8, bottomTrailingRadius: 8))
+                    .clipShape(UnevenRoundedRectangle(bottomLeadingRadius: 8, bottomTrailingRadius: 8))
             }
         }
         .shadow(color: .black.opacity(0.3), radius: 10, x: 0, y: 3)
@@ -2401,16 +2398,28 @@ private struct ToolStatusBarSurface: ViewModifier {
     }
 
     func body(content: Content) -> some View {
-        content
-            .background(Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(white: 0.15, alpha: 1) : UIColor.systemBackground }))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(Color(UIColor.separator).opacity(0.3), lineWidth: 0.5)
-            )
-            .shadow(color: Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(white: 0.08, alpha: 0.75) : UIColor(white: 0, alpha: 0.12) }), radius: 8, x: 0, y: 4)
+        if #available(iOS 26.0, *) {
+            content.glassEffect(.regular, in: shape)
+        } else {
+            content
+                .background(Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(white: 0.15, alpha: 1) : UIColor.systemBackground }))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(Color(UIColor.separator).opacity(0.3), lineWidth: 0.5)
+                )
+                .shadow(color: Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(white: 0.08, alpha: 0.75) : UIColor(white: 0, alpha: 0.12) }), radius: 8, x: 0, y: 4)
+        }
     }
 }
+
+// nanoMuse: picks the shell's surface or upstream's, which stays private to this file.
+private struct NanoMuseToolStatusSurface: ViewModifier { // nanoMuse:
+    var nmShell: Bool // nanoMuse:
+    func body(content: Content) -> some View { // nanoMuse:
+        if nmShell { content.modifier(NanoMuseToolBarSurface()) } else { content.modifier(ToolStatusBarSurface()) } // nanoMuse:
+    } // nanoMuse:
+} // nanoMuse:
 
 private struct ToolStatusBar: View {
     @ObservedObject var block: AssistantBlock
@@ -2419,9 +2428,11 @@ private struct ToolStatusBar: View {
     @Binding var expanded: Bool
     @Binding var selectedIdx: Int?
     var leadingInset: CGFloat = 0
+    var nmShell = false // nanoMuse: the Muse shell's bar (NanoMuseToolBar.swift)
 
     var body: some View {
         HStack(spacing: 2) {
+            if nmShell { NanoMuseToolGlyph(block: block).padding(.trailing, 4) } // nanoMuse: the kind of step, where the thumbnail stood
             statusIcon
 
             // [T-step-timestamp v2 aa8b1128] Inline HH:mm:ss prefix removed
@@ -2476,7 +2487,7 @@ private struct ToolStatusBar: View {
         .padding(.vertical, 5)
         .frame(minHeight: 38)
         .frame(maxWidth: .infinity)
-        .modifier(ToolStatusBarSurface())
+        .modifier(NanoMuseToolStatusSurface(nmShell: nmShell)) // nanoMuse: the composer's fill in the shell, upstream's surface otherwise
     }
 
     @ViewBuilder
@@ -2498,14 +2509,6 @@ private struct ToolStatusBar: View {
             Image(systemName: "stop.circle.fill")
                 .font(.system(size: 15))
                 .foregroundStyle(.yellow)
-        case .waiting:
-            Image(systemName: "hourglass")
-                .font(.system(size: 15))
-                .foregroundStyle(.blue)
-        case .rejected:
-            Image(systemName: "slash.circle.fill")
-                .font(.system(size: 15))
-                .foregroundStyle(.orange)
         case nil:
             EmptyView()
         }

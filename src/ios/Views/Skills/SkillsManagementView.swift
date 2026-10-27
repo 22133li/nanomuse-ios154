@@ -229,7 +229,7 @@ private struct ImportSkillSheet: View {
     }
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             Form {
                 Picker("Import Method", selection: $importMode) {
                     ForEach(ImportMode.allCases, id: \.self) { mode in
@@ -246,7 +246,7 @@ private struct ImportSkillSheet: View {
                     Section("GitHub URL") {
                         TextField("", text: $urlText, prompt: Text("github.com/user/repo/blob/main/SKILL.md").foregroundColor(.secondary))
                             .textInputAutocapitalization(.never)
-                            .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
+                            .autocorrectionDisabled()
                             .keyboardType(.URL)
                             .tint(.primary)
                     }
@@ -353,9 +353,8 @@ private struct SkillFileDocumentPicker: UIViewControllerRepresentable {
         if let skillType = UTType(filenameExtension: "skill", conformingTo: .zip) {
             types.append(skillType)
         }
-        let picker = UIDocumentPickerViewController(forOpeningContentTypes: types, asCopy: true)
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: types)
         picker.delegate = context.coordinator
-        picker.allowsMultipleSelection = false
         return picker
     }
 
@@ -882,8 +881,8 @@ private struct SkillFileDetailView: View {
             .navigationTitle(fileName)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    if hasChanges {
+                if hasChanges {
+                    ToolbarItem(placement: .topBarTrailing) {
                         Button(AppLocalized("Save")) { save() }
                     }
                 }
@@ -913,7 +912,7 @@ struct MinisSkillsBrowserView: View {
     @StateObject private var coordinator = SkillBrowserCoordinator()
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ZStack {
                 SkillBrowserWebView(coordinator: coordinator)
                     .ignoresSafeArea(edges: .bottom)

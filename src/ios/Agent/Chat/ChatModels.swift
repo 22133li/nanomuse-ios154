@@ -159,6 +159,7 @@ struct QueuedPrompt: Identifiable {
     let id = UUID()
     let text: String
     let attachments: [InputAttachment]
+    let timestamp = Date()
 }
 
 /// Token usage for the current assistant turn.
@@ -206,14 +207,9 @@ enum ChatMessageRole {
 enum ToolBlockStatus: Equatable {
     case streaming(bytes: Int)
     case running
-    /// Tool call issued but not yet executing — e.g. queued, or awaiting
-    /// the user's approval in the permission dialog.
-    case waiting
     case success
     case failed(message: String)
     case cancelled
-    /// The user denied the approval prompt; the tool was never executed.
-    case rejected
 }
 
 /// A single block within an assistant turn.
@@ -231,7 +227,7 @@ final class AssistantBlock: Identifiable, ObservableObject {
     /// iPhone 11) even though `content` only flushes every 0.3s. The view now
     /// keys its scroll/redraw off `content` (flush-paced); this counter stays
     /// as a cheap diagnostic sequence.
-
+    var contentUpdateSeq: Int = 0
 
     /// Non-published buffer for thinking content. During streaming the SSE handler
     /// appends here; `@Published content` is only flushed periodically or when the
@@ -254,6 +250,7 @@ final class AssistantBlock: Identifiable, ObservableObject {
 
     func appendThinkingDelta(_ delta: String) {
         thinkingContentBuffer += delta
+        contentUpdateSeq += 1
     }
 
     // [T-thinking-stream-jank] Adaptive flush throttle for streaming thinking
@@ -327,11 +324,6 @@ final class AssistantBlock: Identifiable, ObservableObject {
     @Published var streamingFileContent: String?
     /// Whether a thinking block is expanded (persisted across cell reuse).
     @Published var isThinkingExpanded: Bool = false
-    /// Frozen thinking content when the user scrolls away during streaming.
-    /// @Published (like isThinkingExpanded) so the view updates on freeze/
-    /// unfreeze, and the value survives UICollectionView cell reuse — a @State
-    /// in the view could leak to a different block if the cell ID is unstable.
-    @Published var frozenThinkingContent: String? = nil
     /// True once the user has manually tapped this thinking block's header.
     /// While this is false the view is allowed to auto-expand on stream start
     /// and auto-collapse on stream end; once the user takes control we leave

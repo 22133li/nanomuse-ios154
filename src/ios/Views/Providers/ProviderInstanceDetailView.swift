@@ -84,13 +84,13 @@ struct ProviderInstanceDetailView: View {
             }
         }
         .sheet(isPresented: $showManualTokenInput) {
-            NavigationView {
+            NavigationStack {
                 Form {
                     Section {
                         SecureField("Bearer token", text: $manualTokenInputText)
                             .font(.system(.body, design: .monospaced))
                             .textInputAutocapitalization(.never)
-                            .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
+                            .autocorrectionDisabled()
                     } footer: {
                         Text("Paste the bearer token. Whitespace and newlines will be stripped automatically.")
                     }
@@ -116,6 +116,7 @@ struct ProviderInstanceDetailView: View {
                     }
                 }
             }
+            .presentationDetents([.medium])
         }
         .alert("Delete Provider", isPresented: $showDeleteConfirm) {
             Button("Delete", role: .destructive) {
@@ -403,9 +404,11 @@ struct ProviderInstanceDetailView: View {
                 let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("\(label).json")
                 let _ = try? json.write(to: tempURL, atomically: true, encoding: .utf8)
                 ProviderShareSheet(url: tempURL)
+                    .presentationDetents([.medium])
             } else {
                 Text("Failed to export provider configuration.")
                     .foregroundStyle(.secondary)
+                    .presentationDetents([.medium])
             }
         }
     }
@@ -442,7 +445,7 @@ struct ProviderInstanceDetailView: View {
             ZStack(alignment: .leading) {
                 TextField(keyPlaceholder(instance.providerType), text: $keyInputText)
                     .textInputAutocapitalization(.never)
-                    .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
+                    .autocorrectionDisabled()
                     .foregroundStyle(showKeyRevealed ? Color.primary : Color.clear)
 
                 if !showKeyRevealed {
@@ -568,7 +571,7 @@ struct ProviderInstanceDetailView: View {
             TextField(customBaseURLPlaceholder(instance), text: $editingCustomBaseURL)
                 .font(.system(.body, design: .monospaced))
                 .textInputAutocapitalization(.never)
-                .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
+                .autocorrectionDisabled()
                 .keyboardType(.URL)
                 .onAppear { editingCustomBaseURL = instance.customBaseURL ?? "" }
                 .onSubmit { saveCustomBaseURL(instance) }
@@ -620,7 +623,7 @@ struct ProviderInstanceDetailView: View {
             TextField(AppLocalized("Default"), text: $editingCustomUserAgent)
                 .font(.system(.body, design: .monospaced))
                 .textInputAutocapitalization(.never)
-                .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
+                .autocorrectionDisabled()
                 .onAppear { editingCustomUserAgent = instance.customUserAgent ?? "" }
                 .onSubmit { saveCustomUserAgent(instance) }
                 .onDisappear { saveCustomUserAgent(instance) }
@@ -1128,18 +1131,18 @@ struct AddCustomModelSheet: View {
     private var instance: ProviderInstance? { store.instance(for: instanceId) }
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             List {
                 Section {
                     TextField("Model ID (e.g. claude-3-opus-latest)", text: $modelId)
                         .font(.system(.subheadline, design: .monospaced))
                         .textInputAutocapitalization(.never)
-                        .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
+                        .autocorrectionDisabled()
                         .onChange(of: modelId) { _ in duplicateError = nil }
 
                     TextField("Display name (optional)", text: $displayName)
                         .textInputAutocapitalization(.never)
-                        .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
+                        .autocorrectionDisabled()
                 } header: {
                     Text("Model")
                 } footer: {
@@ -1315,7 +1318,7 @@ struct ModelEntryDetailSheet: View {
     @State private var showResetAlert: Bool = false
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             List {
                 Section("Identity") {
                     HStack {
@@ -1327,22 +1330,11 @@ struct ModelEntryDetailSheet: View {
                             // stays visible while editing. Single-line +
                             // trailing alignment lost the cursor past the row
                             // edge with no horizontal autoscroll.
-                            // iOS 15 backport: TextField(axis: .vertical) is iOS 16+; TextEditor is iOS 14+.
-                            ZStack(alignment: .topLeading) {
-                                TextEditor(text: $modelId)
-                                    .font(.system(.body, design: .monospaced))
-                                    .multilineTextAlignment(.trailing)
-                                    .textInputAutocapitalization(.never)
-                                    .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
-                                    .frame(minHeight: 36)
-                                if modelId.isEmpty {
-                                    Text("model-id")
-                                        .foregroundColor(.secondary)
-                                        .padding(.top, 8)
-                                        .padding(.leading, 5)
-                                        .allowsHitTesting(false)
-                                }
-                            }
+                            TextField("model-id", text: $modelId, axis: .vertical)
+                                .font(.system(.body, design: .monospaced))
+                                .multilineTextAlignment(.trailing)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
                         } else {
                             Text(entry.model.id)
                                 .font(.system(.body, design: .monospaced))
@@ -1358,7 +1350,7 @@ struct ModelEntryDetailSheet: View {
                         TextField("Display name", text: $displayName)
                             .multilineTextAlignment(.trailing)
                             .textInputAutocapitalization(.never)
-                            .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
+                            .autocorrectionDisabled()
                     }
 
                     HStack {
@@ -1501,6 +1493,7 @@ struct ModelEntryDetailSheet: View {
             }
             .navigationTitle("Model Details")
             .navigationBarTitleDisplayMode(.inline)
+            .scrollDismissesKeyboard(.interactively)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel") { dismiss() }
@@ -1518,6 +1511,8 @@ struct ModelEntryDetailSheet: View {
                 // pin a stale TestSession.
                 ModelQuickTestSheet(entry: entry)
                     .id(entry.id)
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
             }
             .alert(
                 AppLocalized("Force Enable Thinking"),

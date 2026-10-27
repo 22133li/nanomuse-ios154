@@ -76,48 +76,17 @@ struct NanoMuseComposerField: View {
 
     @ViewBuilder
     private var field: some View {
-        // iOS 15 backport: TextField(axis: .vertical) is iOS 16+. TextEditor is the
-        // iOS 14+ equivalent; the returnAwareText binding detects Return as a trailing
-        // newline unchanged, so Return → Send keeps working. Unlike the vertical
-        // TextField, TextEditor has no intrinsic growing height on iOS 15, so the
-        // height is computed explicitly from the text and set as a fixed frame;
-        // the old line cap becomes a maxHeight, after which the editor scrolls
-        // internally. .textFieldStyle and .submitLabel are TextField-only and dropped.
-        let capHeight = CGFloat(lineCap) * lineHeight + 16
-        let contentHeight = min(Self.estimatedHeight(for: text.isEmpty ? " " : text, lineHeight: lineHeight), capHeight)
-        let editor = TextEditor(text: returnAwareText)
+        let base = TextField(placeholder, text: returnAwareText, axis: .vertical)
             .font(font)
             .foregroundStyle(ChatColors.primaryText)
-            .frame(height: contentHeight, alignment: .top)
-            .onAppear {
-                // iOS 15: TextEditor wraps a UITextView with an opaque background
-                // (black in dark mode), which clashes with the pill. Clear it.
-                UITextView.appearance().backgroundColor = .clear
-            }
-            .overlay(alignment: .leading) {
-                if text.isEmpty {
-                    Text(placeholder)
-                        .font(font)
-                        .foregroundColor(.secondary)
-                        .padding(.leading, 5)
-                        .allowsHitTesting(false)
-                }
-            }
-            .padding(.vertical, 8)
+            .textFieldStyle(.plain)
+            .submitLabel(UserDefaults.standard.integer(forKey: "returnKeyBehavior") == 1 ? .send : .return)
+            .lineLimit(1...lineCap)
         if let fixedHeight {
-            editor.frame(height: fixedHeight, alignment: .top)
+            base.frame(height: fixedHeight, alignment: .top)
         } else {
-            editor.frame(height: contentHeight + 16, alignment: .top)
+            base
         }
-    }
-
-    /// Rough height for the text: newlines plus wrapped lines, capped by the caller.
-    private static func estimatedHeight(for text: String, lineHeight: CGFloat, columns: Int = 32) -> CGFloat {
-        var lines = 0
-        for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
-            lines += max(1, (line.count + columns - 1) / columns)
-        }
-        return CGFloat(max(lines, 1)) * lineHeight
     }
 
     /// The lines the field may grow to: six, or what the dragged height holds on the iPad.

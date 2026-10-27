@@ -62,7 +62,8 @@ struct CollectionViewMessageListV3: UIViewControllerRepresentable {
 
     func makeUIViewController(context: Context) -> MessageListViewController {
         let vc = MessageListViewController()
-        context.coordinator.attach(to: vc, vm: vm)
+        // nanoMuse: seed the UIKit snapshot from the persisted preference before restoration.
+        context.coordinator.attach(to: vc, vm: vm, showSteps: NanoMuseSteps.storedValue())
         // Drops are handled exclusively by the SwiftUI `.onDrop` on the chat
         // root view. Previously a UIDropInteraction here intercepted drops on
         // top of the collection view, which (a) suppressed SwiftUI's
@@ -232,7 +233,7 @@ private struct BridgedAssistantHeaderV3: View {
     /// environment.
     ///
     /// `\.openMinisURL` is set on AIChatView, but each cell here is hosted in
-    /// its own `UIHostingController`, which starts a fresh SwiftUI hierarchy
+    /// its own `UIHostingConfiguration`, which starts a fresh SwiftUI hierarchy
     /// rather than inheriting that one. Reading the environment inside a cell
     /// therefore silently yields the key's default — an action that returns
     /// `.systemAction` and does nothing. (Verified on device: the tap fired, no
@@ -346,8 +347,7 @@ private struct BridgedAssistantBlockV3: View {
             browserPool: bridge.browserPool,
             toolSnapshots: bridge.toolSnapshots,
             highlightedBlockId: .constant(nil),
-            detailBlock: $bridge.detailBlock,
-            onRerun: bridge.onRerun
+            detailBlock: $bridge.detailBlock
         )
         .padding(.horizontal, 16) // nanoMuse: inside the width cap, so the block's edges meet the composer's on an iPad (see BridgedAssistantHeaderV3)
         .frame(maxWidth: maxWidth > 0 ? maxWidth : nil, alignment: .leading)
@@ -408,6 +408,15 @@ private struct BridgedAssistantBlockV3: View {
                             Label(AppLocalized("Compact Above"), systemImage: "arrow.down.right.and.arrow.up.left")
                         }
                     }
+                } preview: {
+                    // [T-ios-longpress-menu-preview-background] This .contextMenu
+                    // is on a zero-size Color.clear overlay (kept zero-size to
+                    // avoid inflating self-sizing), so without an explicit preview
+                    // SwiftUI snapshots that transparent overlay → see-through
+                    // preview. Supply an opaque card of the message text.
+                    MessageContextMenuPreview(text: message.blocks
+                        .filter { if case .text = $0.kind { return true }; return false }
+                        .map(\.content).joined(separator: "\n\n"))
                 }
         }
     }
@@ -458,7 +467,7 @@ private struct BridgedAssistantFooterV3: View {
     private var hasFooterContent: Bool {
         let showTyping = showsTypingIndicator
         let showError = message.error != nil
-        let showResume = bridge.canResume
+        let showResume = bridge.canResume && message.error == nil
         let showUsageRow = message.streamInterruptCount > 0 || bridge.showUsage
         return showTyping || showError || showResume || showUsageRow
     }
@@ -476,9 +485,8 @@ private struct BridgedAssistantFooterV3: View {
                 inlineError(error)
             }
 
-            // Resume banner. A turn-limit interruption also carries an
-            // error string, but remains resumable and must show this action.
-            if bridge.canResume {
+            // Resume banner
+            if bridge.canResume && message.error == nil {
                 resumeBanner
             }
 
@@ -558,6 +566,12 @@ private struct BridgedAssistantFooterV3: View {
                             Label(AppLocalized("Compact Above"), systemImage: "arrow.down.right.and.arrow.up.left")
                         }
                     }
+                } preview: {
+                    // [T-ios-longpress-menu-preview-background] Opaque preview
+                    // for the footer's zero-size Color.clear contextMenu overlay.
+                    MessageContextMenuPreview(text: message.blocks
+                        .filter { if case .text = $0.kind { return true }; return false }
+                        .map(\.content).joined(separator: "\n\n"))
                 }
         }
     }
@@ -686,7 +700,6 @@ private struct BridgedWholeMessageV3: View {
             onCompact: bridge.onCompact,
             onCopyScreenshot: bridge.onCopyScreenshot,
             onShowCompactSummary: bridge.onShowCompactSummary,
-            onRerun: bridge.onRerun,
             browserPool: nil,
             toolSnapshots: []
         )
@@ -702,85 +715,6 @@ private final class WholeMessageCellV3: SelfSizingCell {}
 private final class AssistantHeaderCellV3: SelfSizingCell {}
 private final class AssistantBlockCellV3: SelfSizingCell {}
 private final class AssistantFooterCellV3: SelfSizingCell {}
-
-// MARK: - iOS 15 cell hosting (hosting-configuration backport)
-
-/// Associated-object key retaining each cell's `UIHostingController` for the
-/// cell's lifetime. (The iOS 16+ hosting-configuration API is unavailable.)
-nonisolated(unsafe) private var hostedCellControllerKey: UInt8 = 0
-
-/// A no-op `UIContentConfiguration` whose content view is an empty `UIView`.
-///
-/// `SelfSizingCell.preferredLayoutAttributesFitting` requires
-/// `contentConfiguration != nil` for its live self-size path, so every hosted
-/// cell still gets a configuration applied via `applyContentConfiguration`
-/// (which also bumps the config generation and clears the height caches,
-/// exactly as before). The empty view contributes nothing to
-/// `systemLayoutSizeFitting` — the real measurement comes from the pinned
-/// `UIHostingController` view.
-private struct EmptyCellContentConfiguration: UIContentConfiguration {
-    func makeContentView() -> any UIView & UIContentView {
-        EmptyCellContentView(configuration: self)
-    }
-
-    func updated(for state: any UIConfigurationState) -> EmptyCellContentConfiguration {
-        self
-    }
-}
-
-private final class EmptyCellContentView: UIView, UIContentView {
-    var configuration: any UIContentConfiguration
-
-    init(configuration: any UIContentConfiguration) {
-        self.configuration = configuration
-        super.init(frame: .zero)
-        backgroundColor = .clear
-        // The real content is the pinned hosting view below; never intercept.
-        isUserInteractionEnabled = false
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) is unavailable")
-    }
-}
-
-/// iOS 15 backport for the 4 cell config sites (the iOS 16+ hosting-
-/// configuration API is unavailable). Hosts `content` in a `UIHostingController` whose view is pinned
-/// to the cell's `contentView`. The controller is retained for the cell's
-/// lifetime (associated object); on reuse only `rootView` is swapped, which
-/// mirrors the old hosting-configuration update path.
-///
-/// The hosted view keeps `.transaction { $0.disablesAnimations = true }` and
-/// `.environmentObject(vm)` applied by the caller — the latter is required or
-/// ToolCapsuleView's `@EnvironmentObject` read crashes the app
-/// ([T-ios-tool-capsule-vm-envobject-crash]).
-///
-/// The existing `SelfSizingCell` self-sizing is untouched: the pinned hosting
-/// view is measured through `contentView.systemLayoutSizeFitting`, and the
-/// empty content configuration keeps `contentConfiguration != nil` so the
-/// off-collection guard and the generation/cache machinery behave exactly as
-/// before.
-private func setHostedCellContent<Content: View>(_ cell: SelfSizingCell, _ content: Content) {
-    let host: UIHostingController<AnyView>
-    if let existing = objc_getAssociatedObject(cell, &hostedCellControllerKey) as? UIHostingController<AnyView> {
-        host = existing
-        host.rootView = AnyView(content)
-    } else {
-        host = UIHostingController(rootView: AnyView(content))
-        host.view.backgroundColor = .clear
-        host.view.translatesAutoresizingMaskIntoConstraints = false
-        cell.contentView.addSubview(host.view)
-        NSLayoutConstraint.activate([
-            host.view.leadingAnchor.constraint(equalTo: cell.contentView.leadingAnchor),
-            host.view.trailingAnchor.constraint(equalTo: cell.contentView.trailingAnchor),
-            host.view.topAnchor.constraint(equalTo: cell.contentView.topAnchor),
-            host.view.bottomAnchor.constraint(equalTo: cell.contentView.bottomAnchor),
-        ])
-        objc_setAssociatedObject(cell, &hostedCellControllerKey, host, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
-    }
-    cell.applyContentConfiguration(EmptyCellContentConfiguration())
-}
 
 // MARK: - V3 Coordinator
 
@@ -974,7 +908,7 @@ extension CollectionViewMessageListV3 {
             // schedules a SwiftUI hosting-config update on the next
             // runloop tick; calling invalidateLayout synchronously
             // makes UIKit re-query PLAF while the cell's
-            // hosted SwiftUI view still wraps the STALE
+            // UIHostingConfiguration still wraps the STALE
             // attributedString (with the 200pt video placeholder),
             // so systemLayoutSizeFitting returns the old 375pt
             // height, caches it as lastComputedHeight, and locks
@@ -1047,12 +981,14 @@ extension CollectionViewMessageListV3 {
         private var dataSource: UICollectionViewDiffableDataSource<Section, MessageListItem>!
         private var subscriptions = Set<AnyCancellable>()
         private var contentSizeObservation: NSKeyValueObservation?
+        private var showSteps = NanoMuseSteps.defaultValue // nanoMuse: snapshot-level visibility.
 
         // MARK: - Setup
 
-        func attach(to vc: MessageListViewController, vm: AIChatViewModel) {
+        func attach(to vc: MessageListViewController, vm: AIChatViewModel, showSteps: Bool) {
             self.viewController = vc
             self.vm = vm
+            self.showSteps = showSteps // nanoMuse: apply the persisted value before the first snapshot.
             vc.loadViewIfNeeded()
             guard let collectionView = vc.collectionView else { return }
             collectionView.delegate = self
@@ -1103,7 +1039,7 @@ extension CollectionViewMessageListV3 {
                 }
             }
 
-            // Install sheet overlay (outside the hosted cells' SwiftUI tree)
+            // Install sheet overlay (outside UIHostingConfiguration cell tree)
             if sheetOverlayHost == nil {
                 let overlay = SheetOverlayView(toolPresenter: sheetPresenter, compactPresenter: compactSummaryPresenter)
                 let host = UIHostingController(rootView: overlay)
@@ -1255,19 +1191,13 @@ extension CollectionViewMessageListV3 {
             // generation guard never trips (gen never changes) and the
             // broad cache may return a stale height for the swapped content.
             // Both reduce the window for the ViewGraphGeometryObservers race.
-            // iOS 15 backport: the iOS 16+ hosting-configuration API is unavailable, so the sites
-            // now call setHostedCellContent (UIHostingController hosting plus an
-            // empty UIContentConfiguration) — the applyContentConfiguration
-            // routing and its generation/cache semantics are unchanged.
             switch item {
             case .wholeMessage(let msgId):
                 guard let msgIdx = messageIndex[msgId], msgIdx < messages.count else { return }
                 let message = messages[msgIdx]
                 let bridge = getOrCreateBridge(for: message, in: messages)
                 cell.backgroundColor = .clear
-                // iOS 15 backport: the iOS 16+ hosting-configuration API is unavailable; host the
-                // SwiftUI content in a UIHostingController (see setHostedCellContent).
-                setHostedCellContent(cell,
+                let config = UIHostingConfiguration {
                     BridgedWholeMessageV3(
                         message: message,
                         bridge: bridge,
@@ -1277,7 +1207,7 @@ extension CollectionViewMessageListV3 {
                     // to prevent use-after-free in ViewGraphGeometryObservers
                     // when UICollectionView recycles the cell.
                     .transaction { $0.disablesAnimations = true }
-                    // The hosted cell gets an independent SwiftUI
+                    // UIHostingConfiguration creates an independent SwiftUI
                     // environment — it does NOT inherit EnvironmentObjects
                     // from the outer AIChatView. Descendant views inside the
                     // cell (notably ToolCapsuleView, which reads
@@ -1289,23 +1219,23 @@ extension CollectionViewMessageListV3 {
                     // lock + tapping a session-complete notification, since
                     // the deep-link forces an immediate cell rebuild before
                     // any other view layer can re-inject the vm. Re-inject
-                    // explicitly on every hosted cell.
+                    // explicitly on every hosting config.
                     // [T-ios-tool-capsule-vm-envobject-crash]
                     .environmentObject(vm)
-                )
+                }.minSize(width: 0, height: 0).margins(.all, 0)
+                cell.applyContentConfiguration(config)
 
             case .assistantHeader(let msgId):
                 guard let msgIdx = messageIndex[msgId], msgIdx < messages.count else { return }
                 let message = messages[msgIdx]
                 cell.backgroundColor = .clear
-                // iOS 15 backport: the iOS 16+ hosting-configuration API is unavailable; host the
-                // SwiftUI content in a UIHostingController (see setHostedCellContent).
-                setHostedCellContent(cell,
+                let config = UIHostingConfiguration {
                     BridgedAssistantHeaderV3(message: message, maxWidth: width,
                                             onOpenSoulSettings: onOpenSoulSettings)
                         .transaction { $0.disablesAnimations = true }
                         .environmentObject(vm)
-                )
+                }.minSize(width: 0, height: 0).margins(.all, 0)
+                cell.applyContentConfiguration(config)
 
             case .assistantBlock(let msgId, let blockId):
                 guard let msgIdx = messageIndex[msgId], msgIdx < messages.count else {
@@ -1319,9 +1249,7 @@ extension CollectionViewMessageListV3 {
                 }
                 let bridge = getOrCreateBridge(for: message, in: messages)
                 cell.backgroundColor = .clear
-                // iOS 15 backport: the iOS 16+ hosting-configuration API is unavailable; host the
-                // SwiftUI content in a UIHostingController (see setHostedCellContent).
-                setHostedCellContent(cell,
+                let config = UIHostingConfiguration {
                     BridgedAssistantBlockV3(
                         block: block,
                         message: message,
@@ -1330,16 +1258,15 @@ extension CollectionViewMessageListV3 {
                     )
                     .transaction { $0.disablesAnimations = true }
                     .environmentObject(vm)
-                )
+                }.minSize(width: 0, height: 0).margins(.all, 0)
+                cell.applyContentConfiguration(config)
 
             case .assistantFooter(let msgId):
                 guard let msgIdx = messageIndex[msgId], msgIdx < messages.count else { return }
                 let message = messages[msgIdx]
                 let bridge = getOrCreateBridge(for: message, in: messages)
                 cell.backgroundColor = .clear
-                // iOS 15 backport: the iOS 16+ hosting-configuration API is unavailable; host the
-                // SwiftUI content in a UIHostingController (see setHostedCellContent).
-                setHostedCellContent(cell,
+                let config = UIHostingConfiguration {
                     BridgedAssistantFooterV3(
                         message: message,
                         bridge: bridge,
@@ -1347,7 +1274,8 @@ extension CollectionViewMessageListV3 {
                     )
                     .transaction { $0.disablesAnimations = true }
                     .environmentObject(vm)
-                )
+                }.minSize(width: 0, height: 0).margins(.all, 0)
+                cell.applyContentConfiguration(config)
             }
 
             // [T-ios-scroll-decel-height-drift] Seed this cell with the real
@@ -1538,10 +1466,6 @@ extension CollectionViewMessageListV3 {
             bridge.isActiveMessage = isActive
             bridge.commandStartTime = vm.commandStartTime
             bridge.onStop = isActive ? { [weak self] in self?.onStop?() } : nil
-            bridge.onRerun = { [weak vm] blockId in
-                vm?.retryFromToolBlock(blockId: blockId)
-                vm?.forceScrollToBottom.send()
-            }
             bridge.browserPool = vm.browserTabPool
             bridge.toolSnapshots = vm.toolSnapshots
             bridge.autoRetryAttempt = isLast ? vm.autoRetryAttempt : 0
@@ -1726,6 +1650,15 @@ extension CollectionViewMessageListV3 {
 
         // MARK: - Bindings
 
+        // nanoMuse: `@AppStorage` belongs to the outer representable; UIKit's hosted cells do
+        // not reliably rebuild from that change. Rebuild the item set when its value changes.
+        func setStepVisibility(_ value: Bool) {
+            guard showSteps != value else { return }
+            showSteps = value
+            guard dataSource != nil, let messages = vm?.messages else { return }
+            applySnapshot(messages: messages, caller: "stepsPreference")
+        }
+
         /// [T-ios-scrollbtn-vm-split] Re-point the coordinator at a NEW view
         /// model instance when SwiftUI hands the (reused) representable a
         /// different AIChatViewModel for the same mounted chat view. All
@@ -1759,6 +1692,18 @@ extension CollectionViewMessageListV3 {
         }
 
         private func bindViewModel(_ vm: AIChatViewModel) {
+            // nanoMuse: UIKit-hosted cells do not inherit the settings view's @AppStorage
+            // observation. Watch the shared defaults and rebuild the item set at the source.
+            NotificationCenter.default.publisher(
+                for: UserDefaults.didChangeNotification,
+                object: UserDefaults.standard
+            )
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.setStepVisibility(NanoMuseSteps.storedValue())
+            }
+            .store(in: &subscriptions)
+
             // 1. Messages → snapshot
             //    Skip while isLoadingSession — binding 3 handles the post-load apply.
             //    This prevents a redundant apply when $messages and $isLoadingSession
@@ -1987,7 +1932,15 @@ extension CollectionViewMessageListV3 {
             )
             .removeDuplicates { a, b in a.0 == b.0 && a.1 == b.1 && a.2 == b.2 && a.3 == b.3 }
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in self?.updateLastCellBridge() }
+            .sink { [weak self] _ in
+                guard let self else { return }
+                self.updateLastCellBridge()
+                // nanoMuse: running steps stay visible; remove them from the snapshot when the
+                // turn finishes instead of relying on a restored hosting cell to become empty.
+                if !self.showSteps, let messages = self.vm?.messages {
+                    self.applySnapshot(messages: messages, caller: "bind5-stepVisibility")
+                }
+            }
             .store(in: &subscriptions)
 
 
@@ -2085,7 +2038,7 @@ extension CollectionViewMessageListV3 {
                 }
                 .store(in: &subscriptions)
 
-            // 9. Text block filled — reconfigure the cell so it
+            // 9. Text block filled — reconfigure the cell so UIHostingConfiguration
             //    re-measures height after transitioning from empty to non-empty.
             vm.blockContentFilledSignal
                 .receive(on: DispatchQueue.main)
@@ -2590,7 +2543,7 @@ extension CollectionViewMessageListV3 {
                         // body now renders just the 36pt header — producing
                         // a tall empty gap below the collapsed pill (user
                         // screenshot 2026-05-19). Clear both caches here
-                        // and reconfigure so the cell
+                        // and reconfigure so UIHostingConfiguration
                         // re-measures from scratch. Trace each step so a
                         // future report can be diagnosed from logs alone.
                         var matched = false
@@ -2670,7 +2623,15 @@ extension CollectionViewMessageListV3 {
                     }
                 case .assistant:
                     newItems.append(.assistantHeader(message.id))
-                    for block in message.blocks {
+                    // nanoMuse: restored UICollectionView cells used to be created for every
+                    // persisted tool block, bypassing the saved "Show steps" choice after a
+                    // reset/relaunch. Filter the snapshot itself; active turns still show all.
+                    let active = message.id == messages.last?.id && vm.isProcessing
+                    for block in NanoMuseSteps.visibleBlocks(
+                        message.blocks,
+                        active: active,
+                        showSteps: showSteps
+                    ) {
                         newItems.append(.assistantBlock(message.id, block.id))
                     }
                     // Only emit a footer cell when it will actually render
@@ -3226,11 +3187,6 @@ extension CollectionViewMessageListV3 {
             (viewController?.collectionView as? NoAnimationCollectionView)?.isApplyingSnapshot = true
             dataSource.apply(snapshot, animatingDifferences: false)
             (viewController?.collectionView as? NoAnimationCollectionView)?.isApplyingSnapshot = false
-            // iOS 15: diffable data source apply can silently fail to update the UI.
-            // Force a reload as a safety net so messages always appear.
-            if #unavailable(iOS 16.0) {
-                viewController?.collectionView.reloadData()
-            }
             // [ToolLifecycle] Stage 5: log newly-inserted tool blocks now in the
             // applied snapshot. Only fires for inserts, so volume stays proportional
             // to actual new tool blocks appearing in the chat UI.
@@ -3334,7 +3290,7 @@ extension CollectionViewMessageListV3 {
                     applySubViewportCompensation(caller: "snapshot-shrink", forceRelax: true)
                 } else if scrollMode == .autoScrolling && maxOff > 0 {
                     cv.contentOffset.y = maxOff
-                    // Deferred pin-to-bottom: hosted-view self-sizing may
+                    // Deferred pin-to-bottom: UIHostingConfiguration self-sizing may
                     // complete asynchronously after layoutIfNeeded(), updating contentSize
                     // via KVO. But if another applySnapshot starts before that KVO fires,
                     // isFlushing suppresses it. The coalesced scroll (80ms) catches the
@@ -3382,11 +3338,6 @@ extension CollectionViewMessageListV3 {
             (viewController?.collectionView as? NoAnimationCollectionView)?.isApplyingSnapshot = true
             dataSource.apply(snapshot, animatingDifferences: false)
             (viewController?.collectionView as? NoAnimationCollectionView)?.isApplyingSnapshot = false
-            // iOS 15: diffable data source apply can silently fail to update the UI.
-            // Force a reload as a safety net so messages always appear.
-            if #unavailable(iOS 16.0) {
-                viewController?.collectionView.reloadData()
-            }
         }
 
         // MARK: - Accurate Height Measurement
@@ -3742,7 +3693,7 @@ extension CollectionViewMessageListV3 {
                     // so when this estimate is the height used during a fast scroll
                     // / offscreen pass (before precalc lands, or via the
                     // configureCell/prefetch estimate fallback), the
-                    // the hosted SwiftUI view lays the Text into a 2-line box and
+                    // UIHostingConfiguration lays the Text into a 2-line box and
                     // SwiftUI truncates it to "2 lines + …"; at settle the real
                     // measure returns 3 lines and the cell visibly expands, jolting
                     // the whole page. Routing the estimate through the accurate
@@ -5241,7 +5192,7 @@ extension CollectionViewMessageListV3 {
         /// tree and applies `body` to every hosted `SelectableMarkdownTextView`.
         /// Mirrors `invalidateTableAttachmentsInSubviews` in
         /// MessageListInfrastructure — the markdown view is nested several
-        /// levels inside the cell-hosted SwiftUI view tree, so there is no
+        /// levels inside the UIHostingConfiguration's view tree, so there is no
         /// direct handle on it from the cell.
         private static func forEachMarkdownTextView(in view: UIView,
                                                     _ body: (SelectableMarkdownTextView) -> Void) {
@@ -5355,7 +5306,7 @@ extension CollectionViewMessageListV3 {
 // MARK: - Tool Detail Sheet Presenter
 
 /// Holds the state for the tool detail sheet, presented from a transparent overlay
-/// on MessageListViewController — outside the hosted cells' SwiftUI tree.
+/// on MessageListViewController — outside the UIHostingConfiguration cell tree.
 /// This avoids the cell's `.transaction { disablesAnimations = true }` which would
 /// suppress the sheet's slide-up animation, and prevents the double-present crash
 /// caused by multiple cell bindings re-evaluating on shared state changes.
@@ -5386,7 +5337,7 @@ private final class CompactSummaryPresenter: ObservableObject {
 
 /// Transparent SwiftUI view that owns the .sheet() modifier.
 /// Installed as a child UIHostingController on MessageListViewController,
-/// outside any hosted cell's SwiftUI tree.
+/// outside any UIHostingConfiguration cell tree.
 private struct SheetOverlayView: View {
     @ObservedObject var toolPresenter: ToolSheetPresenter
     @ObservedObject var compactPresenter: CompactSummaryPresenter

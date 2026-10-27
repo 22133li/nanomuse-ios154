@@ -228,7 +228,7 @@ private struct EnvVarFormSheet: View {
     }
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             Form {
                 Section {
                     TextField("NAME", text: Binding(
@@ -237,7 +237,7 @@ private struct EnvVarFormSheet: View {
                     ))
                     .font(.system(.body, design: .monospaced))
                     .textInputAutocapitalization(.characters)
-                    .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
+                    .autocorrectionDisabled()
                     .focused($focusedField, equals: .key)
                     .submitLabel(.next)
                     .onSubmit { focusedField = .value }
@@ -253,7 +253,7 @@ private struct EnvVarFormSheet: View {
                 Section("Value") {
                     TextField("Value", text: $value)
                         .font(.system(.body, design: .monospaced))
-                        .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
+                        .autocorrectionDisabled()
                         .focused($focusedField, equals: .value)
                         .submitLabel(.next)
                         .onSubmit { focusedField = .note }
@@ -271,6 +271,7 @@ private struct EnvVarFormSheet: View {
                         TextEditor(text: $note)
                             .frame(minHeight: 80)
                             .focused($focusedField, equals: .note)
+                            .scrollContentBackground(.hidden)
                     }
                 }
 
@@ -307,6 +308,7 @@ private struct EnvVarFormSheet: View {
                 }
             }
         }
+        .presentationDetents([.medium, .large])
         .alert(
             AppLocalized("Delete this variable?"),
             isPresented: $showingDeleteConfirm

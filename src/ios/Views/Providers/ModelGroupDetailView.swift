@@ -81,7 +81,7 @@ struct ModelGroupDetailView: View {
         .navigationTitle(group?.name ?? "Group")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) { // iOS 15 backport: .secondaryAction is iOS 16+
+            ToolbarItem(placement: .secondaryAction) {
                 if let group {
                     Button {
                         UIPasteboard.general.string = "group:\(group.id)"
@@ -349,9 +349,10 @@ struct ModelGroupDetailView: View {
                 }
             }
         }
+        .scrollDismissesKeyboard(.interactively)
         .environment(\.editMode, $editMode)
         .sheet(isPresented: $showAddModels) {
-            NavigationView {
+            NavigationStack {
                 UnifiedModelPicker(config: addModelsConfig())
             }
         }

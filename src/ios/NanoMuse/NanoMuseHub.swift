@@ -215,17 +215,40 @@ final class NanoMuseHub: ObservableObject {
     }
 
     private func hello() -> [String: Any] {
-        [
-            "type": "hello",
-            "device": [
-                "id": deviceId,
-                "name": name,
-                "kind": "phone",
-                "os": "iOS \(UIDevice.current.systemVersion)",
-                "version": Self.version,
-                "actions": Self.actions,
-            ],
+        var device: [String: Any] = [
+            "id": deviceId,
+            "name": name,
+            "kind": "phone",
+            "os": "iOS \(UIDevice.current.systemVersion)",
+            "version": Self.version,
+            "actions": Self.actions,
         ]
+        if let llm = Self.helloLlm() { device["llm"] = llm }
+        return ["type": "hello", "device": device]
+    }
+
+    /// What answers new chats on this phone, for the devices list and the operator's page
+    /// (docs/hub.md `device.llm`, 1.0.7): `cloud` for the account's models, else the catalogue's
+    /// vendor id; never a key, a base URL or a provider the catalogue does not know.
+    static func helloLlm() -> [String: String]? {
+        guard let entry = NanoMuseModelSlots.chatEntry(),
+              let inst = ProviderConfigStore.shared.instance(for: entry.providerInstanceId) else { return nil }
+        let provider: String
+        if inst.id == NanoMuseCloud.instance?.id {
+            provider = "cloud"
+        } else if let vendor = NanoMuseCatalogue.vendor(for: inst) {
+            provider = vendor.id
+        } else {
+            return nil
+        }
+        let model = entry.model.id
+        guard Self.llmId(provider), Self.llmId(model) else { return nil }
+        return ["provider": provider, "model": model]
+    }
+
+    private static func llmId(_ s: String) -> Bool {
+        !s.isEmpty && s.count <= 80 && !s.contains("://")
+            && s.unicodeScalars.allSatisfy { CharacterSet.alphanumerics.contains($0) || "._:/-".unicodeScalars.contains($0) }
     }
 
     private func receive(_ gen: Int) {
@@ -365,6 +388,13 @@ final class NanoMuseHub: ObservableObject {
         }
     }
 
+    /// Stops waiting on a call out: it fails with `cancelled` now, whatever the other device
+    /// answers later (its `result` then finds nobody and is dropped).
+    func abandon(_ id: String) {
+        eventHandlers.removeValue(forKey: id)
+        pending.removeValue(forKey: id)?(.failure(HubError(code: "cancelled", message: "stopped here")))
+    }
+
     private func failAll(_ error: HubError) {
         let waiting = pending
         pending = [:]
@@ -374,10 +404,14 @@ final class NanoMuseHub: ObservableObject {
 
     // Calls out --------------------------------------------------------------------------
 
+    /// A frame id for a call out.
+    static func newCallId() -> String { String(UUID().uuidString.lowercased().prefix(12)) }
+
     /// Asks another device for something; resolves with its `result` body. Progress arrives on `onEvent`.
-    func call(to: String, action: String, args: [String: Any] = [:], timeout: TimeInterval = 120, onEvent: (([String: Any]) -> Void)? = nil) async throws -> [String: Any] {
+    /// `id` is the call's frame id when the caller needs it later (`stop {call}`); a fresh one otherwise.
+    func call(to: String, action: String, args: [String: Any] = [:], timeout: TimeInterval = 120, id given: String? = nil, onEvent: (([String: Any]) -> Void)? = nil) async throws -> [String: Any] {
         guard connected else { throw HubError(code: "disconnected", message: "this iPhone is not on the hub; sign in to nanoMuse Cloud and turn on Devices") }
-        let id = String(UUID().uuidString.lowercased().prefix(12))
+        let id = given ?? Self.newCallId()
         return try await withCheckedThrowingContinuation { cont in
             var finished = false
             var timer: Task<Void, Never>?

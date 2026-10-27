@@ -16,6 +16,7 @@ struct SoulSettingsView: View {
     @State private var showEmojiPrompt = false
     @State private var emojiDraft = ""
     @State private var showPhotoPicker = false
+    @State private var photoItem: PhotosPickerItem? = nil
     @State private var iconError: String? = nil
     @State private var style: String = SoulMetadata.default.style
     @State private var lang: String = SoulMetadata.default.lang
@@ -134,6 +135,7 @@ struct SoulSettingsView: View {
             showEmojiPrompt: $showEmojiPrompt,
             emojiDraft: $emojiDraft,
             showPhotoPicker: $showPhotoPicker,
+            photoItem: $photoItem,
             iconError: $iconError
         ))
         .overlay(alignment: .bottom) {
@@ -238,6 +240,7 @@ struct SoulSettingsView: View {
             TextEditor(text: $bodyText)
                 .frame(minHeight: 220)
                 .font(.system(.body, design: .monospaced))
+                .scrollContentBackground(.hidden)
             // SwiftUI's TextEditor has no native placeholder. We render
             // a greyed hint on top when the body is empty + not being
             // typed into. allowsHitTesting(false) so taps fall through
@@ -415,7 +418,7 @@ private struct SoulEmojiPickerSheet: View {
     ]
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             VStack(spacing: 20) {
                 // Live preview at the size the chat header actually uses, so
                 // the user judges the glyph at its real scale rather than at
@@ -486,6 +489,7 @@ private struct SoulEmojiPickerSheet: View {
                 }
             }
         }
+        .presentationDetents([.height(380)])
     }
 
     /// Keep at most one emoji, preferring whatever the user just added.
@@ -514,6 +518,7 @@ private struct SoulIconEditing: ViewModifier {
     @Binding var showEmojiPrompt: Bool
     @Binding var emojiDraft: String
     @Binding var showPhotoPicker: Bool
+    @Binding var photoItem: PhotosPickerItem?
     @Binding var iconError: String?
 
     func body(content: Content) -> some View {
@@ -525,18 +530,13 @@ private struct SoulIconEditing: ViewModifier {
                     icon = chosen
                 }
             }
-            // iOS 15 backport: SwiftUI .photosPicker is iOS 16+, so the photo
-            // path goes through the UIKit PHPicker wrapper (single image).
-            .sheet(isPresented: $showPhotoPicker) {
-                NanoMusePHPicker(
-                    onComplete: { results in
-                        showPhotoPicker = false
-                        if let first = results.first { applyPickedImage(first) }
-                    },
-                    onCancel: { showPhotoPicker = false },
-                    selectionLimit: 1,
-                    filter: .images
-                )
+            .photosPicker(isPresented: $showPhotoPicker, selection: $photoItem,
+                          matching: .images, photoLibrary: .shared())
+            // Single-parameter form: the two-parameter `onChange` is iOS 17+,
+            // and this target still deploys lower.
+            .onChange(of: photoItem) { newItem in
+                guard let newItem else { return }
+                Task { await applyPickedImage(newItem) }
             }
             .alert(AppLocalized("Can't use that image"),
                    isPresented: Binding(get: { iconError != nil },
@@ -564,30 +564,24 @@ private struct SoulIconEditing: ViewModifier {
     }
 
     /// Load, validate and normalize a picked photo into the stored form.
-    /// iOS 15 backport of the removed PhotosPickerItem path: same
-    /// `SoulIconImage.encode` rules (square crop, 96px cap, PNG data URI).
-    private func applyPickedImage(_ result: PHPickerResult) {
-        let provider = result.itemProvider
-        guard provider.canLoadObject(ofClass: UIImage.self) else {
-            iconError = AppLocalized("That image couldn't be read.")
+    private func applyPickedImage(_ item: PhotosPickerItem) async {
+        defer { photoItem = nil }
+        guard let data = try? await item.loadTransferable(type: Data.self),
+              let image = UIImage(data: data) else {
+            await MainActor.run { iconError = AppLocalized("That image couldn't be read.") }
             return
         }
-        provider.loadObject(ofClass: UIImage.self) { object, _ in
-            DispatchQueue.main.async {
-                guard let image = object as? UIImage else {
-                    iconError = AppLocalized("That image couldn't be read.")
-                    return
-                }
-                // [T-soul-icon-opaque-rounded] Opaque images are accepted —
-                // the transparency requirement was a presentation concern and
-                // moved to `SoulIconView`, which clips every image to a
-                // rounded rectangle. Only an undecodable image is refused.
-                switch SoulIconImage.encode(image) {
-                case .success(let uri):
-                    icon = uri
-                case .failure:
-                    iconError = AppLocalized("That image couldn't be read.")
-                }
+        // [T-soul-icon-opaque-rounded] Opaque images are accepted now — the
+        // transparency requirement was a presentation concern and moved to
+        // `SoulIconView`, which clips every image to a rounded rectangle. Only
+        // an undecodable image is refused here, so this path and the
+        // `minis-config` path apply exactly the same rule.
+        switch SoulIconImage.encode(image) {
+        case .success(let uri):
+            await MainActor.run { icon = uri }
+        case .failure:
+            await MainActor.run {
+                iconError = AppLocalized("That image couldn't be read.")
             }
         }
     }

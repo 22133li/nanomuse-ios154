@@ -370,10 +370,6 @@ extension AIChatViewModel {
             statusStr = "failed(\(msg.prefix(50)))"
         case .cancelled:
             statusStr = "cancelled"
-        case .waiting:
-            statusStr = "waiting"
-        case .rejected:
-            statusStr = "rejected"
         case .none:
             statusStr = "pending"
         }

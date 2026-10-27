@@ -743,7 +743,7 @@ private struct NanoMuseConnectorSheet: View {
     private var state: NanoMuseConnectors.State { NanoMuseConnectors.state(connector, servers: mcp.servers) }
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             Form {
                 Section {
                     HStack(spacing: 14) {
@@ -782,7 +782,7 @@ private struct NanoMuseConnectorSheet: View {
                         }
                         SecureField(AppLocalized("Paste the key"), text: $key)
                             .textInputAutocapitalization(.never)
-                            .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
+                            .autocorrectionDisabled()
                         Button(AppLocalized("Connect")) {
                             run { await NanoMuseConnectors.connect(connector, key: key) }
                         }
@@ -813,7 +813,7 @@ private struct NanoMuseConnectorSheet: View {
                         }
                         TextField(AppLocalized("OAuth client ID"), text: $clientId)
                             .textInputAutocapitalization(.never)
-                            .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
+                            .autocorrectionDisabled()
                         SecureField(AppLocalized("OAuth client secret (if any)"), text: $clientSecret)
                         Button(AppLocalized("Sign in")) {
                             run { await NanoMuseConnectors.connect(connector, clientId: clientId, clientSecret: clientSecret) }

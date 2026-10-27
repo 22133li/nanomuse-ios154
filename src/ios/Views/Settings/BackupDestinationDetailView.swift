@@ -73,7 +73,7 @@ struct BackupDestinationDetailView: View {
         .alert("Rename Destination", isPresented: $showRename) {
             TextField("Name", text: $draftName)
                 .textInputAutocapitalization(.never)
-                .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
+                .autocorrectionDisabled()
             Button("Cancel", role: .cancel) {}
             Button("Save") { if let r = activeRemote { rename(r) } }
         } message: {
@@ -176,7 +176,7 @@ struct BackupDestinationDetailView: View {
     private func loadFolderPackages(_ f: MountedFolderEntry) async {
         let id = f.id
         folderPackages = await Task.detached(priority: .userInitiated) {
-            await BackupDestinations.listPackages(folderId: id)
+            BackupDestinations.listPackages(folderId: id)
         }.value
     }
 
@@ -584,7 +584,7 @@ struct RcloneFolderBrowser: View {
     }
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             Form {
                 Section {
                     if !currentDir.isEmpty {
@@ -661,7 +661,7 @@ struct RcloneFolderBrowser: View {
             .alert("New Folder", isPresented: $showNewFolder) {
                 TextField("Folder name", text: $newFolderName)
                     .textInputAutocapitalization(.never)
-                    .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
+                    .autocorrectionDisabled()
                 Button("Cancel", role: .cancel) { newFolderName = "" }
                 Button("Create") { Task { await createFolder() } }
             } message: {
@@ -763,7 +763,7 @@ struct RcloneConnectionEditor: View {
     }
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             Form {
                 if let b = backend {
                     Section {
@@ -781,7 +781,7 @@ struct RcloneConnectionEditor: View {
                                 }
                                 TextField(f.placeholder.isEmpty ? f.label : f.placeholder,
                                           text: binding(for: f.key))
-                                    .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
+                                    .autocorrectionDisabled()
                                     .textInputAutocapitalization(.never)
                                     .keyboardType(keyboardType(f.keyboard))
                                 if !f.hint.isEmpty {

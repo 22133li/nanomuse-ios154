@@ -27,7 +27,7 @@ struct NanoMuseNetworkView: View {
                 HStack {
                     TextField(AppLocalized("Host"), text: $config.host)
                         .textInputAutocapitalization(.never)
-                        .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
+                        .autocorrectionDisabled()
                         .keyboardType(.URL)
                     TextField(AppLocalized("Port"), text: $portText)
                         .keyboardType(.numberPad)
@@ -36,7 +36,7 @@ struct NanoMuseNetworkView: View {
                 }
                 TextField(AppLocalized("User name (optional)"), text: $config.user)
                     .textInputAutocapitalization(.never)
-                    .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
+                    .autocorrectionDisabled()
                 SecureField(AppLocalized("Password (optional)"), text: $config.password)
             } header: {
                 Text(AppLocalized("HTTP proxy for own providers"))

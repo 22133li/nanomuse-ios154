@@ -175,9 +175,9 @@ struct LogManagementView: View {
                 }
             }
         }
-        .navigationBarItems(trailing:
-            Group {
-                if !vm.logFiles.isEmpty && tab == "logs" {
+        .toolbar {
+            if !vm.logFiles.isEmpty && tab == "logs" {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         showShareSheet = true
                     } label: {
@@ -185,7 +185,7 @@ struct LogManagementView: View {
                     }
                 }
             }
-        )
+        }
         .sheet(isPresented: $showShareSheet) {
             LogShareSheet(urls: vm.logFiles.map(\.url))
         }
@@ -208,8 +208,6 @@ struct LogDetailView: View {
     let name: String
     @State private var content: String = ""
     @State private var isLoading = true
-    // iOS 15 backport: ShareLink is iOS 16+; Button + the file's LogShareSheet instead.
-    @State private var showShare = false
 
     var body: some View {
         Group {
@@ -223,12 +221,7 @@ struct LogDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button { showShare = true } label: {
-                    Image(systemName: "square.and.arrow.up")
-                }
-                .sheet(isPresented: $showShare) {
-                    LogShareSheet(urls: [url])
-                }
+                ShareLink(item: url)
             }
         }
         .task {
@@ -242,13 +235,13 @@ struct LogDetailView: View {
     }
 }
 
-// MARK: - UITextView wrapper
+// MARK: - UITextView wrapper (TextKit 2 lazy layout)
 
 private struct LogTextView: UIViewRepresentable {
     let text: String
 
     func makeUIView(context: Context) -> UITextView {
-        let textView = UITextView()  // iOS 15 backport: TextKit 1
+        let textView = UITextView(usingTextLayoutManager: true)
         textView.isEditable = false
         textView.isSelectable = true
         textView.backgroundColor = .clear

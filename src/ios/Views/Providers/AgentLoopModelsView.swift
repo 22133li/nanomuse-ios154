@@ -7,10 +7,6 @@ struct AgentLoopModelsSection: View {
     @ObservedObject private var store = ProviderConfigStore.shared
     @Binding var showAddModels: Bool
     @Binding var showAddGroups: Bool
-    // [T-agent-loop-max-rounds] Per-turn iteration cap, persisted in
-    // UserDefaults via ProviderConfigStore.agentLoopMaxRoundsKey.
-    @AppStorage(ProviderConfigStore.agentLoopMaxRoundsKey)
-    private var maxRounds: Int = ProviderConfigStore.defaultAgentLoopMaxRounds
 
     private var currentEntries: [ModelEntry] {
         store.agentLoopModelEntryIds.compactMap { store.entry(for: $0) }
@@ -21,29 +17,6 @@ struct AgentLoopModelsSection: View {
     }
 
     var body: some View {
-        // [T-agent-loop-max-rounds] User-configurable per-turn iteration cap.
-        Section {
-            Stepper(value: $maxRounds,
-                    in: ProviderConfigStore.agentLoopMaxRoundsRange) {
-                HStack {
-                    Text(AppLocalized("Max Rounds"))
-                    Spacer()
-                    Text("\(maxRounds)")
-                        .foregroundStyle(.secondary)
-                        .monospacedDigit()
-                }
-            }
-            .onChange(of: maxRounds) { _ in
-                // Clamp defensively — Stepper already enforces the range,
-                // this guards programmatic writes.
-                ProviderConfigStore.agentLoopMaxRounds = maxRounds
-            }
-        } header: {
-            Text(AppLocalized("Loop Limit"))
-        } footer: {
-            Text(AppLocalized("Maximum tool-call iterations per turn. The agent stops after this many rounds and offers to resume."))
-        }
-
         Section {
             if currentGroups.isEmpty && currentEntries.isEmpty {
                 Text("No models or groups added")

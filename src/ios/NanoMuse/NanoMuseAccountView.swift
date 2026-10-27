@@ -20,8 +20,6 @@ struct NanoMuseAccountSections: View {
     @State private var exhaustedAsk = false
     /// The vendor (or plan) whose sheet is open, from the ways on.
     @State private var pick: NanoMuseVendorPick?
-    // iOS 15 backport: ShareLink is iOS 16+; Button + NanoMuseShareSheet instead.
-    @State private var showShare = false
 
     var body: some View {
         Group {
@@ -143,11 +141,8 @@ struct NanoMuseAccountSections: View {
                 .labelStyle(.iconOnly)
             }
             if !invite.url.isEmpty {
-                Button { showShare = true } label: {
+                ShareLink(item: URL(string: invite.url) ?? NanoMuseStar.repoURL) {
                     Label(AppLocalized("Share the link"), systemImage: "square.and.arrow.up")
-                }
-                .sheet(isPresented: $showShare) {
-                    NanoMuseShareSheet(items: [URL(string: invite.url) ?? NanoMuseStar.repoURL])
                 }
             }
         } header: {

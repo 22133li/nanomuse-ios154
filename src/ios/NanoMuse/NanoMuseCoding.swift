@@ -280,7 +280,7 @@ struct NanoMuseCodingView: View {
         }
         .sheet(item: $open, onDismiss: { load() }) { s in
             if let computer {
-                NavigationView {
+                NavigationStack {
                     NanoMuseCodingSessionView(computer: computer, session: s, agentName: agents.first { $0.id == s.agent }?.name ?? s.agent)
                         .toolbar {
                             ToolbarItem(placement: .cancellationAction) { Button(AppLocalized("Done")) { open = nil } }
@@ -293,6 +293,7 @@ struct NanoMuseCodingView: View {
                 newWith = nil
                 open = NanoMuseCodingBridge.Session(agent: a.id, id: "", title: "", workspace: workspace, updatedAt: nil, messages: 0, status: "idle", lastUser: "", lastAssistant: "", resumable: true)
             }
+            .presentationDetents([.medium])
         }
     }
 
@@ -362,12 +363,12 @@ struct NanoMuseCodingNewSheet: View {
     @State private var workspace = ""
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             Form {
                 Section {
                     TextField(AppLocalized("Project folder on the computer"), text: $workspace)
                         .textInputAutocapitalization(.never)
-                        .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
+                        .autocorrectionDisabled()
                     if !workspaces.isEmpty {
                         ForEach(workspaces, id: \.self) { w in
                             Button(w) { workspace = w }.font(.footnote).lineLimit(1)
@@ -441,21 +442,9 @@ struct NanoMuseCodingSessionView: View {
             }
             Divider()
             HStack(alignment: .bottom, spacing: 8) {
-                // iOS 15 backport: TextField(axis: .vertical) is iOS 16+; TextEditor is iOS 14+.
-                // .textFieldStyle is TextField-only and dropped.
-                ZStack(alignment: .topLeading) {
-                    let prompt = continuesAsNew ? AppLocalized("Made in the IDE: continues as a new chat in the same workspace…") : String(format: AppLocalized("Message %@…"), agentName)
-                    TextEditor(text: $draft)
-                        .lineLimit(5)
-                        .frame(minHeight: 64)
-                    if draft.isEmpty {
-                        Text(prompt)
-                            .foregroundColor(.secondary)
-                            .padding(.top, 8)
-                            .padding(.leading, 5)
-                            .allowsHitTesting(false)
-                    }
-                }
+                TextField(continuesAsNew ? AppLocalized("Made in the IDE: continues as a new chat in the same workspace…") : String(format: AppLocalized("Message %@…"), agentName), text: $draft, axis: .vertical)
+                    .lineLimit(1...5)
+                    .textFieldStyle(.roundedBorder)
                 if live?.status == "running" {
                     Button {
                         Task { await stop() }

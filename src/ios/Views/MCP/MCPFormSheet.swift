@@ -84,12 +84,12 @@ struct MCPFormSheet: View {
     }
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             Form {
                 Section {
                     TextField(AppLocalized("Server name"), text: $name)
                         .disabled(isEditing)   // id is the key; renaming = delete+add
-                        .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
+                        .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
                     Picker(AppLocalized("Transport"), selection: $transport) {
                         ForEach(Transport.allCases) { t in
@@ -105,19 +105,8 @@ struct MCPFormSheet: View {
                 }
 
                 Section(AppLocalized("Note (shown to the agent)")) {
-                    // iOS 15 backport: TextField(axis: .vertical) is iOS 16+; TextEditor is iOS 14+.
-                    ZStack(alignment: .topLeading) {
-                        TextEditor(text: $note)
-                            .lineLimit(4)
-                            .frame(minHeight: 72)
-                        if note.isEmpty {
-                            Text(AppLocalized("Optional description"))
-                                .foregroundColor(.secondary)
-                                .padding(.top, 8)
-                                .padding(.leading, 5)
-                                .allowsHitTesting(false)
-                        }
-                    }
+                    TextField(AppLocalized("Optional description"), text: $note, axis: .vertical)
+                        .lineLimit(1...4)
                 }
             }
             .navigationTitle(Text(isEditing ? "Edit Server" : "Add Server"))
@@ -188,7 +177,7 @@ struct MCPFormSheet: View {
             Section(AppLocalized("Server URL")) {
                 HStack {
                     TextField("https://…", text: $url)
-                        .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
+                        .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
                         .keyboardType(.URL)
                     // URL references join with no separator (a URL is a base +
@@ -219,7 +208,7 @@ struct MCPFormSheet: View {
             }
             if authMode == .oauthStatic {
                 TextField(AppLocalized("Client ID"), text: $oauthClientId)
-                    .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
+                    .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
                 SecureField(AppLocalized("Client Secret (optional)"), text: $oauthClientSecret)
                     // [T-provider-label-keyboard] Same AutoFill opt-out as the
@@ -230,17 +219,17 @@ struct MCPFormSheet: View {
                     // but structurally identical to the provider-Label report.
                     .textContentType(.oneTimeCode)
                     .textInputAutocapitalization(.never)
-                    .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
+                    .autocorrectionDisabled()
                 TextField(AppLocalized("Authorization Endpoint (https://…/authorize)"), text: $oauthAuthEndpoint)
-                    .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
+                    .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
                     .keyboardType(.URL)
                 TextField(AppLocalized("Token Endpoint (https://…/token)"), text: $oauthTokenEndpoint)
-                    .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
+                    .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
                     .keyboardType(.URL)
                 TextField(AppLocalized("Scopes (space-separated)"), text: $oauthScopes)
-                    .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
+                    .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
                 // [T-mcp-oauth-loopback] Default is the standardized loopback
                 // address — shown as the placeholder; leave empty to use it.
@@ -248,7 +237,7 @@ struct MCPFormSheet: View {
                 // custom-scheme redirect (auto-falls back to
                 // ASWebAuthenticationSession for non-localhost schemes).
                 TextField(MCPOAuthController.defaultRedirectURI, text: $oauthRedirectURI)
-                    .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
+                    .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
                     .keyboardType(.URL)
 
@@ -320,10 +309,10 @@ struct MCPFormSheet: View {
         Group {
             Section(AppLocalized("Command")) {
                 TextField("npx", text: $command)
-                    .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
+                    .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
                 TextField(AppLocalized("Arguments (space-separated)"), text: $argsText)
-                    .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
+                    .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
             }
             Section {
@@ -357,11 +346,11 @@ struct MCPFormSheet: View {
             ForEach(pairs) { $pair in
                 HStack {
                     TextField(keyPlaceholder, text: $pair.key)
-                        .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
+                        .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
                     Divider()
                     TextField(valuePlaceholder, text: $pair.value)
-                        .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
+                        .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
                     if showEnvPicker {
                         envReferenceMenu(into: $pair.value)

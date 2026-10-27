@@ -11,7 +11,7 @@ struct AIDataSharingConsentView: View {
     var onDecline: () -> Void
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     VStack(alignment: .leading, spacing: 8) {
@@ -176,11 +176,6 @@ struct AddProviderView: View {
     @State private var importSucceeded = false
     // [T-add-provider-unsaved-exit-confirm]
     @State private var showUnsavedExitDialog = false
-    // [T-add-provider-connection-test] Pre-save connectivity check: fires a
-    // tiny chat request with the entered key/base URL before the instance is
-    // saved, so a bad key or unreachable endpoint is caught here.
-    @State private var isTestingConnection = false
-    @State private var connectionTestResult: ConnectionTestResult?
 
     /// Whether the data-sharing consent has been accepted (persisted in UserDefaults).
     private var consentAccepted: Bool {
@@ -188,12 +183,6 @@ struct AddProviderView: View {
     }
 
     private enum Step: Int { case type = 0, credential = 1, configure = 2 }
-
-    /// Outcome of the pre-save connection test.
-    private enum ConnectionTestResult: Equatable {
-        case success
-        case failure(String)
-    }
     private var currentStep: Step {
         if selectedType == nil { return .type }
         if selectedCredential == nil { return .credential }
@@ -622,7 +611,7 @@ struct AddProviderView: View {
                     .textContentType(.none)
                     // A label is a proper noun the user is naming, and AutoFill
                     // must never offer to save it as a credential.
-                    .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
+                    .autocorrectionDisabled()
                     .textInputAutocapitalization(.words)
                     .onChange(of: labelInput) { _ in
                         // Mark the field as user-edited so subsequent
@@ -662,7 +651,7 @@ struct AddProviderView: View {
                                 // eye toggle.
                                 .textContentType(.oneTimeCode)
                                 .textInputAutocapitalization(.never)
-                                .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
+                                .autocorrectionDisabled()
                         } else {
                             SecureField(keyPlaceholder, text: $apiKeyInput)
                                 // [T-provider-label-keyboard] Opt the credential
@@ -719,47 +708,6 @@ struct AddProviderView: View {
                         ? "Uses /v1/responses endpoint format. Required for some Responses-API-only services."
                         : "Standard /v1/chat/completions format. Compatible with most OpenAI-compatible services.")
                 }
-            }
-
-            // [T-add-provider-connection-test] Validate the key + base URL
-            // with a live request BEFORE saving, so typos and unreachable
-            // endpoints are caught here instead of after the provider exists.
-            Section {
-                Button {
-                    testConnection()
-                } label: {
-                    HStack {
-                        Label {
-                            Text("Test Connection")
-                        } icon: {
-                            Image(systemName: "bolt.badge.checkmark")
-                                .foregroundStyle(.green)
-                        }
-                        Spacer(minLength: 8)
-                        if isTestingConnection {
-                            ProgressView()
-                                .controlSize(.small)
-                        } else if case .success = connectionTestResult {
-                            Text(AppLocalized("Connected"))
-                                .font(.footnote)
-                                .foregroundStyle(.green)
-                        }
-                    }
-                }
-                .disabled(!canTestConnection || isTestingConnection)
-
-                if case .failure(let message) = connectionTestResult {
-                    HStack(alignment: .top, spacing: 8) {
-                        Image(systemName: "xmark.octagon.fill")
-                            .foregroundStyle(.red)
-                        Text(message)
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                            .textSelection(.enabled)
-                    }
-                }
-            } footer: {
-                Text("Sends one short test message with the API key and base URL above. Nothing is saved until you tap Add Provider.")
             }
 
             Section {
@@ -848,7 +796,7 @@ struct AddProviderView: View {
                     .font(.system(.body, design: .monospaced))
                     .foregroundStyle(.secondary)
                     .textInputAutocapitalization(.never)
-                    .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
+                    .autocorrectionDisabled()
                     .keyboardType(.URL)
 
                 SecureField("Bearer Token", text: $manualOAuthTokenInput)
@@ -901,7 +849,7 @@ struct AddProviderView: View {
                 .font(.system(.body, design: .monospaced))
                 .foregroundStyle(.secondary)
                 .textInputAutocapitalization(.never)
-                .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
+                .autocorrectionDisabled()
                 .keyboardType(.URL)
 
             if !enteredViaVoiceTemplate, selectedType != .gemini {
@@ -936,81 +884,6 @@ struct AddProviderView: View {
     }
 
     // MARK: - Actions
-
-    /// [T-add-provider-connection-test] Whether a pre-save test can run: an
-    /// API-key credential step with a non-empty key (or an empty key on a
-    /// compatible endpoint that allows it).
-    private var canTestConnection: Bool {
-        guard selectedCredential == .apiKey, selectedType != nil else { return false }
-        let key = apiKeyInput.trimmingCharacters(in: .whitespacesAndNewlines)
-        return !key.isEmpty || emptyKeyAllowedForCurrentInput
-    }
-
-    /// [T-add-provider-connection-test] Fire one minimal chat request with the
-    /// entered key/base URL without saving anything. Builds the provider
-    /// directly (the Keychain-backed factory can't be used — nothing is saved
-    /// yet) using each provider family's own constructor.
-    private func testConnection() {
-        guard let type = selectedType, canTestConnection else { return }
-        let key = apiKeyInput.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedBase = customBaseURLInput.trimmingCharacters(in: .whitespacesAndNewlines)
-        let base: String? = trimmedBase.isEmpty ? nil : trimmedBase
-        let appendV1 = appendV1SuffixInput
-
-        isTestingConnection = true
-        connectionTestResult = nil
-
-        Task {
-            do {
-                let provider: any LLMProvider
-                switch type {
-                case .anthropic:
-                    provider = AnthropicProvider(
-                        apiKey: key, model: .claudeHaiku45,
-                        basePath: base, appendV1Suffix: appendV1)
-                case .gemini:
-                    provider = GeminiProvider(
-                        apiKey: key, model: .gemini25Flash, customBasePath: base)
-                case .openAI, .openRouter, .xAI, .kimiCode, .openAIResponses:
-                    // All OpenAI-compatible chat endpoints. The Responses-API
-                    // format (picked via the API Format toggle or the
-                    // dedicated provider type) needs forceResponsesAPI.
-                    let p = OpenAIProvider(
-                        apiKey: key, model: .gpt4oMini,
-                        customBaseURL: base, appendV1Suffix: appendV1)
-                    p.forceResponsesAPI = useResponsesAPI || type == .openAIResponses
-                    provider = p
-                case .antigravity, .unsupported:
-                    throw ConnectionTestError.unsupportedProviderType
-                }
-                let messages = [LLMMessage(
-                    role: .user,
-                    content: "Hi! Reply with one short word to confirm connectivity.")]
-                _ = try await provider.sendMessage(
-                    messages: messages, systemPrompt: nil, maxTokens: 16, temperature: nil)
-                await MainActor.run {
-                    isTestingConnection = false
-                    connectionTestResult = .success
-                }
-            } catch {
-                let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-                await MainActor.run {
-                    isTestingConnection = false
-                    connectionTestResult = .failure(message)
-                }
-            }
-        }
-    }
-
-    private enum ConnectionTestError: LocalizedError {
-        case unsupportedProviderType
-        var errorDescription: String? {
-            switch self {
-            case .unsupportedProviderType:
-                return AppLocalized("This provider type can't be tested with an API key.")
-            }
-        }
-    }
 
     private func saveApiKeyInstance() {
         guard let type = selectedType else { return }

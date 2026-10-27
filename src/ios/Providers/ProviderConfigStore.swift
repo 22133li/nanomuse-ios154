@@ -1800,31 +1800,6 @@ final class ProviderConfigStore: ObservableObject {
         }
     }
 
-    // MARK: - Agent Loop Max Rounds
-
-    /// [T-agent-loop-max-rounds] UserDefaults key for the per-turn agent-loop
-    /// iteration cap. Per-device, not synced — same local-only semantics as
-    /// the voice/vision group selectors above.
-    static let agentLoopMaxRoundsKey = "agentLoopMaxRounds"
-    /// Default when never set. Writes are clamped to 1...50.
-    static let defaultAgentLoopMaxRounds = 10
-    static let agentLoopMaxRoundsRange = 1...50
-
-    /// User-configurable cap on agent-loop tool-call iterations within a
-    /// single user turn. Read by AIChatViewModel.runAgentLoop; the Settings
-    /// UI binds it via @AppStorage on the same key.
-    static var agentLoopMaxRounds: Int {
-        get {
-            let v = UserDefaults.standard.integer(forKey: agentLoopMaxRoundsKey)
-            return v >= 1 ? v : defaultAgentLoopMaxRounds
-        }
-        set {
-            let clamped = min(max(newValue, agentLoopMaxRoundsRange.lowerBound),
-                              agentLoopMaxRoundsRange.upperBound)
-            UserDefaults.standard.set(clamped, forKey: agentLoopMaxRoundsKey)
-        }
-    }
-
     func addAgentLoopEntry(_ entryId: String) {
         guard !config.agentLoopModelEntryIds.contains(entryId) else { return }
         config.agentLoopModelEntryIds.append(entryId)
@@ -2685,7 +2660,10 @@ final class ProviderConfigStore: ObservableObject {
             if let manualToken = ProviderKeychainHelper.loadOAuthString(instanceId: instance.id, account: "manual-oauth-token") {
                 return try await OpenAIModelsAPI.fetchModels(apiKey: manualToken, baseURL: customBase, appendV1Suffix: appendV1, forceRefresh: forceRefresh, userAgent: ua)
             }
-            return OpenAIModelsAPI.fetchModelsOAuth()
+            // nanoMuse: query live Codex OAuth models when signed in (#475)
+            let token = try? await CodexOAuthManager.shared.validAccessToken(instanceId: instance.id)
+            let accountId = CodexOAuthManager.shared.accountId(instanceId: instance.id)
+            return await OpenAIModelsAPI.fetchModelsOAuth(accessToken: token, accountId: accountId)
         case (.antigravity, .apiKey):
             // Antigravity only supports OAuth
             return ModelsDevAPI.enrichModels(AntigravityModelsAPI.fetchModelsBuiltIn())

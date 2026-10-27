@@ -18,13 +18,13 @@ struct MCPJSONImportSheet: View {
     @State private var errorMessage: String?
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             Form {
                 Section(AppLocalized("Paste MCP JSON")) {
                     TextEditor(text: $text)
                         .font(.system(.footnote, design: .monospaced))
                         .frame(minHeight: 220)
-                        .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
+                        .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
                         .onChange(of: text) { _ in
                             parsed = []

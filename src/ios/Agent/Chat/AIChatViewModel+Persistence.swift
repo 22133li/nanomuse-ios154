@@ -402,7 +402,7 @@ extension AIChatViewModel {
             for block in uiMsg.blocks {
                 guard let status = block.toolStatus else { continue }
                 switch status {
-                case .running, .streaming, .waiting:
+                case .running, .streaming:
                     block.toolStatus = .cancelled
                 default:
                     break
@@ -974,8 +974,8 @@ extension AIChatViewModel {
             let needsUpdate: Bool = {
                 guard let status = block.toolStatus else { return false }
                 switch status {
-                case .running, .streaming, .waiting: return true
-                case .success, .failed, .cancelled, .rejected: return false
+                case .running, .streaming: return true
+                case .success, .failed, .cancelled: return false
                 }
             }()
             guard needsUpdate else { continue }

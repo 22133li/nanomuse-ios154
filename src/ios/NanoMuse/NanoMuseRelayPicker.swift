@@ -26,14 +26,14 @@ struct NanoMuseRelayPickerSheet: View {
     private var usable: Bool { checkedBase != nil && checkedBase == normalized }
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             Form {
                 Section {
                     TextField("https://relay.example.org", text: $address)
                         .keyboardType(.URL)
                         .textContentType(.URL)
                         .textInputAutocapitalization(.never)
-                        .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
+                        .autocorrectionDisabled()
                         .disabled(checking)
                         .onSubmit { Task { await check() } }
                 } header: {

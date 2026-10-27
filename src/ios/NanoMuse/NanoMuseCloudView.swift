@@ -245,7 +245,7 @@ struct NanoMuseCloudView: View {
                 .keyboardType(.emailAddress)
                 .textContentType(.username)
                 .textInputAutocapitalization(.never)
-                .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
+                .autocorrectionDisabled()
                 .disabled(busy || codeSent)
             if !codeSent, NanoMuseCloud.needsEmailInstead(identifier: identifier) {
                 Text(NanoMuseCloud.phoneRegionSentence)
@@ -264,7 +264,7 @@ struct NanoMuseCloudView: View {
                 if inviteOpen {
                     TextField(AppLocalized("Invite code (optional)"), text: $invite)
                         .textInputAutocapitalization(.characters)
-                        .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
+                        .autocorrectionDisabled()
                         .disabled(busy)
                 } else {
                     Button(AppLocalized("Have an invite code?")) { inviteOpen = true }

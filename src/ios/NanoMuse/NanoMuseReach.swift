@@ -61,7 +61,7 @@ private struct NanoMuseReachSheet: View {
     @State private var screenshot: UIImage?
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             Form {
                 // C7: the task goes to that device's Muse; the composer opens with "@<name> " in it.
                 Section {
@@ -80,7 +80,7 @@ private struct NanoMuseReachSheet: View {
                     TextField("https://…", text: $link)
                         .keyboardType(.URL)
                         .textInputAutocapitalization(.never)
-                        .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
+                        .autocorrectionDisabled()
                     Button(AppLocalized("Open it there")) {
                         run("open", ["url": link.trimmingCharacters(in: .whitespaces)]) { body in
                             AppLocalized("Opened.")
@@ -92,19 +92,8 @@ private struct NanoMuseReachSheet: View {
                 }
 
                 Section {
-                    // iOS 15 backport: TextField(axis: .vertical) is iOS 16+; TextEditor is iOS 14+.
-                    ZStack(alignment: .topLeading) {
-                        TextEditor(text: $note)
-                            .lineLimit(4)
-                            .frame(minHeight: 72)
-                        if note.isEmpty {
-                            Text(AppLocalized("A short note"))
-                                .foregroundColor(.secondary)
-                                .padding(.top, 8)
-                                .padding(.leading, 5)
-                                .allowsHitTesting(false)
-                        }
-                    }
+                    TextField(AppLocalized("A short note"), text: $note, axis: .vertical)
+                        .lineLimit(1...4)
                     Button(AppLocalized("Send the note")) {
                         run("notify", ["text": note.trimmingCharacters(in: .whitespacesAndNewlines), "title": "nanoMuse"]) { _ in
                             AppLocalized("Sent.")
@@ -117,22 +106,11 @@ private struct NanoMuseReachSheet: View {
 
                 if device.isComputer {
                     Section {
-                        // iOS 15 backport: TextField(axis: .vertical) is iOS 16+; TextEditor is iOS 14+.
-                        ZStack(alignment: .topLeading) {
-                            TextEditor(text: $command)
-                                .font(.system(.body, design: .monospaced))
-                                .textInputAutocapitalization(.never)
-                                .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
-                                .lineLimit(4)
-                                .frame(minHeight: 72)
-                            if command.isEmpty {
-                                Text(AppLocalized("A shell command"))
-                                    .foregroundColor(.secondary)
-                                    .padding(.top, 8)
-                                    .padding(.leading, 5)
-                                    .allowsHitTesting(false)
-                            }
-                        }
+                        TextField(AppLocalized("A shell command"), text: $command, axis: .vertical)
+                            .font(.system(.body, design: .monospaced))
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .lineLimit(1...4)
                         Button(AppLocalized("Run it there")) {
                             run("shell", ["command": command, "timeout": 120]) { body in
                                 let out = (body["stdout"] as? String ?? "") + (body["stderr"] as? String ?? "")

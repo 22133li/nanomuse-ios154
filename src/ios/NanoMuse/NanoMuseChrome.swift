@@ -34,17 +34,52 @@ extension View {
 /// A row of small things (chips, the buttons under a card) that wraps to the next line when
 /// the width runs out, so four names or three actions fit an iPhone SE and a large text size
 /// without being cut off. Leading-aligned; `spacing` between items and between lines.
-// iOS 15 backport: the Layout protocol is iOS 16+. Simplified via LazyVGrid,
-// following the same replacement the OpenMinis 1.14 iOS 15.4 port uses.
-struct NanoMuseFlowLayout<Content: View>: View {
+struct NanoMuseFlowLayout: Layout {
     var spacing: CGFloat = 8
-    let content: Content
-    init(spacing: CGFloat = 8, @ViewBuilder content: () -> Content) {
-        self.spacing = spacing; self.content = content()
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width ?? .infinity
+        var x: CGFloat = 0
+        var y: CGFloat = 0
+        var lineHeight: CGFloat = 0
+        var widest: CGFloat = 0
+        for view in subviews {
+            let size = view.sizeThatFits(.unspecified)
+            if x > 0, x + size.width > width {
+                x = 0
+                y += lineHeight + spacing
+                lineHeight = 0
+            }
+            x += size.width + spacing
+            lineHeight = max(lineHeight, size.height)
+            widest = max(widest, x - spacing)
+        }
+        return CGSize(width: width == .infinity ? widest : min(widest, width), height: y + lineHeight)
     }
-    var body: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 60), spacing: spacing)], alignment: .leading, spacing: spacing) {
-            content
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        // Lines first, then each item centred on its line (a filled button next to a plain one).
+        var lines: [[(index: Int, size: CGSize)]] = [[]]
+        var x: CGFloat = 0
+        for (i, view) in subviews.enumerated() {
+            let size = view.sizeThatFits(.unspecified)
+            if x > 0, x + size.width > bounds.width {
+                lines.append([])
+                x = 0
+            }
+            lines[lines.count - 1].append((i, size))
+            x += size.width + spacing
+        }
+        var y = bounds.minY
+        for line in lines {
+            let lineHeight = line.map(\.size.height).max() ?? 0
+            var lx = bounds.minX
+            for item in line {
+                let dy = (lineHeight - item.size.height) / 2
+                subviews[item.index].place(at: CGPoint(x: lx, y: y + dy), proposal: .unspecified)
+                lx += item.size.width + spacing
+            }
+            y += lineHeight + spacing
         }
     }
 }
@@ -485,7 +520,7 @@ struct NanoMusePage<Content: View, Trailing: View>: View {
             }
         }
         .background(NanoMuseTones.canvas.ignoresSafeArea())
-        .navigationBarHidden(true)
+        .toolbar(.hidden, for: .navigationBar)
     }
 }
 

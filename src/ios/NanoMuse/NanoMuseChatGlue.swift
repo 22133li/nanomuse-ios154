@@ -23,7 +23,6 @@ extension Notification.Name {
 /// Android's ChatScreen menu has; the shell's own rows stay in the shell).
 enum NanoMuseChatAction: String {
     case newChat, model, clearChat, terminal, browser, files, tokenUsage
-    case sessionSkills, sessionMCPs, sessionMemory, toggleAutoCompact
 
     static func post(_ action: NanoMuseChatAction, session: String) {
         NotificationCenter.default.post(name: .nanoMuseChatAction, object: session, userInfo: ["action": action.rawValue])
@@ -115,18 +114,20 @@ extension AIChatViewModel {
         guard !agentMessages.isEmpty else { return }
         inputText = ""
         scrollToBottomSignal.send()
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            let before = self.nmSessionKey
-            await self.ensureSession()
-            if before != self.nmSessionKey { self.nmRebind(from: before, to: self.nmSessionKey) }
-            for var m in agentMessages {
-                let idx = self.agentHistory.count
-                self.agentHistory.append(m)
-                if let id = await self.persistAgentMessage(m), idx < self.agentHistory.count {
-                    m.dbMessageId = id
-                    self.agentHistory[idx].dbMessageId = id
-                }
+        Task { @MainActor [weak self] in await self?.nmRecord(agentMessages) }
+    }
+
+    /// Into the history and the store, after the session exists: rows the chat already shows.
+    func nmRecord(_ agentMessages: [AgentMessage]) async {
+        let before = nmSessionKey
+        await ensureSession()
+        if before != nmSessionKey { nmRebind(from: before, to: nmSessionKey) }
+        for var m in agentMessages {
+            let idx = agentHistory.count
+            agentHistory.append(m)
+            if let id = await persistAgentMessage(m), idx < agentHistory.count {
+                m.dbMessageId = id
+                agentHistory[idx].dbMessageId = id
             }
         }
     }

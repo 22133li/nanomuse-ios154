@@ -12,6 +12,7 @@ struct OffloadPermissionDialogModifier: ViewModifier {
                     // buttons trailing them, leaving no way to respond. Allow
                     // dragging up to .large; the content is scrollable in
                     // either height.
+                    .presentationDetents([.medium, .large])
                     .interactiveDismissDisabled()
             }
     }
@@ -19,10 +20,6 @@ struct OffloadPermissionDialogModifier: ViewModifier {
 
 private struct OffloadPermissionDialogContent: View {
     let request: PermissionRequest
-    /// "Remember this choice": when on, the decision is persisted as the
-    /// command's permission level (.bypass on Allow, .notAllowed on Deny)
-    /// instead of applying to this session only.
-    @State private var rememberChoice = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -93,27 +90,10 @@ private struct OffloadPermissionDialogContent: View {
             // Buttons — pinned to the bottom of the sheet, outside the
             // ScrollView, so they stay tappable even with very long arg lists.
             VStack(spacing: 10) {
-                Toggle(isOn: $rememberChoice) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("记住此选择")
-                            .font(.footnote)
-                            .foregroundStyle(.primary)
-                        Text("Remember this choice for \(request.commandName)")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .tint(.blue)
-                .padding(.horizontal, 4)
-
                 Button {
-                    let manager = OffloadPermissionManager.shared
-                    if rememberChoice {
-                        manager.setPermissionLevel(.bypass, for: request.commandName)
-                    }
-                    manager.respond(to: request.id, allowed: true)
+                    OffloadPermissionManager.shared.respond(to: request.id, allowed: true)
                 } label: {
-                    Text(rememberChoice ? "始终允许" : "Allow in Session")
+                    Text("Allow in Session")
                         .font(.headline)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
@@ -122,13 +102,9 @@ private struct OffloadPermissionDialogContent: View {
                 .tint(.blue)
 
                 Button {
-                    let manager = OffloadPermissionManager.shared
-                    if rememberChoice {
-                        manager.setPermissionLevel(.notAllowed, for: request.commandName)
-                    }
-                    manager.respond(to: request.id, allowed: false)
+                    OffloadPermissionManager.shared.respond(to: request.id, allowed: false)
                 } label: {
-                    Text(rememberChoice ? "始终拒绝" : "Deny in Session")
+                    Text("Deny in Session")
                         .font(.headline)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)

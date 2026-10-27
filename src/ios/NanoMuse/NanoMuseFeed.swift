@@ -149,17 +149,12 @@ final class NanoMuseFeedStore: ObservableObject {
     /// Newest day first, then by index.
     @Published private(set) var posts: [NanoMusePost] = []
     @Published private(set) var preferences: String = ""
-    /// Read tracking, by post id ("day/index"). Persisted in UserDefaults.
-    @Published private(set) var readIds: Set<String> = []
-
-    private static let readIdsKey = "nanomuse.feed.read_ids"
 
     var root: URL { NanoMuseDirs.root.appendingPathComponent("feed", isDirectory: true) }
     var preferencesFile: URL { NanoMuseDirs.root.appendingPathComponent("feed-preferences.md") }
 
     private init() {
         try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        readIds = Set(UserDefaults.standard.stringArray(forKey: Self.readIdsKey) ?? [])
         reload()
     }
 
@@ -195,11 +190,13 @@ final class NanoMuseFeedStore: ObservableObject {
                 let modified = (try? fm.attributesOfItem(atPath: url.path)[.modificationDate] as? Date) ?? Date()
                 if let post = NanoMusePost.parse(text: text, day: day, index: index, file: url, modified: modified) { ofDay.append(post) }
             }
-            all.append(contentsOf: ofDay.sorted { $0.index < $1.index })
+            // A batch is written in one go and shares a `created` time: the newest batch first,
+            // and inside a batch the model's order, most important first (#555).
+            all.append(contentsOf: ofDay.sorted { a, b in
+                a.createdAt != b.createdAt ? a.createdAt > b.createdAt : a.index < b.index
+            })
         }
         posts = all
-        // Drop read markers for posts that no longer exist, so the stored set doesn't grow forever.
-        readIds = readIds.intersection(all.map(\.id))
         let saved = ((try? String(contentsOf: preferencesFile, encoding: .utf8)) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         preferences = saved.isEmpty ? Self.defaultPreferences : saved
     }
@@ -220,25 +217,7 @@ final class NanoMuseFeedStore: ObservableObject {
     func delete(_ post: NanoMusePost) {
         try? FileManager.default.removeItem(at: post.file)
         posts.removeAll { $0.file == post.file }
-        if readIds.remove(post.id) != nil {
-            UserDefaults.standard.set(Array(readIds), forKey: Self.readIdsKey)
-        }
     }
-
-    func isRead(_ post: NanoMusePost) -> Bool { readIds.contains(post.id) }
-
-    func markRead(_ post: NanoMusePost) {
-        guard !readIds.contains(post.id) else { return }
-        readIds.insert(post.id)
-        UserDefaults.standard.set(Array(readIds), forKey: Self.readIdsKey)
-    }
-
-    func markAllRead() {
-        readIds = Set(posts.map(\.id))
-        UserDefaults.standard.set(Array(readIds), forKey: Self.readIdsKey)
-    }
-
-    var unreadCount: Int { posts.count - readIds.intersection(posts.map(\.id)).count }
 
     /// Writes a batch for today, continuing today's numbering. Returns what was written.
     @discardableResult
@@ -468,9 +447,6 @@ struct NanoMuseFeedRoom: View {
                     if NanoMuseFeedFlow.generating {
                         ProgressView().controlSize(.small)
                     }
-                    if store.posts.contains(where: { !store.isRead($0) }) {
-                        NanoMuseRoundButton(symbol: "envelope.open", label: AppLocalized("Mark all read")) { store.markAllRead() }
-                    }
                     NanoMuseRoundButton(symbol: "slider.horizontal.3", label: AppLocalized("Feed settings")) { showSettings = true }
                 }
             }
@@ -622,9 +598,6 @@ struct NanoMusePostCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                if !store.isRead(post) {
-                    Circle().fill(NanoMuseTones.action).frame(width: 8, height: 8)
-                }
                 Text(post.emoji.isEmpty ? NanoMusePost.defaultEmoji(post.type) : post.emoji)
                 Text(post.title).font(.body.weight(.semibold)).lineLimit(2)
                 Spacer(minLength: 0)
@@ -637,12 +610,6 @@ struct NanoMusePostCard: View {
             NanoMuseInlineMarkdown(text: post.body)
                 .font(.subheadline)
                 .lineLimit(6)
-            if !post.source.isEmpty {
-                Text(AppLocalized("From") + ": " + post.source.joined(separator: " · "))
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(1)
-            }
             HStack(spacing: 14) {
                 Text(post.createdAt.formatted(date: .omitted, time: .shortened)).font(.caption).foregroundStyle(.tertiary)
                 Spacer()
@@ -689,11 +656,9 @@ struct NanoMusePostDetail: View {
     var post: NanoMusePost
     var onDiscuss: () -> Void
     @Environment(\.dismiss) private var dismiss
-    // iOS 15 backport: the label column width, measured below (Grid is iOS 16+).
-    @State private var labelWidth: CGFloat = 0
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     HStack(spacing: 8) {
@@ -702,17 +667,14 @@ struct NanoMusePostDetail: View {
                     }
                     NanoMuseInlineMarkdown(text: post.body).font(.body)
                     Divider()
-                    // iOS 15 backport: Grid is iOS 16+. The label column still sizes to the
-                    // longest label ("Geschrieben", "Написано") instead of a fixed 72 pt,
-                    // measured through FeedLabelWidthKey below.
-                    VStack(alignment: .leading, spacing: 8) {
+                    // A grid sizes the label column to the longest label ("Geschrieben", "Написано") instead of a fixed 72 pt.
+                    Grid(alignment: .topLeading, horizontalSpacing: 12, verticalSpacing: 8) {
                         row(AppLocalized("Type"), NanoMusePost.typeLabel(post.type))
                         row(AppLocalized("Written"), post.createdAt.formatted(date: .abbreviated, time: .shortened))
                         if !post.source.isEmpty { row(AppLocalized("From"), post.source.joined(separator: " · ")) }
                         row(AppLocalized("File"), "nanomuse/feed/\(post.id).md")
                     }
                     .font(.footnote)
-                    .onPreferenceChange(FeedLabelWidthKey.self) { labelWidth = $0 }
                     Button(action: onDiscuss) {
                         Label(AppLocalized("Discuss"), systemImage: "bubble.left").frame(maxWidth: .infinity).padding(.vertical, 8)
                     }
@@ -723,26 +685,15 @@ struct NanoMusePostDetail: View {
             }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button(AppLocalized("Done")) { dismiss() } } }
-            .onAppear { NanoMuseFeedStore.shared.markRead(post) }
         }
     }
 
     private func row(_ label: String, _ value: String) -> some View {
-        HStack(alignment: .top, spacing: 12) {
+        GridRow {
             Text(label).foregroundStyle(.secondary)
-                .background(GeometryReader { geo in
-                    Color.clear.preference(key: FeedLabelWidthKey.self, value: geo.size.width)
-                })
-                .frame(minWidth: labelWidth, alignment: .leading)
             Text(value).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
         }
     }
-}
-
-/// Measures the widest label so every row's label column lines up.
-private struct FeedLabelWidthKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
 
 /// Preferences, the daily routine and its time, "Write it now".
@@ -757,7 +708,7 @@ struct NanoMuseFeedSettingsSheet: View {
     private var routine: NanoMuseRoutine? { NanoMuseFeedFlow.routine }
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             Form {
                 Section {
                     TextEditor(text: $text).frame(minHeight: 90)

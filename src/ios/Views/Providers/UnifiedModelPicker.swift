@@ -507,12 +507,12 @@ struct UnifiedModelPicker: View {
         }
         .toolbar { toolbarContent }
         .sheet(isPresented: $showCreateGroupSheet) {
-            NavigationView {
+            NavigationStack {
                 UnifiedModelPicker(config: createGroupConfig())
             }
         }
         .sheet(isPresented: $showGroupsManager) {
-            NavigationView {
+            NavigationStack {
                 ModelGroupsView()
                     .toolbar {
                         ToolbarItem(placement: .cancellationAction) {
@@ -530,6 +530,8 @@ struct UnifiedModelPicker: View {
             // model while TestSession still ran the OLD one.
             ModelQuickTestSheet(entry: entry)
                 .id(entry.id)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
         }
     }
 
@@ -606,28 +608,22 @@ struct UnifiedModelPicker: View {
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .navigationBarLeading) {
-            Button("Cancel") { dismiss() }
-                .opacity(isMulti ? 1 : 0)
-                .disabled(!isMulti)
-        }
-        ToolbarItem(placement: .navigationBarTrailing) {
-            multiDoneButton
-        }
-    }
-
-    private var multiDoneButton: some View {
-        ZStack {
-            Button("Add (\(selectedEntryIds.count))") {
-                config.onAddMulti?(selectedEntryIds)
-                dismiss()
+        if isMulti {
+            ToolbarItem(placement: .topBarLeading) {
+                Button("Cancel") { dismiss() }
             }
-            .font(.body.weight(.semibold))
-            .disabled(selectedEntryIds.isEmpty)
-            .opacity(isMulti ? 1 : 0)
-            Button("Done") { dismiss() }
-                .opacity(isMulti ? 0 : 1)
-                .disabled(isMulti)
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Add (\(selectedEntryIds.count))") {
+                    config.onAddMulti?(selectedEntryIds)
+                    dismiss()
+                }
+                .font(.body.weight(.semibold))
+                .disabled(selectedEntryIds.isEmpty)
+            }
+        } else {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Done") { dismiss() }
+            }
         }
     }
 

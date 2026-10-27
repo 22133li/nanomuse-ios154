@@ -333,7 +333,7 @@ private struct AddMountSheet: View {
     let onConfirm: () -> Void
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             Form {
                 if let url = sourceURL {
                     Section {
@@ -357,7 +357,7 @@ private struct AddMountSheet: View {
                 Section(header: Text("Mount name")) {
                     TextField("name", text: $name)
                         .textInputAutocapitalization(.never)
-                        .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
+                        .autocorrectionDisabled()
                     Text("This will be the folder name under /var/minis/mounts/")
                         .font(.caption)
                         .foregroundStyle(.secondary)

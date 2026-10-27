@@ -43,14 +43,6 @@
 		AA71B0222F44BEB200A28A5E /* Launch Screen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA71B0212F44BEB200A28A5E /* Launch Screen.storyboard */; };
 		AA9C2BF92F65996900F41633 /* SwiftMath in Frameworks */ = {isa = PBXBuildFile; productRef = E5X000021 /* SwiftMath */; };
 		AADDA9E12F6ECCF400B66649 /* ThumbnailCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = AADDA9E02F6ECCF400B66649 /* ThumbnailCache.swift */; };
-		E5PHP0002 /* NanoMusePHPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5PHP0001 /* NanoMusePHPicker.swift */; };
-		E5LCB0002 /* LabeledContentBackport.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5LCB0001 /* LabeledContentBackport.swift */; };
-		E5SCH0002 /* ShortcutHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5SCH0001 /* ShortcutHelpers.swift */; };
-		E5INN0002 /* IntentNotificationNames.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5INN0001 /* IntentNotificationNames.swift */; };
-		E5GEO0002 /* GeometryChangeBackport.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5GEO0001 /* GeometryChangeBackport.swift */; };
-		E5SHP0002 /* ShapeBackport.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5SHP0001 /* ShapeBackport.swift */; };
-		E5BP0008 /* LocalizedStringResourceBackport.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5BP0007 /* LocalizedStringResourceBackport.swift */; };
-		E5VSN0002 /* ViewSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5VSN0001 /* ViewSnapshot.swift */; };
 		AAF00F012F50A00000049557 /* FFmpeg.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAF00F002F50A00000049557 /* FFmpeg.framework */; };
 		AAF00F022F50A00000049557 /* FFmpeg.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = AAF00F002F50A00000049557 /* FFmpeg.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		AAF10F012F50A00000049557 /* libavcodec.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAF10F002F50A00000049557 /* libavcodec.framework */; };
@@ -244,7 +236,6 @@
 		E5FMI0001 /* FileMentionIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5FMI0011 /* FileMentionIndex.swift */; };
 		E5FP00001 /* FileProviderExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5FP00011 /* FileProviderExtension.swift */; };
 		E5FP00002 /* FileProviderEnumerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5FP00012 /* FileProviderEnumerator.swift */; };
-		E5FP00004 /* FileProviderBootHealth.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5FP00016 /* FileProviderBootHealth.swift */; };
 		E5FP00003 /* FileProviderItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5FP00013 /* FileProviderItem.swift */; };
 		E5FP00009 /* MinisFileProvider.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = E5FP00010 /* MinisFileProvider.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		E5FP00100 /* AppGroupChangeWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5FP00101 /* AppGroupChangeWatcher.swift */; };
@@ -324,6 +315,10 @@
 		E5L200SS4 /* SessionsOffloadBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5L200SS3 /* SessionsOffloadBridge.swift */; };
 		E5LC00001 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = E5LC00002 /* Localizable.xcstrings */; };
 		E5LC00003 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = E5LC00002 /* Localizable.xcstrings */; };
+		E5NP00001 /* preset-moss-courier.webp in Resources */ = {isa = PBXBuildFile; fileRef = E5NP00011 /* preset-moss-courier.webp */; };
+		E5NP00002 /* preset-tide-tinker.webp in Resources */ = {isa = PBXBuildFile; fileRef = E5NP00012 /* preset-tide-tinker.webp */; };
+		E5NP00003 /* preset-dusk-moth.webp in Resources */ = {isa = PBXBuildFile; fileRef = E5NP00013 /* preset-dusk-moth.webp */; };
+		E5NP00004 /* preset-copper-acorn.webp in Resources */ = {isa = PBXBuildFile; fileRef = E5NP00014 /* preset-copper-acorn.webp */; };
 		E5LD00001 /* ToolLoopDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5LD00003 /* ToolLoopDetector.swift */; };
 		E5LD00002 /* ToolLoopDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5LD00003 /* ToolLoopDetector.swift */; };
 		E5LOCK001 /* SessionLockStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5LOCK101 /* SessionLockStore.swift */; };
@@ -708,14 +703,6 @@
 		AA71B0212F44BEB200A28A5E /* Launch Screen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = "Launch Screen.storyboard"; sourceTree = "<group>"; };
 		AA8A568B2F6FBB7A00A3E54E /* MinisUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MinisUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		AADDA9E02F6ECCF400B66649 /* ThumbnailCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThumbnailCache.swift; sourceTree = "<group>"; };
-		E5PHP0001 /* NanoMusePHPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NanoMusePHPicker.swift; sourceTree = "<group>"; };
-		E5LCB0001 /* LabeledContentBackport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabeledContentBackport.swift; sourceTree = "<group>"; };
-		E5SCH0001 /* ShortcutHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutHelpers.swift; sourceTree = "<group>"; };
-		E5INN0001 /* IntentNotificationNames.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentNotificationNames.swift; sourceTree = "<group>"; };
-		E5GEO0001 /* GeometryChangeBackport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeometryChangeBackport.swift; sourceTree = "<group>"; };
-		E5SHP0001 /* ShapeBackport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShapeBackport.swift; sourceTree = "<group>"; };
-		E5BP0007 /* LocalizedStringResourceBackport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizedStringResourceBackport.swift; sourceTree = "<group>"; };
-		E5VSN0001 /* ViewSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewSnapshot.swift; sourceTree = "<group>"; };
 		AAF00F002F50A00000049557 /* FFmpeg.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = FFmpeg.framework; path = ../../deps/frameworks/FFmpeg.framework; sourceTree = "<group>"; };
 		AAF10F002F50A00000049557 /* libavcodec.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = libavcodec.framework; path = ../../deps/frameworks/libavcodec.framework; sourceTree = "<group>"; };
 		AAF10F042F50A00000049557 /* libavformat.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = libavformat.framework; path = ../../deps/frameworks/libavformat.framework; sourceTree = "<group>"; };
@@ -819,6 +806,12 @@
 		E5AS00011 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/AppShortcuts.strings; sourceTree = "<group>"; };
 		E5AS00012 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/AppShortcuts.strings"; sourceTree = "<group>"; };
 		E5AS00013 /* zh-Hant */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hant"; path = "zh-Hant.lproj/AppShortcuts.strings"; sourceTree = "<group>"; };
+		E5AS00014 /* ja */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ja; path = ja.lproj/AppShortcuts.strings; sourceTree = "<group>"; };
+		E5AS00015 /* ko */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ko; path = ko.lproj/AppShortcuts.strings; sourceTree = "<group>"; };
+		E5AS00016 /* fr */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = fr; path = fr.lproj/AppShortcuts.strings; sourceTree = "<group>"; };
+		E5AS00017 /* de */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = de; path = de.lproj/AppShortcuts.strings; sourceTree = "<group>"; };
+		E5AS00018 /* es */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = es; path = es.lproj/AppShortcuts.strings; sourceTree = "<group>"; };
+		E5AS00019 /* ru */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ru; path = ru.lproj/AppShortcuts.strings; sourceTree = "<group>"; };
 		E5AT00011 /* AudioTogglePlaybackIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioTogglePlaybackIntent.swift; sourceTree = "<group>"; };
 		E5BADGE011 /* SessionBadgeStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionBadgeStore.swift; sourceTree = "<group>"; };
 		E5BRM0011 /* BrowserResourceMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserResourceMonitor.swift; sourceTree = "<group>"; };
@@ -909,7 +902,6 @@
 		E5FP00010 /* MinisFileProvider.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MinisFileProvider.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		E5FP00011 /* FileProviderExtension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileProviderExtension.swift; sourceTree = "<group>"; };
 		E5FP00012 /* FileProviderEnumerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileProviderEnumerator.swift; sourceTree = "<group>"; };
-		E5FP00016 /* FileProviderBootHealth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileProviderBootHealth.swift; sourceTree = "<group>"; };
 		E5FP00013 /* FileProviderItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileProviderItem.swift; sourceTree = "<group>"; };
 		E5FP00014 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		E5FP00015 /* FileProvider.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FileProvider.entitlements; sourceTree = "<group>"; };
@@ -1025,6 +1017,10 @@
 		E5L200SS1 /* SessionsOffload.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SessionsOffload.m; sourceTree = "<group>"; };
 		E5L200SS3 /* SessionsOffloadBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionsOffloadBridge.swift; sourceTree = "<group>"; };
 		E5LC00002 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
+		E5NP00011 /* preset-moss-courier.webp */ = {isa = PBXFileReference; lastKnownFileType = image.webp; name = "preset-moss-courier.webp"; path = "NanoMuse/Resources/preset-moss-courier.webp"; sourceTree = SOURCE_ROOT; };
+		E5NP00012 /* preset-tide-tinker.webp */ = {isa = PBXFileReference; lastKnownFileType = image.webp; name = "preset-tide-tinker.webp"; path = "NanoMuse/Resources/preset-tide-tinker.webp"; sourceTree = SOURCE_ROOT; };
+		E5NP00013 /* preset-dusk-moth.webp */ = {isa = PBXFileReference; lastKnownFileType = image.webp; name = "preset-dusk-moth.webp"; path = "NanoMuse/Resources/preset-dusk-moth.webp"; sourceTree = SOURCE_ROOT; };
+		E5NP00014 /* preset-copper-acorn.webp */ = {isa = PBXFileReference; lastKnownFileType = image.webp; name = "preset-copper-acorn.webp"; path = "NanoMuse/Resources/preset-copper-acorn.webp"; sourceTree = SOURCE_ROOT; };
 		E5LD00003 /* ToolLoopDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolLoopDetector.swift; sourceTree = "<group>"; };
 		E5LOCK101 /* SessionLockStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionLockStore.swift; sourceTree = "<group>"; };
 		E5LOCK102 /* FaceIDProtectionSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FaceIDProtectionSettingsView.swift; sourceTree = "<group>"; };
@@ -1227,18 +1223,11 @@
 			);
 			target = BB1000070F700000000000AA /* MinisTests */;
 		};
-		E5EXC0002 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				VoicePromptIntent.swift,
-			);
-			target = E51000040 /* Minis */;
-		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		AA0838CB2F3CA8A900049557 /* Terminal */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Terminal; sourceTree = "<group>"; };
-		4E4D0000000000000000AA01 /* NanoMuse */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (E5EXC0002 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = NanoMuse; sourceTree = "<group>"; };
+		4E4D0000000000000000AA01 /* NanoMuse */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = NanoMuse; sourceTree = "<group>"; };
 		AA8A568C2F6FBB7A00A3E54E /* MinisUITests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = MinisUITests; sourceTree = "<group>"; };
 		BB1000012F700000000000AA /* MinisTests */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (E5EXC0001 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = MinisTests; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -1468,6 +1457,10 @@
 				E5E000018 /* Minis.entitlements */,
 				E5PV00002 /* PrivacyInfo.xcprivacy */,
 				E5LC00002 /* Localizable.xcstrings */,
+				E5NP00011 /* preset-moss-courier.webp */,
+				E5NP00012 /* preset-tide-tinker.webp */,
+				E5NP00013 /* preset-dusk-moth.webp */,
+				E5NP00014 /* preset-copper-acorn.webp */,
 				E5IP00010 /* InfoPlist.strings */,
 				E5AS00010 /* AppShortcuts.strings */,
 				E5A000011 /* default_mount */,
@@ -1830,14 +1823,6 @@
 				E5E0000A2 /* ExternalFileImporter.swift */,
 				E5E000017 /* SharedContainerStore.swift */,
 				AADDA9E02F6ECCF400B66649 /* ThumbnailCache.swift */,
-				E5PHP0001 /* NanoMusePHPicker.swift */,
-				E5LCB0001 /* LabeledContentBackport.swift */,
-				E5SCH0001 /* ShortcutHelpers.swift */,
-				E5INN0001 /* IntentNotificationNames.swift */,
-				E5GEO0001 /* GeometryChangeBackport.swift */,
-				E5SHP0001 /* ShapeBackport.swift */,
-				E5BP0007 /* LocalizedStringResourceBackport.swift */,
-				E5VSN0001 /* ViewSnapshot.swift */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -1847,7 +1832,6 @@
 			children = (
 				E5FP00011 /* FileProviderExtension.swift */,
 				E5FP00012 /* FileProviderEnumerator.swift */,
-				E5FP00016 /* FileProviderBootHealth.swift */,
 				E5FP00013 /* FileProviderItem.swift */,
 				E5FP00014 /* Info.plist */,
 				E5FP00015 /* FileProvider.entitlements */,
@@ -2570,6 +2554,10 @@
 				E51000003 /* Assets.xcassets in Resources */,
 				E5PV00001 /* PrivacyInfo.xcprivacy in Resources */,
 				E5LC00001 /* Localizable.xcstrings in Resources */,
+				E5NP00001 /* preset-moss-courier.webp in Resources */,
+				E5NP00002 /* preset-tide-tinker.webp in Resources */,
+				E5NP00003 /* preset-dusk-moth.webp in Resources */,
+				E5NP00004 /* preset-copper-acorn.webp in Resources */,
 				E5IP00001 /* InfoPlist.strings in Resources */,
 				E5AS00001 /* AppShortcuts.strings in Resources */,
 				E5Q000002 /* cl100k_base.tiktoken in Resources */,
@@ -2704,14 +2692,6 @@
 				AA0838A02F3B941A00049557 /* AboutView.swift in Sources */,
 				BB1000100F700000000000AA /* ContextPolicy.swift in Sources */,
 				AADDA9E12F6ECCF400B66649 /* ThumbnailCache.swift in Sources */,
-				E5PHP0002 /* NanoMusePHPicker.swift in Sources */,
-				E5LCB0002 /* LabeledContentBackport.swift in Sources */,
-				E5SCH0002 /* ShortcutHelpers.swift in Sources */,
-				E5INN0002 /* IntentNotificationNames.swift in Sources */,
-				E5GEO0002 /* GeometryChangeBackport.swift in Sources */,
-				E5SHP0002 /* ShapeBackport.swift in Sources */,
-				E5BP0008 /* LocalizedStringResourceBackport.swift in Sources */,
-				E5VSN0002 /* ViewSnapshot.swift in Sources */,
 				E51000002 /* ContentView.swift in Sources */,
 				AA26CCBA2F31080100AECF2D /* ISHKernel.m in Sources */,
 				E5JB00001 /* JiebaWrapper.mm in Sources */,
@@ -2819,6 +2799,12 @@
 				E54100001 /* SessionDataSimulator.swift in Sources */,
 				E54200001 /* MessageListTestView.swift in Sources */,
 				E5V100001 /* MessageListLayout.swift in Sources */,
+				E5T000001 /* SessionEntity.swift in Sources */,
+				E5T000002 /* ListSessionsIntent.swift in Sources */,
+				E5T000003 /* SendPromptIntent.swift in Sources */,
+				E5T0000A1 /* AskMinisIntent.swift in Sources */,
+				E5F200006 /* ModelSelectionEntity.swift in Sources */,
+				E5T000004 /* OpenSessionIntent.swift in Sources */,
 				E5W000031 /* WebAppShortcut.swift in Sources */,
 				EAB000051 /* SyncMigrationDetailView.swift in Sources */,
 				EAB000071 /* UploadPolicy.swift in Sources */,
@@ -2829,7 +2815,14 @@
 				E5W000036 /* WebAppIconCache.swift in Sources */,
 				E5W000037 /* WebAppPathClassifier.swift in Sources */,
 				E5W000038 /* WebAppAddToHomeSheet.swift in Sources */,
+				E5T000005 /* MinisShortcutsProvider.swift in Sources */,
+				E5T000006 /* SendPromptResult.swift in Sources */,
+				E5T000007 /* GetSessionStatusIntent.swift in Sources */,
+				E5T000008 /* QuickTaskIntent.swift in Sources */,
+				E5T000009 /* FollowUpSessionIntent.swift in Sources */,
 				E5SD00009 /* ShortcutRunTracker.swift in Sources */,
+				E5T00000A /* RetryRunIntent.swift in Sources */,
+				E5T00000B /* UserMessageEntity.swift in Sources */,
 				E5F000001 /* ISHExecutionCoordinator.swift in Sources */,
 				E5F000002 /* MinisFsRouter.swift in Sources */,
 				E5CR00001 /* ShellCommandRingBuffer.swift in Sources */,
@@ -2970,6 +2963,7 @@
 				E5G000002 /* AgentLiveActivityManager.swift in Sources */,
 				E5G000003 /* EnhancedBackgroundSettingsView.swift in Sources */,
 				E5G000004 /* AgentActivityAttributes.swift in Sources */,
+				E5AT00004 /* AudioTogglePlaybackIntent.swift in Sources */,
 				E5I000001 /* SpeechRecognitionManager.swift in Sources */,
 				E5I000002 /* AudioWaveformView.swift in Sources */,
 				E5J000001 /* LoggingManager.swift in Sources */,
@@ -3138,7 +3132,6 @@
 			files = (
 				E5FP00001 /* FileProviderExtension.swift in Sources */,
 				E5FP00002 /* FileProviderEnumerator.swift in Sources */,
-				E5FP00004 /* FileProviderBootHealth.swift in Sources */,
 				E5FP00003 /* FileProviderItem.swift in Sources */,
 				E5FP00200 /* FPSyncTraceLog.swift in Sources */,
 				E5SHV0002 /* SharedFolderVisibility.swift in Sources */,
@@ -3152,6 +3145,7 @@
 				E5H000001 /* AgentWidgetBundle.swift in Sources */,
 				E5H000002 /* AgentLiveActivityWidget.swift in Sources */,
 				E5H000003 /* AgentActivityAttributes.swift in Sources */,
+				E5AT00003 /* AudioTogglePlaybackIntent.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -3192,6 +3186,12 @@
 				E5AS00011 /* en */,
 				E5AS00012 /* zh-Hans */,
 				E5AS00013 /* zh-Hant */,
+				E5AS00014 /* ja */,
+				E5AS00015 /* ko */,
+				E5AS00016 /* fr */,
+				E5AS00017 /* de */,
+				E5AS00018 /* es */,
+				E5AS00019 /* ru */,
 			);
 			name = AppShortcuts.strings;
 			sourceTree = "<group>";
@@ -3219,7 +3219,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 46;
+				CURRENT_PROJECT_VERSION = 50;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_PREPROCESSOR_DEFINITIONS = (
@@ -3228,7 +3228,7 @@
 				);
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
-				MARKETING_VERSION = 1.0.5;
+				MARKETING_VERSION = 1.0.7;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.nanomuse.MinisUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -3243,12 +3243,12 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 46;
+				CURRENT_PROJECT_VERSION = 50;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
-				MARKETING_VERSION = 1.0.5;
+				MARKETING_VERSION = 1.0.7;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.nanomuse.MinisUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -3264,7 +3264,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 46;
+				CURRENT_PROJECT_VERSION = 50;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_PREPROCESSOR_DEFINITIONS = (
@@ -3280,7 +3280,7 @@
 					"$(SRCROOT)/Vendor/cppjieba/include",
 				);
 				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
-				MARKETING_VERSION = 1.0.5;
+				MARKETING_VERSION = 1.0.7;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.nanomuse.MinisTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -3297,7 +3297,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 46;
+				CURRENT_PROJECT_VERSION = 50;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -3309,7 +3309,7 @@
 					"$(SRCROOT)/Vendor/cppjieba/include",
 				);
 				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
-				MARKETING_VERSION = 1.0.5;
+				MARKETING_VERSION = 1.0.7;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.nanomuse.MinisTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -3376,7 +3376,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.4;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
@@ -3439,7 +3439,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.4;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
@@ -3458,7 +3458,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = Minis.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 46;
+				CURRENT_PROJECT_VERSION = 50;
 				DEVELOPMENT_ASSET_PATHS = "\"Preview Content\"";
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
@@ -3482,13 +3482,13 @@
 				INFOPLIST_KEY_UILaunchStoryboardName = NanoMuseLaunch;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 15.4;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				LIBRARY_SEARCH_PATHS = "$(SRCROOT)/../../deps/libs";
-				MARKETING_VERSION = 1.0.5;
+				MARKETING_VERSION = 1.0.7;
 				OTHER_LDFLAGS = (
 					"-lish_emu",
 					"-lish",
@@ -3513,7 +3513,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = Minis.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 46;
+				CURRENT_PROJECT_VERSION = 50;
 				DEVELOPMENT_ASSET_PATHS = "\"Preview Content\"";
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
@@ -3537,13 +3537,13 @@
 				INFOPLIST_KEY_UILaunchStoryboardName = NanoMuseLaunch;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 15.4;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				LIBRARY_SEARCH_PATHS = "$(SRCROOT)/../../deps/libs";
-				MARKETING_VERSION = 1.0.5;
+				MARKETING_VERSION = 1.0.7;
 				OTHER_LDFLAGS = (
 					"-lish_emu",
 					"-lish",
@@ -3564,19 +3564,19 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 46;
+				CURRENT_PROJECT_VERSION = 50;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ShareExtension/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Share to nanoMuse";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				IPHONEOS_DEPLOYMENT_TARGET = 15.4;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.5;
+				MARKETING_VERSION = 1.0.7;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.nanomuse.app.ShareExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -3591,19 +3591,19 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 46;
+				CURRENT_PROJECT_VERSION = 50;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ShareExtension/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Share to nanoMuse";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				IPHONEOS_DEPLOYMENT_TARGET = 15.4;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.5;
+				MARKETING_VERSION = 1.0.7;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.nanomuse.app.ShareExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -3618,19 +3618,19 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = FileProvider/FileProvider.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 46;
+				CURRENT_PROJECT_VERSION = 50;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = FileProvider/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "nanoMuse Files";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				IPHONEOS_DEPLOYMENT_TARGET = 15.4;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.5;
+				MARKETING_VERSION = 1.0.7;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.nanomuse.app.FileProvider;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -3645,19 +3645,19 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = FileProvider/FileProvider.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 46;
+				CURRENT_PROJECT_VERSION = 50;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = FileProvider/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "nanoMuse Files";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				IPHONEOS_DEPLOYMENT_TARGET = 15.4;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.5;
+				MARKETING_VERSION = 1.0.7;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.nanomuse.app.FileProvider;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -3672,19 +3672,19 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = AgentWidget/AgentWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 46;
+				CURRENT_PROJECT_VERSION = 50;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = AgentWidget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Agent Activity";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				IPHONEOS_DEPLOYMENT_TARGET = 15.4;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.5;
+				MARKETING_VERSION = 1.0.7;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.nanomuse.app.AgentWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -3699,19 +3699,19 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = AgentWidget/AgentWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 46;
+				CURRENT_PROJECT_VERSION = 50;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = AgentWidget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Agent Activity";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				IPHONEOS_DEPLOYMENT_TARGET = 15.4;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.5;
+				MARKETING_VERSION = 1.0.7;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.nanomuse.app.AgentWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;

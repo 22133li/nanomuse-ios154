@@ -95,7 +95,14 @@ private struct ContextMenuPreviewSurface: ViewModifier {
     }
 
     func body(content: Content) -> some View {
-        content.background(ChatColors.background)
+        if #available(iOS 26.0, *) {
+            content
+                // Opaque floor first — see the note above.
+                .background(shape.fill(ChatColors.background))
+                .glassEffect(.regular, in: shape)
+        } else {
+            content.background(ChatColors.background)
+        }
     }
 }
 
@@ -142,6 +149,8 @@ private struct UserBubbleSurface: ViewModifier {
                 )
         } else if NanoMuseShellPrefs.shell { // nanoMuse: Muse's user pill: the ink colour, black in light and white in dark, 18 pt, no glass (Android: ChatColors.userBubble)
             content.background(shape.fill(NanoMuseTones.ink)) // nanoMuse:
+        } else if #available(iOS 26.0, *) {
+            content.glassEffect(.regular, in: shape)
         } else {
             content.background(shape.fill(ChatColors.userBubble))
         }
@@ -183,7 +192,6 @@ struct ChatMessageRow: View {
     /// When set, presents the compact summary sheet outside the cell tree (V3).
     /// Falls back to a local .sheet when nil (non-V3 / standalone usage).
     var onShowCompactSummary: ((String) -> Void)?
-    var onRerun: ((UUID) -> Void)?
     /// Triggers AIChatViewModel.revertCompact(). Wired from AIChatView so the
     /// row + sheet stay free of view-model imports.
     var onRevertCompact: (() -> Void)?
@@ -406,7 +414,8 @@ struct ChatMessageRow: View {
             // otherwise the lifted preview shows square corners while the bubble
             // is RoundedRectangle(cornerRadius: 18). iOS 16+ lets us specify the
             // preview clip shape independently from the interaction shape.
-            .contextMenu(menuItems: {
+            .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: 18))
+            .contextMenu {
                 Button {
                     UIPasteboard.general.string = message.content
                 } label: {
@@ -450,7 +459,11 @@ struct ChatMessageRow: View {
                         Label("Compact Above", systemImage: "arrow.down.right.and.arrow.up.left")
                     }
                 }
-            })
+            } preview: {
+                // [T-ios-longpress-menu-preview-background] Opaque card so the
+                // long-press preview isn't transparent (see MessageContextMenuPreview).
+                MessageContextMenuPreview(text: message.content)
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 4)
@@ -521,8 +534,7 @@ struct ChatMessageRow: View {
                     browserPool: browserPool,
                     toolSnapshots: toolSnapshots,
                     highlightedBlockId: $highlightedBlockId,
-                    detailBlock: $detailBlock,
-                    onRerun: onRerun
+                    detailBlock: $detailBlock
                 )
             }
 
@@ -573,7 +585,7 @@ struct ChatMessageRow: View {
         // (ViewGraphGeometryObservers.needsUpdate SIGTRAP). onGeometryChange
         // measures the same row bounds the background GeometryReader did,
         // and its initial fire covers the old onAppear seed.
-        .onGeometryChangeBackport(for: CGRect.self) { proxy in
+        .onGeometryChange(for: CGRect.self) { proxy in
             proxy.frame(in: .global)
         } action: { rowFrameInWindow = $0 }
         .background {
@@ -635,6 +647,11 @@ struct ChatMessageRow: View {
                         }
                     }
                     .equatable()
+                } preview: {
+                    // [T-ios-longpress-menu-preview-background] Opaque card for
+                    // this Color.clear-attached contextMenu (see
+                    // MessageContextMenuPreview).
+                    MessageContextMenuPreview(text: fullReplyText)
                 }
         }
         .sheet(item: $detailBlock) { block in
@@ -714,13 +731,13 @@ struct ChatMessageRow: View {
                     .lineLimit(2)
             }
             .contentShape(Rectangle())
-            .contextMenu(menuItems: {
+            .contextMenu {
                 Button {
                     UIPasteboard.general.string = error
                 } label: {
                     Label(AppLocalized("Copy Error"), systemImage: "doc.on.doc")
                 }
-            })
+            }
 
             Spacer()
 

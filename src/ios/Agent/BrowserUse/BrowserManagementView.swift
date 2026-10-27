@@ -128,23 +128,14 @@ struct BrowserManagementView: View {
                     }
                 }
             }
-            // iOS 15 backport: TextField(axis: .vertical) is iOS 16+. TextEditor is the
-            // iOS 14+ equivalent. Return now inserts a newline instead of saving (the
-            // onSubmit save is gone); pick the Custom profile again to apply an edit.
-            ZStack(alignment: .topLeading) {
-                TextEditor(text: $customUA)
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(4)
-                    .frame(minHeight: 60)
-                if customUA.isEmpty {
-                    Text("Enter custom user agent...")
-                        .foregroundColor(.secondary)
-                        .padding(.top, 8)
-                        .padding(.leading, 5)
-                        .allowsHitTesting(false)
+            TextField("Enter custom user agent...", text: $customUA, axis: .vertical)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .lineLimit(2...4)
+                .onSubmit {
+                    pool.customUserAgentString = customUA
+                    pool.setUserAgentProfile(.custom)
                 }
-            }
         }
         .onAppear {
             customUA = pool.customUserAgentString

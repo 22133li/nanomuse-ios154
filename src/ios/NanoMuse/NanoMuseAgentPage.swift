@@ -50,7 +50,7 @@ struct NanoMuseAgentPage: View {
     }
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView {
                 VStack(spacing: 0) {
                     header
@@ -71,7 +71,7 @@ struct NanoMuseAgentPage: View {
             }
             .background(NanoMuseTones.canvas.ignoresSafeArea())
             // Muse's chrome (Android: AgentProfileScreen): a round close disc and a round share disc, no bar.
-            .navigationBarHidden(true)
+            .toolbar(.hidden, for: .navigationBar)
             .safeAreaInset(edge: .top, spacing: 0) {
                 HStack {
                     NanoMuseRoundButton(symbol: "xmark", label: AppLocalized("Close")) { dismiss() }
@@ -84,7 +84,7 @@ struct NanoMuseAgentPage: View {
             }
             .sheet(isPresented: $showShare) { NanoMuseAvatarShareSheet(agentName: name) }
             .sheet(isPresented: $showEditName) {
-                NavigationView { SoulSettingsView() }
+                NavigationStack { SoulSettingsView() }
             }
             .nanoMuseOwnClipHost(clipPicker)
             .onReceive(NotificationCenter.default.publisher(for: .soulMdChanged)) { _ in
@@ -634,12 +634,9 @@ struct NanoMuseShareCard: View {
     @MainActor
     static func render(_ palette: NanoMuseSharePalette, agentName: String, scale: CGFloat = 1) -> UIImage? {
         let face = NanoMuseFaceStore.shared.image(for: palette.mood) ?? NanoMuseFaceStore.shared.image(for: .idle)
-        // iOS 15 backport: SwiftUI's ImageRenderer is iOS 16+; snapshot via ViewSnapshot.
-        return ViewSnapshot.image(
-            of: NanoMuseShareCard(palette: palette, agentName: agentName, face: face),
-            size: CGSize(width: Self.width, height: Self.height),
-            scale: scale
-        )
+        let renderer = ImageRenderer(content: NanoMuseShareCard(palette: palette, agentName: agentName, face: face))
+        renderer.scale = scale
+        return renderer.uiImage
     }
 }
 
@@ -702,6 +699,7 @@ struct NanoMuseAvatarShareSheet: View {
             .disabled(previews == nil)
         }
         .padding(20)
+        .presentationDetents([.medium, .large])
         .task {
             previews = NanoMuseSharePalette.all.compactMap { NanoMuseShareCard.render($0, agentName: agentName, scale: 0.3) }
         }

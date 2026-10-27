@@ -75,51 +75,10 @@ final class SessionLockStore: ObservableObject {
 
     private let defaults: UserDefaults
     private var defaultsObserver: NSObjectProtocol?
-    private var defaultsRefreshPending = false
-    private var observedPreferences: PreferencesSnapshot?
-
-    /// Ignore unrelated defaults writes (including UIKit text/font defaults).
-    private struct PreferencesSnapshot: Equatable {
-        let enabled: Bool
-        let idle: Int
-        let appEnabled: Bool
-        let appIdle: Int
-        let lockedIds: Set<String>
-    }
-
-    private func preferencesSnapshot() -> PreferencesSnapshot {
-        PreferencesSnapshot(
-            enabled: globalEnabled,
-            idle: idleTimeoutSeconds,
-            appEnabled: appLockEnabled,
-            appIdle: appLockIdleSeconds,
-            lockedIds: Self.loadLocked(from: defaults)
-        )
-    }
-
-    private func scheduleDefaultsRefresh() {
-        guard !defaultsRefreshPending else { return }
-        defaultsRefreshPending = true
-        // A defaults notification can arrive synchronously inside SwiftUI's
-        // layout/text measurement. Publishing there re-enters AttributeGraph.
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            self.defaultsRefreshPending = false
-            let next = self.preferencesSnapshot()
-            guard next != self.observedPreferences else { return }
-            self.observedPreferences = next
-            if self.lockedSessionIds != next.lockedIds {
-                self.lockedSessionIds = next.lockedIds
-            } else {
-                self.objectWillChange.send()
-            }
-        }
-    }
 
     private init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         self.lockedSessionIds = Self.loadLocked(from: defaults)
-        self.observedPreferences = preferencesSnapshot()
         // Settings UI writes `globalEnabled` / `idleTimeoutSeconds` via
         // @AppStorage which bypasses this object. Observe UserDefaults so
         // every dependent view re-renders when those keys change.
@@ -128,7 +87,7 @@ final class SessionLockStore: ObservableObject {
             object: defaults,
             queue: .main
         ) { [weak self] _ in
-            self?.scheduleDefaultsRefresh()
+            self?.objectWillChange.send()
         }
     }
 

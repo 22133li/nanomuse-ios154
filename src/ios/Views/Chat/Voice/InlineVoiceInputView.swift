@@ -571,7 +571,7 @@ struct InlineVoiceInputView: View {
             viewModel.refreshInputProvider()
         }
         .sheet(isPresented: $showModelSelector) {
-            NavigationView {
+            NavigationStack {
                 UnifiedModelPicker(config: .voiceInput())
             }
         }
@@ -766,13 +766,10 @@ struct InlineVoiceInputView: View {
             // half back into view" freeze. The text view scrolls itself here,
             // which also restores native caret-tracking that the wrapped form
             // lost.
-            // iOS 15 backport: TextField(axis: .vertical) is iOS 16+. TextEditor is the
-            // iOS 14+ equivalent and likewise backed by a UITextView, so the band's
-            // no-nested-scroller reasoning above still holds. No placeholder (was "").
-            TextEditor(text: Binding(
+            TextField("", text: Binding(
                 get: { viewModel.transcript },
                 set: { viewModel.setTranscript($0); inputText = $0 }
-            ))
+            ), axis: .vertical)
                 .focused($editFocused)
                 .font(.body)
                 .multilineTextAlignment(.center)

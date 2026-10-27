@@ -68,7 +68,7 @@ struct RcloneAddServerView: View {
     }
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             Form {
                 if connectedRemote == nil {
                     typeSection
@@ -107,8 +107,8 @@ struct RcloneAddServerView: View {
                 // of a long directory listing it moved with the scroll and
                 // could sit off-screen entirely in a folder with many
                 // entries — the one control the screen exists to offer.
-                ToolbarItem(placement: .confirmationAction) {
-                    if connectedRemote != nil {
+                if connectedRemote != nil {
+                    ToolbarItem(placement: .confirmationAction) {
                         Button("Save Here") { saveHere() }
                             .disabled(isListing)
                     }
@@ -117,7 +117,7 @@ struct RcloneAddServerView: View {
             .alert("New Folder", isPresented: $showNewFolder) {
                 TextField("Folder name", text: $newFolderName)
                     .textInputAutocapitalization(.never)
-                    .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
+                    .autocorrectionDisabled()
                 Button("Cancel", role: .cancel) { newFolderName = "" }
                 // [T-backup-newfolder-create-missing] NO `.disabled()` here.
                 // Alert buttons are not regular views: SwiftUI renders an
@@ -147,7 +147,7 @@ struct RcloneAddServerView: View {
             .alert("Go to Path", isPresented: $showPathEditor) {
                 TextField("Path", text: $pathInput)
                     .textInputAutocapitalization(.never)
-                    .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
+                    .autocorrectionDisabled()
                 Button("Cancel", role: .cancel) { }
                 Button("Go") {
                     let target = Self.normalizedInputPath(pathInput,
@@ -202,7 +202,7 @@ struct RcloneAddServerView: View {
         if let b = backend {
             Section {
                 TextField("Name", text: $displayName)
-                    .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
+                    .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
             } header: {
                 Text("Name")
@@ -237,7 +237,7 @@ struct RcloneAddServerView: View {
                         } else {
                             TextField(f.placeholder.isEmpty ? f.label : f.placeholder,
                                       text: binding(for: f.key))
-                                .disableAutocorrection(true)  // iOS 15 backport: .autocorrectionDisabled() is iOS 16+
+                                .autocorrectionDisabled()
                                 .textInputAutocapitalization(.never)
                                 .keyboardType(keyboardType(f.keyboard))
                         }

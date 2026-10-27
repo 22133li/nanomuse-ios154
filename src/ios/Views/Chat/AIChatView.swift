@@ -4,6 +4,7 @@ import Combine
 import GameController
 import PhotosUI
 import QuickLook
+import QuickLook
 import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
@@ -335,104 +336,6 @@ struct AIChatView: View {
     @State private var isDropTargeted = false
     @State private var showCamera = false
     @State private var showPhotoPicker = false
-
-    /// iOS 15.4 backport: handle PHPicker results, mirroring the removed PhotosPicker flow.
-    private func handlePHPickerResults(_ results: [PHPickerResult]) {
-        guard !results.isEmpty else { return }
-        // [T-ios-photo-pick-placeholder] 1) Insert a loading placeholder chip
-        // for every picked item RIGHT NOW (one main-actor batch update), so the
-        // user immediately sees how many they picked instead of watching photos
-        // trickle in one-by-one. 2) Load all of them CONCURRENTLY via a
-        // TaskGroup. 3) Resolve each placeholder in place as its bytes arrive
-        // (success -> real thumbnail, failure -> error chip). The send button is
-        // gated on `hasLoadingAttachments` until every item settles.
-        let kinds = results.map { result -> InputAttachment.Kind in
-            result.itemProvider.hasItemConformingToTypeIdentifier(UTType.movie.identifier) ? .video : .image
-        }
-        let placeholderIDs = vm.addLoadingPlaceholders(kinds: kinds)
-
-        // Snapshot per-item metadata synchronously (PHAsset fetch + UTI) so the
-        // concurrent loaders don't touch SwiftUI state or Photos mid-flight.
-        struct PickJob { let id: UUID; let provider: NSItemProvider; let isVideo: Bool; let ext: String?; let date: Date? }
-        let jobs: [PickJob] = zip(placeholderIDs, results).map { pid, result in
-            let provider = result.itemProvider
-            let isVideo = provider.hasItemConformingToTypeIdentifier(UTType.movie.identifier)
-            var assetDate: Date?
-            if let aid = result.assetIdentifier,
-               let asset = PHAsset.fetchAssets(withLocalIdentifiers: [aid], options: nil).firstObject {
-                assetDate = asset.creationDate
-            }
-            let ext = provider.registeredTypeIdentifiers
-                .compactMap { UTType($0) }
-                .first(where: { $0.conforms(to: .image) })?
-                .preferredFilenameExtension
-            return PickJob(id: pid, provider: provider, isVideo: isVideo, ext: ext, date: assetDate)
-        }
-
-        Task {
-            await withTaskGroup(of: Void.self) { group in
-                for job in jobs {
-                    group.addTask {
-                        if job.isVideo {
-                            if let videoURL = await Self.loadVideoFileURL(from: job.provider) {
-                                await MainActor.run {
-                                    vm.finalizeVideoPlaceholder(id: job.id, from: videoURL, originalDate: job.date)
-                                }
-                            } else {
-                                await MainActor.run { vm.markPlaceholderFailed(id: job.id) }
-                            }
-                        } else if let data = await Self.loadImageData(from: job.provider) {
-                            // Preserve original encoded bytes (PNG transparency,
-                            // HEIC, animated GIFs, EXIF) - written verbatim.
-                            await MainActor.run {
-                                vm.finalizeImagePlaceholder(id: job.id, data: data, fileExtension: job.ext, originalDate: job.date)
-                            }
-                        } else {
-                            await MainActor.run { vm.markPlaceholderFailed(id: job.id) }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    /// Load a video file URL from an NSItemProvider (PHPicker path).
-    /// PHPicker owns the callback URL and may delete it as soon as the
-    /// callback returns, so retain a private copy before returning it.
-    private static func loadVideoFileURL(from provider: NSItemProvider) async -> URL? {
-        await withCheckedContinuation { continuation in
-            provider.loadFileRepresentation(forTypeIdentifier: UTType.movie.identifier) { url, _ in
-                guard let url else {
-                    continuation.resume(returning: nil)
-                    return
-                }
-                let ext = url.pathExtension.isEmpty ? "mov" : url.pathExtension
-                let ownedURL = FileManager.default.temporaryDirectory
-                    .appendingPathComponent("nanomuse-picked-\(UUID().uuidString).\(ext)")
-                do {
-                    try FileManager.default.copyItem(at: url, to: ownedURL)
-                    continuation.resume(returning: ownedURL)
-                } catch {
-                    AppLogger(category: "AIChatVM").error("Failed to retain PHPicker video: \(error.localizedDescription)")
-                    continuation.resume(returning: nil)
-                }
-            }
-        }
-    }
-
-    /// Load an image's original encoded data from an NSItemProvider (PHPicker path).
-    private static func loadImageData(from provider: NSItemProvider) async -> Data? {
-        for typeId in provider.registeredTypeIdentifiers {
-            if let data = await withCheckedContinuation({ continuation in
-                provider.loadDataRepresentation(forTypeIdentifier: typeId) { data, _ in
-                    continuation.resume(returning: data)
-                }
-            }) {
-                return data
-            }
-        }
-        return nil
-    }
     @State private var showDocumentPicker = false
     @State private var showMoveToSheet = false
     @State private var showClearChatConfirm = false
@@ -488,6 +391,7 @@ struct AIChatView: View {
     @State private var pendingProviderImport: PendingProviderImport?
     @State private var providerImportResult: String?
     @State private var screenshotPreview: ChatScreenshotPreview?
+    @State private var selectedPhotoItems: [PhotosPickerItem] = []
     @State private var attachmentGridHeight: CGFloat = 0
     @State private var transcriptHeight: CGFloat = 0
     /// Tracks how much of recognizedText has already been appended to inputText.
@@ -746,30 +650,6 @@ struct AIChatView: View {
 
             // Full-screen kernel boot overlay
             kernelBootOverlay
-
-            // Root-level hit-test layer. The composer/tool preview is mounted
-            // inside messagesArea, so a button placed there can be visually
-            // present while its hit region is owned by the preview. Mounting
-            // this layer last gives both scroll controls an unambiguous route.
-            if !vm.messages.isEmpty && !vm.isNearBottom {
-                VStack(spacing: 10) {
-                    if !vm.isAtFirstTurn {
-                        Button { vm.forceScrollToTop.send() } label: {
-                            scrollFloatingButtonLabel("arrow.up.to.line")
-                        }
-                        .contentShape(Circle())
-                    }
-                    Button { vm.forceScrollToBottom.send() } label: {
-                        scrollFloatingButtonLabel("chevron.down", ink: NanoMuseShellPrefs.shell)
-                    }
-                    .contentShape(Circle())
-                }
-                .padding(.trailing, 16)
-                .frame(maxWidth: maxContentWidth ?? .infinity, alignment: .trailing)
-                .padding(.bottom, nmColumnHeight + nmBottomOverlay + 44)
-                .zIndex(100)
-                .capsuleProtectedFrame("scrollButtons")
-            }
         }
         .background(ChatColors.background)
         .onDrop(of: [.image, .movie, .fileURL, .data], isTargeted: $isDropTargeted) { providers in
@@ -869,7 +749,7 @@ struct AIChatView: View {
         }
         .sheet(item: $locateDownloadTarget) { target in
             if let sid = vm.sessionId {
-                NavigationView {
+                NavigationStack {
                     FileBrowserView(
                         rootPath: AIChatViewModel.minisWorkspacePersistentDir(for: sid),
                         rootLabel: "/var/minis/workspace",
@@ -997,11 +877,14 @@ struct AIChatView: View {
             inputFocused = true
         }
         .modifier(ChatInputAppendListener(vm: vm, inputFocused: $inputFocused))
+        .modifier(RerunFromToolBlockListener(vm: vm))
         .fullScreenCover(item: $previewVideoFile) { fileURL in
             MinisVideoFullscreenPlayer(fileURL: fileURL)
         }
         .sheet(item: $previewAudioFile) { fileURL in
             MinisAudioPreviewView(fileURL: fileURL)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.hidden)
         }
         .sheet(item: $previewTextFile) { fileURL in
             MinisTextPreviewView(fileURL: fileURL)
@@ -1079,7 +962,7 @@ struct AIChatView: View {
             })
         }
         .sheet(isPresented: $showFileBrowser) {
-            NavigationView {
+            NavigationStack {
                 let base = RootfsManager.shared.dataPath
                 FileBrowserView(rootPath: base, initialPath: base.appendingPathComponent("var/minis"), rootLabel: "/")
             }
@@ -1090,14 +973,16 @@ struct AIChatView: View {
             })
         }
         .sheet(isPresented: $showModelPicker) {
-            NavigationView {
+            NavigationStack {
                 SessionModelPicker(sessionId: vm.sessionId) {
                     await vm.ensureSessionReturningId()
                 }
             }
+            .presentationDetents([.large])
         }
         .sheet(isPresented: $showTokenUsage) {
             TokenUsageSheet(vm: cached.vm)
+                .presentationDetents([.fraction(0.8), .large])
         }
         .sheet(item: $screenshotPreview) { preview in
             ChatScreenshotPreviewSheet(image: preview.image)
@@ -1178,7 +1063,7 @@ struct AIChatView: View {
         .fullScreenCover(isPresented: $showTerminal) {
             terminalInitCommand = nil
         } content: {
-            NavigationView {
+            NavigationStack {
                 ISHTerminalView(sessionId: vm.sessionId, showCloseButton: true, initCommand: terminalInitCommand)
                     .onAppear {
                         if let sid = vm.sessionId {
@@ -1222,35 +1107,78 @@ struct AIChatView: View {
                 }
             )
         }
-        .sheet(isPresented: $showPhotoPicker) {
-            NanoMusePHPicker(
-                onComplete: { results in
-                    showPhotoPicker = false
-                    handlePHPickerResults(results)
-                },
-                onCancel: {
-                    showPhotoPicker = false
+        .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhotoItems,
+                      maxSelectionCount: 50, matching: .any(of: [.images, .videos]))
+        .onChange(of: selectedPhotoItems) { items in
+            guard !items.isEmpty else { return }
+            // [T-ios-photo-pick-placeholder] 1) Insert a loading placeholder chip
+            // for every picked item RIGHT NOW (one main-actor batch update), so the
+            // user immediately sees how many they picked instead of watching photos
+            // trickle in one-by-one. 2) Load all of them CONCURRENTLY via a
+            // TaskGroup. 3) Resolve each placeholder in place as its bytes arrive
+            // (success → real thumbnail, failure → error chip). The send button is
+            // gated on `hasLoadingAttachments` until every item settles.
+            let kinds = items.map { item -> InputAttachment.Kind in
+                item.supportedContentTypes.contains(where: { $0.conforms(to: .movie) }) ? .video : .image
+            }
+            let placeholderIDs = vm.addLoadingPlaceholders(kinds: kinds)
+
+            // Snapshot per-item metadata synchronously (PHAsset fetch + UTI) so the
+            // concurrent loaders don't touch SwiftUI state or PhotosUI mid-flight.
+            struct PickJob { let id: UUID; let item: PhotosPickerItem; let isVideo: Bool; let ext: String?; let date: Date? }
+            let jobs: [PickJob] = zip(placeholderIDs, items).map { pid, item in
+                let isVideo = item.supportedContentTypes.contains(where: { $0.conforms(to: .movie) })
+                var assetDate: Date?
+                if let aid = item.itemIdentifier,
+                   let asset = PHAsset.fetchAssets(withLocalIdentifiers: [aid], options: nil).firstObject {
+                    assetDate = asset.creationDate
                 }
-            )
-        }
-        .sheet(isPresented: $showDocumentPicker) {
-            // iOS 15: SwiftUI .fileImporter does not deliver selection callbacks
-            // (tapping files does nothing). Use the UIKit wrapper directly.
-            // iOS 16+: keep the system .fileImporter via the wrapper too — it
-            // is the same underlying UIDocumentPickerViewController.
-            NanoMuseDocumentPicker(
-                allowedContentTypes: [.image, .pdf, .plainText, .json, .sourceCode, .presentation, .spreadsheet, .data],
-                allowsMultipleSelection: true,
-                onComplete: { urls in
-                    showDocumentPicker = false
-                    for url in urls {
-                        vm.addFileAttachment(from: url)
+                let ext = item.supportedContentTypes
+                    .first(where: { $0.conforms(to: .image) })?
+                    .preferredFilenameExtension
+                return PickJob(id: pid, item: item, isVideo: isVideo, ext: ext, date: assetDate)
+            }
+            selectedPhotoItems = []
+
+            Task {
+                await withTaskGroup(of: Void.self) { group in
+                    for job in jobs {
+                        group.addTask {
+                            if job.isVideo {
+                                if let videoURL = try? await job.item.loadTransferable(type: VideoFileTransferable.self) {
+                                    await MainActor.run {
+                                        vm.finalizeVideoPlaceholder(id: job.id, from: videoURL.url, originalDate: job.date)
+                                    }
+                                } else {
+                                    await MainActor.run { vm.markPlaceholderFailed(id: job.id) }
+                                }
+                            } else if let data = try? await job.item.loadTransferable(type: Data.self) {
+                                // Preserve original encoded bytes (PNG transparency,
+                                // HEIC, animated GIFs, EXIF) — written verbatim.
+                                await MainActor.run {
+                                    vm.finalizeImagePlaceholder(id: job.id, data: data, fileExtension: job.ext, originalDate: job.date)
+                                }
+                            } else {
+                                await MainActor.run { vm.markPlaceholderFailed(id: job.id) }
+                            }
+                        }
                     }
-                },
-                onCancel: {
-                    showDocumentPicker = false
                 }
-            )
+            }
+        }
+        .fileImporter(
+            isPresented: $showDocumentPicker,
+            allowedContentTypes: [.image, .pdf, .plainText, .json, .sourceCode, .presentation, .spreadsheet, .data],
+            allowsMultipleSelection: true
+        ) { result in
+            switch result {
+            case .success(let urls):
+                for url in urls {
+                    vm.addFileAttachment(from: url)
+                }
+            case .failure(let error):
+                minisLogger.error("File import failed: \(error.localizedDescription)")
+            }
         }
         .onAppear {
             let sinceInit = (CFAbsoluteTimeGetCurrent() - AIChatViewModel.onAppearTimestamp) * 1000
@@ -1516,7 +1444,7 @@ struct AIChatView: View {
                 inputBarHealthProbe?.cancel()
                 let probeBaseline = inputBarGeometryTick
                 inputBarHealthProbe = Task { @MainActor in
-                    try? await Task.sleep(nanoseconds: 900_000_000)
+                    try? await Task.sleep(for: .milliseconds(900))
                     guard !Task.isCancelled else { return }
                     let ticked = inputBarGeometryTick != probeBaseline
                     let age = inputBarLastGeometryAt.map { CFAbsoluteTimeGetCurrent() - $0 } ?? -1
@@ -1839,7 +1767,7 @@ struct AIChatView: View {
 
     // MARK: - Pending Transfer Injection
 
-    @MainActor private func injectPendingTransferIfNeeded() {
+    private func injectPendingTransferIfNeeded() {
         guard let transfer = ViewModelCache.pendingTransfer else { return }
 
         // [T-ios-moveto-transfer-race] Only the intended target may consume the
@@ -1919,22 +1847,6 @@ struct AIChatView: View {
             showFastModeToggle: activeModelSupportsFastMode,
             fastModeEnabled: codexFastModeEnabled,
             onNewChat: { requestNewChatFromMenu() },
-            onRename: {
-                guard let sid = vm.sessionId else { return }
-                if let session = titlePillSession, session.id == sid {
-                    titlePillEditSession = session
-                } else {
-                    Task {
-                        let session = await ChatStore.shared.getSession(sid)
-                        await MainActor.run {
-                            guard vm.sessionId == sid, let session else { return }
-                            titlePillSession = session
-                            titlePillEditSession = session
-                        }
-                    }
-                }
-            },
-            onModel: { showModelPicker = true },
             // [T-chat-menu-compact-entry] Same effect as the /compact slash
             // command (AIChatViewModel+SlashCommands case "compact").
             onCompact: { vm.compactAll() },
@@ -1970,8 +1882,6 @@ struct AIChatView: View {
             // to the very next Codex request.
             setFastMode: { enabled in codexFastModeEnabled = enabled },
             onTokenUsage: { showTokenUsage = true },
-            autoCompactEnabled: vm.autoCompactEnabled,
-            setAutoCompactEnabled: { vm.autoCompactEnabled = $0 },
             // LastAPIRequestBody + copySessionDataToClipboard are DEBUG-only (the
             // menu buttons that invoke these closures are #if DEBUG too); guard the
             // bodies so Release/archive builds — where those symbols are compiled
@@ -2007,10 +1917,6 @@ struct AIChatView: View {
         case .browser: showBrowserSheet = true // nanoMuse:
         case .files: showFileBrowser = true // nanoMuse:
         case .tokenUsage: showTokenUsage = true // nanoMuse:
-        case .sessionSkills: showSessionSkills = true // nanoMuse:
-        case .sessionMCPs: showSessionMCPs = true // nanoMuse:
-        case .sessionMemory: showSessionMemory = true // nanoMuse:
-        case .toggleAutoCompact: vm.autoCompactEnabled.toggle() // nanoMuse:
         } // nanoMuse:
     } // nanoMuse:
 
@@ -2146,8 +2052,7 @@ struct AIChatView: View {
             showEnhancedCacheToggle: cached.vm.showEnhancedCacheToggle,
             enhancedCacheEnabled: cached.vm.enhancedCacheEnabled,
             showFastModeToggle: activeModelSupportsFastMode,
-            fastModeEnabled: codexFastModeEnabled,
-            autoCompactEnabled: vm.autoCompactEnabled
+            fastModeEnabled: codexFastModeEnabled
         )
     }
 
@@ -2553,6 +2458,7 @@ struct AIChatView: View {
                     showThinkingLevelSheet = false
                 }
             )
+            .presentationDetents([.medium])
         }
     }
 
@@ -2724,45 +2630,7 @@ struct AIChatView: View {
 
     private var messagesArea: some View {
         ZStack {
-            Group {
-                if #unavailable(iOS 16.0) {
-                    // iOS 15: CollectionView has update issues, use SwiftUI list
-                    SimpleChatMessageList(
-                        vm: vm,
-                        onRetryMessage: { vm.retryFromMessage($0); vm.forceScrollToBottom.send() },
-                        onEdit: { [self] msgId in
-                            vm.editMessage(msgId)
-                            inputFocused = true
-                        },
-                        onDeleteFrom: { vm.deleteFromMessage($0) },
-                        bottomInset: nmColumnHeight + nmBottomOverlay,
-                        browserPool: vm.browserTabPool,
-                        toolSnapshots: vm.toolSnapshots,
-                        onRetryLast: { vm.retry(); vm.forceScrollToBottom.send() },
-                        onOpenSoulSettings: {
-                            guard let url = URL(string: "minis://settings/soul") else { return }
-                            _ = handleMinisURLTap(url)
-                        },
-                        onWithdraw: { vm.withdrawQueuedMessage($0) },
-                        onResume: { vm.resume(); vm.forceScrollToBottom.send() },
-                        onStop: { vm.stopCurrentCommand() },
-                        onCompact: { msgId in compactConfirmMessageId = msgId },
-                        onRevertCompact: { Task { await vm.revertCompact() } },
-                        onForceSync: { [self] in
-                            guard let sid = vm.sessionId else { return }
-                            Task {
-                                let count = await ChatStore.shared.forceSyncSession(sid)
-                                if #available(iOS 17.0, *), count > 0 {
-                                    SyncCore.shared.scheduleSend(delay: 1)
-                                }
-                            }
-                        },
-                        onScreenshotImage: { image in
-                            screenshotPreview = ChatScreenshotPreview(image: image)
-                        }
-                    )
-                } else {
-                CollectionViewMessageListV3(
+            CollectionViewMessageListV3(
                 vm: vm,
                 inputFocused: inputFocused,
                 onRetryMessage: { vm.retryFromMessage($0); vm.forceScrollToBottom.send() },
@@ -2773,12 +2641,12 @@ struct AIChatView: View {
                 // `[Soul](minis://settings/soul)` link land identically —
                 // no second navigation path to keep in sync.
                 onOpenSoulSettings: {
-                guard let url = URL(string: "minis://settings/soul") else { return }
-                _ = handleMinisURLTap(url)
+                    guard let url = URL(string: "minis://settings/soul") else { return }
+                    _ = handleMinisURLTap(url)
                 },
                 onEdit: { [self] msgId in
-                vm.editMessage(msgId)
-                inputFocused = true
+                    vm.editMessage(msgId)
+                    inputFocused = true
                 },
                 onDeleteFrom: { vm.deleteFromMessage($0) },
                 onWithdraw: { vm.withdrawQueuedMessage($0) },
@@ -2787,35 +2655,30 @@ struct AIChatView: View {
                 onCompact: { msgId in compactConfirmMessageId = msgId },
                 onRevertCompact: { Task { await vm.revertCompact() } },
                 onForceSync: { [self] in
-                guard let sid = vm.sessionId else { return }
-                Task {
-                let count = await ChatStore.shared.forceSyncSession(sid)
-                if #available(iOS 17.0, *), count > 0 {
-                SyncCore.shared.scheduleSend(delay: 1)
-                }
-                }
+                    guard let sid = vm.sessionId else { return }
+                    Task {
+                        let count = await ChatStore.shared.forceSyncSession(sid)
+                        if #available(iOS 17.0, *), count > 0 {
+                            SyncCore.shared.scheduleSend(delay: 1)
+                        }
+                    }
                 },
                 onScreenshotImage: { image in
-                screenshotPreview = ChatScreenshotPreview(image: image)
+                    screenshotPreview = ChatScreenshotPreview(image: image)
                 },
                 maxContentWidth: maxContentWidth ?? 0,
                 floatingBarHeight: 0, // nanoMuse: the tool strip is part of the composer column, measured with it (NanoMuseComposerHost)
                 inputBarHeight: nmColumnHeight + nmBottomOverlay, // nanoMuse: the column lies over the list's bottom edge and the shell's bottom bar under it; the rows scroll under both and the last one stops above the column
                 topOverlay: nmTopOverlay // nanoMuse: the shell's Muse header over the list's top edge; the rows scroll under it and start below it
-                )
-                // nanoMuse: with the shell's header over the chat, the list runs up under it (and the
-                // status bar, which UIKit's own safe area handles) and keeps its rows down by
-                // `topOverlay`, so they dissolve under the header's scrim instead of ending at a hard
-                // edge under the face. A `safeAreaInset` on a UIKit view shortens the view, unlike a
-                // SwiftUI ScrollView, which is why the list needs to ignore it. The chat's own banners
-                // (the error strip, a notice) stay a safe-area inset and lie over the list's top rows
-                // while they show. Without the shell nothing changes.
-                // iOS 15: `.container` is iOS 16+, so the regions default to `.all` — identical for
-                // the top edge (the keyboard region has no top edge).
-                .ignoresSafeArea(edges: nmTopOverlay > 0 ? Edge.Set.top : [])
-
-                }
-            }
+            )
+            // nanoMuse: with the shell's header over the chat, the list runs up under it (and the
+            // status bar, which UIKit's own safe area handles) and keeps its rows down by
+            // `topOverlay`, so they dissolve under the header's scrim instead of ending at a hard
+            // edge under the face. A `safeAreaInset` on a UIKit view shortens the view, unlike a
+            // SwiftUI ScrollView, which is why the list needs to ignore it. The chat's own banners
+            // (the error strip, a notice) stay a safe-area inset and lie over the list's top rows
+            // while they show. Without the shell nothing changes.
+            .ignoresSafeArea(.container, edges: nmTopOverlay > 0 ? Edge.Set.top : [])
             // Empty/loading overlay for tap-to-dismiss-keyboard.
             // Placed BEFORE the directory timeline in the ZStack so the
             // timeline can sit on top and receive its own taps (folder-card
@@ -2880,15 +2743,7 @@ struct AIChatView: View {
                 .padding(.trailing, 4)
                 .frame(maxWidth: maxContentWidth ?? .infinity, alignment: .trailing)
                 .padding(.horizontal, 12)
-                // Leave a small clear band above the shell's bottom capsule. The
-                // overlay's measured height is the capsule's layout height, but
-                // its shadow/blur extends a few points into that boundary.
-                .padding(.bottom, nmColumnHeight + nmBottomOverlay + 28) // nanoMuse: was inputBarHeight + (hasFloatingPreview ? 80 : 12)
-                // The buttons are duplicated at the chat root below. Keep this
-                // legacy visual layer hidden so the composer/tool column cannot
-                // win hit-testing over the interactive root layer.
-                .opacity(0)
-                .allowsHitTesting(false)
+                .padding(.bottom, nmColumnHeight + nmBottomOverlay + 12) // nanoMuse: was inputBarHeight + (hasFloatingPreview ? 80 : 12); the column and the shell's bottom bar lie over the list's bottom edge
                 .animation(.easeInOut(duration: 0.2), value: vm.isNearBottom)
                 .animation(.easeInOut(duration: 0.2), value: vm.isAtFirstTurn)
                 .animation(.easeInOut(duration: 0.2), value: hasFloatingPreview)
@@ -2957,20 +2812,15 @@ struct AIChatView: View {
             }, onTakeoverDone: {
                 vm.resumeFromBrowserTakeover()
             })
-                // Keep the trailing side clear for the scroll controls. The
-                // tool preview is mounted in the composer column and otherwise
-                // wins hit-testing over the floating buttons on iOS 15.
-                .padding(.trailing, 68)
-                .padding(.leading, 12)
-                .frame(maxWidth: maxContentWidth)
-                .zIndex(0)
+                .frame(maxWidth: nmPill ? NanoMuseColumn.pillWidth(for: hSizeClass, otherwise: nil) : maxContentWidth) // nanoMuse: in the shell the bar is the composer pill's width
+                .padding(.horizontal, nmPill ? 16 : 12) // nanoMuse: and keeps its 16 pt margins
                 // [T-ios-geometry-observer-crash] onGeometryChange replaces the
                 // GeometryReader+onAppear+onChange scaffold: writing state from
                 // onChange(of: geo.*) inside the geometry-observer path re-drives
                 // layout and trips a precondition on the iOS 18 async renderer
                 // (ViewGraphGeometryObservers.needsUpdate SIGTRAP). The action
                 // also fires with the initial value, covering the old onAppear.
-                .onGeometryChangeBackport(for: CGFloat.self) { proxy in
+                .onGeometryChange(for: CGFloat.self) { proxy in
                     proxy.size.height
                 } action: { newH in
                     floatingBarHeight = newH
@@ -3176,7 +3026,7 @@ struct AIChatView: View {
         return img
     }
 
-    @MainActor private func handleMinisURLTap(_ url: URL) -> OpenURLAction.Result {
+    private func handleMinisURLTap(_ url: URL) -> OpenURLAction.Result {
         if let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" {
             withAnimation { safariURL = url }
             return .handled
@@ -3659,8 +3509,8 @@ struct AIChatView: View {
 
     // nanoMuse: the composer column — the cards, the tool strip, the input bar — the VStack of
     // upstream's ZStack from the message list's `.overlay(alignment: .bottom)`, hosted by
-    // NanoMuseComposerHost. The comments on its layout stay at the host's link in `body`.
-    // An AnyView on purpose: this is the heaviest subtree of the
+    // NanoMuseComposerHost as a row under the list since 0.1.40. The comments on its layout stay
+    // at the host's link in `body`. An AnyView on purpose: this is the heaviest subtree of the
     // chat's body, and boxed it is one pointer in the body's value and one leaf in its type
     // (NanoMuseChatModifiers.swift says why).
     private var nmComposerStack: AnyView { // nanoMuse:
@@ -3780,7 +3630,7 @@ struct AIChatView: View {
     } // nanoMuse:
 
     // nanoMuse: the pill's mic — the same switch into voice mode as MicButton's onTap.
-    @MainActor private func nmEnterVoice() { // nanoMuse:
+    private func nmEnterVoice() { // nanoMuse:
         inputFocused = false // nanoMuse:
         vm.voiceUsedInComposition = true // nanoMuse:
         VoiceModePreference.shared.enteredFromText = true // nanoMuse:
@@ -4026,7 +3876,7 @@ struct AIChatView: View {
             // floating-bar site). Fires with the initial value too, so the
             // old onAppear seeding AND its diagnostic log are preserved as
             // a single unified line.
-            .onGeometryChangeBackport(for: CGRect.self) { proxy in
+            .onGeometryChange(for: CGRect.self) { proxy in
                 proxy.frame(in: .global)
             } action: { frame in
                 let newH = frame.size.height
@@ -4108,7 +3958,7 @@ struct AIChatView: View {
                     // is taken; we only re-read what onGeometryChange reported.
                     let voiceAtSeed = voiceInputActive
                     inputBarHeightDebounce = Task { @MainActor in
-                        try? await Task.sleep(nanoseconds: 380_000_000)
+                        try? await Task.sleep(for: .milliseconds(380))
                         guard !Task.isCancelled, voiceAtSeed == voiceInputActive else { return }
                         let settled = latestInputBarFrameH
                         if settled > 0, abs(settled - newH) > 0.5 {
@@ -4139,7 +3989,7 @@ struct AIChatView: View {
                     // 200ms, which is stale), so the timer routinely expired
                     // while the panel was still moving and SwiftUI's final
                     // geometry callback had not landed yet.
-                    try? await Task.sleep(nanoseconds: 380_000_000)
+                    try? await Task.sleep(for: .milliseconds(380))
                     guard !Task.isCancelled else { return }
                     // [T-voice-inputbar-branch-swap] During rapid streaming
                     // re-renders, voiceInputActive can glitch for one frame,
@@ -4166,7 +4016,7 @@ struct AIChatView: View {
                     // height, which is the bottom-gap symptom. No new
                     // measurement is taken: we only re-read what
                     // onGeometryChange already reported.
-                    try? await Task.sleep(nanoseconds: 320_000_000)
+                    try? await Task.sleep(for: .milliseconds(320))
                     guard !Task.isCancelled else { return }
                     guard voiceAtCapture == voiceInputActive else { return }
                     let settled = latestInputBarFrameH
@@ -4508,6 +4358,7 @@ struct AIChatView: View {
                     }
                 }
             }
+            .scrollIndicators(.visible)
             .frame(height: Self.slashPickerFixedHeight)
         }
     }
@@ -4577,6 +4428,7 @@ struct AIChatView: View {
                         // [T-slash-picker-fixed-height] Match slash popup:
                         // exactly 4 rows tall, scrolls on overflow with the
                         // visible indicator above.
+                        .scrollIndicators(.visible)
                         .frame(height: Self.slashPickerFixedHeight)
                         .onChange(of: vm.mentionSelectedIndex) { newIndex in
                             guard newIndex >= 0, newIndex < rows.count else { return }
@@ -4675,6 +4527,7 @@ struct AIChatView: View {
         }
 
         private var iconName: String {
+            if let device = entry.nmDevice { return device.symbol } // nanoMuse: a phone or a computer of the account
             if entry.isDirectory { return "folder" }
             switch entry.scope {
             case .workspace:   return "doc.text"
@@ -4936,11 +4789,6 @@ struct AIChatView: View {
 
 }
 
-
-// MARK: - Reverted split content (merged back 2026-10-14)
-// The AIChatViewModifiers.swift / AIChatViewSheets.swift split was reverted
-// because the pbxproj registration did not take effect in CI.
-
 // MARK: - Composer Surface
 
 /// Background + shadow for the composer's outer rounded container.
@@ -4978,6 +4826,11 @@ private struct ComposerSurface: ViewModifier {
             content // nanoMuse:
                 .background(shape.fill(NanoMuseTones.bubble)) // nanoMuse:
                 .clipShape(shape) // nanoMuse:
+                .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 2) // nanoMuse: soft shadow matching Android
+        } else if #available(iOS 26.0, *) {
+            content
+                .glassEffect(.regular, in: shape)
+                .clipShape(shape)
         } else {
             content
                 .background(shape.fill(ChatColors.inputBg))
@@ -5100,6 +4953,8 @@ private struct ProviderImportSheet: View {
             }
         }
         .padding(24)
+        .presentationDetents([.height(360), .medium])
+        .presentationDragIndicator(.visible)
         // Swipe-to-dismiss without tapping a button still needs cleanup.
         .onDisappear { if !chose { onCancel() } }
     }
@@ -5169,14 +5024,20 @@ private struct NavBarStyleModifier: ViewModifier {
             // starting below the bar.
             content
                 .ignoresSafeArea(.container, edges: .top)
+                .toolbarBackgroundVisibility(.visible, for: .navigationBar)
         } else {
             // iOS 16–18: opaque navbar background
-            scrimAwareContent(content)
+            content
                 // nanoMuse: a side chat pushed from the shell gets the main chat's scrim behind the
                 // system bar (NanoMuseHeaderScrim, docs/design.md): the bar's own background and
                 // its hairline go, and a zero-height inset's background fades the canvas colour
                 // down over the rows, as the Muse header's does. Upstream's bar stays opaque.
-                // iOS 15 backport: .toolbarBackground is iOS 16+, dropped with the old bar styling.
+                // The content runs up under the bar as in the iOS 26 branch, so the rows have
+                // somewhere to fade; the bar is UIKit's, so the list's `.automatic` adjustment
+                // keeps the first row below it, as there.
+                .ignoresSafeArea(.container, edges: systemBarScrim ? Edge.Set.top : []) // nanoMuse:
+                .toolbarBackground(systemBarScrim ? Visibility.hidden : Visibility.visible, for: .navigationBar) // nanoMuse:
+                .toolbarBackground(ChatColors.background, for: .navigationBar)
                 .safeAreaInset(edge: .top, spacing: 0) { // nanoMuse:
                     if systemBarScrim {
                         Color.clear.frame(height: 0)
@@ -5191,26 +5052,12 @@ private struct NavBarStyleModifier: ViewModifier {
                     // stay outside it exactly as before, and the action's
                     // initial fire covers the old onAppear seed.
                     Color.clear
-                        .onGeometryChangeBackport(for: CGFloat.self) { proxy in
+                        .onGeometryChange(for: CGFloat.self) { proxy in
                             proxy.safeAreaInsets.top
                         } action: { topSafeAreaInset = $0 }
                         .ignoresSafeArea()
                         .frame(height: 0)
                 }
-        }
-    }
-
-    /// nanoMuse: 1.0.5 — the content runs up under the system bar as in the iOS 26 branch, so the
-    /// rows have somewhere to fade under the scrim; the bar is UIKit's, so the collection list's
-    /// `.automatic` adjustment keeps the first row below it, as there. iOS 15 keeps the old
-    /// behaviour: the list is a SwiftUI ScrollView (no such adjustment), so ignoring the top safe
-    /// area would slide the first row under the bar.
-    @ViewBuilder
-    private func scrimAwareContent(_ content: Content) -> some View {
-        if #available(iOS 16, *) {
-            content.ignoresSafeArea(.container, edges: systemBarScrim ? Edge.Set.top : [])
-        } else {
-            content
         }
     }
 }
@@ -5326,7 +5173,6 @@ private struct ChatToolbarKey: Equatable {
     /// [T-codex-fast-mode] Menu row shown only for Codex OAuth models.
     let showFastModeToggle: Bool
     let fastModeEnabled: Bool
-    let autoCompactEnabled: Bool
 }
 
 /// [T-ios-navbar-toolbar-host] Zero-footprint host that owns the navigation
@@ -5378,7 +5224,6 @@ private struct ChatToolbarHost<Title: View, Trailing: View>: View, Equatable {
             if lhs.key.enhancedCacheEnabled != rhs.key.enhancedCacheEnabled { diffs.append("enhancedCacheEnabled") }
             if lhs.key.showFastModeToggle != rhs.key.showFastModeToggle { diffs.append("showFastModeToggle") }
             if lhs.key.fastModeEnabled != rhs.key.fastModeEnabled { diffs.append("fastModeEnabled") }
-            if lhs.key.autoCompactEnabled != rhs.key.autoCompactEnabled { diffs.append("autoCompactEnabled") }
             NavbarEvalStats.logger.info("[NavbarEval] host == FALSE diffs=[\(diffs.joined(separator: ","))]")
         }
         #endif
@@ -5442,7 +5287,6 @@ private struct ChatTrailingMenu: View, Equatable {
     let fastModeEnabled: Bool
 
     let onNewChat: () -> Void
-    let onModel: () -> Void
     let onCompact: () -> Void
     let onClearChat: () -> Void
     let onForceSync: () -> Void
@@ -5457,8 +5301,6 @@ private struct ChatTrailingMenu: View, Equatable {
     let setEnhancedCache: (Bool) -> Void
     let setFastMode: (Bool) -> Void
     let onTokenUsage: () -> Void
-    let autoCompactEnabled: Bool
-    let setAutoCompactEnabled: (Bool) -> Void
     let onCopyRequests: () -> Void
     let onCopySessionData: () -> Void
 
@@ -5628,8 +5470,6 @@ private struct ChatTrailingMenuButton: UIViewRepresentable {
     let fastModeEnabled: Bool
 
     let onNewChat: () -> Void
-    let onRename: () -> Void
-    let onModel: () -> Void
     let onCompact: () -> Void
     let onClearChat: () -> Void
     let onForceSync: () -> Void
@@ -5644,8 +5484,6 @@ private struct ChatTrailingMenuButton: UIViewRepresentable {
     let setEnhancedCache: (Bool) -> Void
     let setFastMode: (Bool) -> Void
     let onTokenUsage: () -> Void
-    let autoCompactEnabled: Bool
-    let setAutoCompactEnabled: (Bool) -> Void
     let onCopyRequests: () -> Void
     let onCopySessionData: () -> Void
 
@@ -5661,7 +5499,6 @@ private struct ChatTrailingMenuButton: UIViewRepresentable {
         let enhancedCacheEnabled: Bool
         let showFastModeToggle: Bool
         let fastModeEnabled: Bool
-        let autoCompactEnabled: Bool
     }
 
     private var key: Key {
@@ -5671,8 +5508,7 @@ private struct ChatTrailingMenuButton: UIViewRepresentable {
             showEnhancedCacheToggle: showEnhancedCacheToggle,
             enhancedCacheEnabled: enhancedCacheEnabled,
             showFastModeToggle: showFastModeToggle,
-            fastModeEnabled: fastModeEnabled,
-            autoCompactEnabled: autoCompactEnabled)
+            fastModeEnabled: fastModeEnabled)
     }
 
     final class Coordinator {
@@ -5699,7 +5535,6 @@ private struct ChatTrailingMenuButton: UIViewRepresentable {
     /// icon-sized footprint and the system wraps it in the same round glass
     /// as a plain toolbar icon (a representable otherwise accepts the full
     /// proposed width -> stretched capsule, the 2026-07-17 regression).
-    @available(iOS 16.0, *)
     func sizeThatFits(_ proposal: ProposedViewSize, uiView: UIButton, context: Context) -> CGSize? {
         uiView.intrinsicContentSize
     }
@@ -5721,17 +5556,10 @@ private struct ChatTrailingMenuButton: UIViewRepresentable {
     private static func buildMenu(key: Key, coordinator: Coordinator) -> UIMenu {
         var groups: [UIMenuElement] = []
 
-        var chatGroup: [UIMenuElement] = [
+        groups.append(UIMenu(options: .displayInline, children: [
             UIAction(title: AppLocalized("New Chat"),
-                     image: UIImage(systemName: "square.and.pencil")) { _ in coordinator.parent.onNewChat() }
-        ]
-        if key.hasSession {
-            chatGroup.append(UIAction(title: AppLocalized("Rename chat"),
-                                      image: UIImage(systemName: "pencil")) { _ in coordinator.parent.onRename() })
-        }
-        chatGroup.append(UIAction(title: AppLocalized("Model"),
-                                  image: UIImage(systemName: "cpu")) { _ in coordinator.parent.onModel() })
-        groups.append(UIMenu(options: .displayInline, children: chatGroup))
+                     image: UIImage(systemName: "square.and.pencil")) { _ in coordinator.parent.onNewChat() },
+        ]))
 
         // [T-chat-menu-compact-entry] Compact sits ABOVE Clear Chat in its own
         // group with the destructive clear; the iCloud actions moved to a
@@ -5814,12 +5642,6 @@ private struct ChatTrailingMenuButton: UIViewRepresentable {
         var tailGroup: [UIMenuElement] = [
             UIAction(title: AppLocalized("Token Usage"),
                      image: UIImage(systemName: "number")) { _ in coordinator.parent.onTokenUsage() },
-            // Android parity: auto-compact toggle in the side-chat menu.
-            UIAction(title: AppLocalized("Auto Compact"),
-                     image: UIImage(systemName: "arrow.down.to.line"),
-                     state: key.autoCompactEnabled ? .on : .off) { _ in
-                coordinator.parent.setAutoCompactEnabled(!key.autoCompactEnabled)
-            },
         ]
         #if DEBUG
         tailGroup.append(UIDeferredMenuElement.uncached { completion in
@@ -5862,7 +5684,7 @@ private struct MoveToSessionSheet: View {
     }
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             List {
                 if !isSearching {
                     Button {
@@ -6265,14 +6087,14 @@ private struct SpeechLanguagePickerSheet: View {
 
     /// Indices where the preferred/non-preferred boundary lies for section headers.
     private var preferredCodes: Set<String> {
-        Set(Locale.preferredLanguages.map { Locale(identifier: $0).languageCode ?? "" })
+        Set(Locale.preferredLanguages.map { Locale(identifier: $0).language.languageCode?.identifier ?? "" })
     }
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             List {
-                let preferred = filteredLocales.filter { preferredCodes.contains($0.languageCode ?? "") }
-                let others = filteredLocales.filter { !preferredCodes.contains($0.languageCode ?? "") }
+                let preferred = filteredLocales.filter { preferredCodes.contains($0.language.languageCode?.identifier ?? "") }
+                let others = filteredLocales.filter { !preferredCodes.contains($0.language.languageCode?.identifier ?? "") }
 
                 if !preferred.isEmpty {
                     Section(AppLocalized("Preferred", comment: "Section header for preferred speech languages")) {
@@ -6301,6 +6123,7 @@ private struct SpeechLanguagePickerSheet: View {
                 }
             }
         }
+        .presentationDetents([.medium, .large])
     }
 
     private func languageRow(_ loc: Locale) -> some View {
@@ -6320,14 +6143,12 @@ private struct SpeechLanguagePickerSheet: View {
                 if loc.identifier == speechManager.locale.identifier {
                     Image(systemName: "checkmark")
                         .foregroundStyle(Color.accentColor)
-                        
+                        .fontWeight(.semibold)
                 }
             }
         }
     }
 }
-
-
 
 // MARK: - Compact Summary Sheet
 
@@ -6342,7 +6163,7 @@ struct CompactSummarySheet: View {
     @State private var showRevertConfirm = false
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             VStack(spacing: 0) {
                 SelectableTextView(text: summary)
                     .padding(.horizontal, 16)
@@ -6395,6 +6216,7 @@ struct CompactSummarySheet: View {
                 Text("The summary will be discarded and the messages it covered will become active again. This may push the conversation past the model's context window — if that happens, long-press a message to re-compact from that point.")
             }
         }
+        .presentationDetents([.large])
     }
 }
 
@@ -6430,7 +6252,7 @@ private struct TokenUsageSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             List {
                 let s = vm.sessionTokenStats
 

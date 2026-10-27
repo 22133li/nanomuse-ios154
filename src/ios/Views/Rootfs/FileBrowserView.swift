@@ -219,7 +219,7 @@ struct FileBrowserView: View {
         .sheet(item: $moveOrCopyItem) { item in
             let minisPath = viewModel.rootPath.appendingPathComponent("var/minis")
             let initial = FileManager.default.fileExists(atPath: minisPath.path) ? minisPath : nil
-            NavigationView {
+            NavigationStack {
                 DirectoryPickerView(
                     rootPath: viewModel.rootPath,
                     rootLabel: viewModel.rootLabel,
@@ -416,7 +416,7 @@ private struct FilePreviewSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             content
                 .navigationTitle(item.name)
                 .navigationBarTitleDisplayMode(.inline)
@@ -487,12 +487,25 @@ private struct MarkdownFilePreview: View {
                 }
             }
         }
-        .navigationBarItems(leading:
-            Group {
-                if case .loaded = loadState {
-                    // Single toggle button, NOT a segmented Picker: a plain
-                    // Button showing ONE icon is what a nav-bar slot is
-                    // shaped for. The icon shows the mode you will switch TO.
+        .toolbar {
+            if case .loaded = loadState {
+                ToolbarItem(placement: .topBarLeading) {
+                    // Single toggle button, NOT a segmented Picker.
+                    //
+                    // A `.segmented` Picker asks for the width of all its
+                    // segments, but a toolbar item on iOS 26's Liquid Glass
+                    // bar is laid out as one round glass button. The control
+                    // got squeezed into that circular slot and drew both
+                    // segments on top of each other — the reported "two
+                    // overlapping, distorted icons" (screenshot
+                    // /tmp/md_preview_toggle_bug.jpg), not an animation stuck
+                    // mid-transition.
+                    //
+                    // A plain Button showing ONE icon is what a toolbar slot
+                    // is shaped for, and it matches the icon-swap toggles
+                    // used elsewhere in the app. The icon shows the mode you
+                    // will switch TO, which is the convention for a toggle
+                    // that has no separate label.
                     Button {
                         renderMode = (renderMode == .rendered) ? .source : .rendered
                     } label: {
@@ -505,7 +518,7 @@ private struct MarkdownFilePreview: View {
                                         : Text("Show Rendered"))
                 }
             }
-        )
+        }
         .task { await load() }
     }
 
@@ -1730,7 +1743,7 @@ private struct DirectoryPickerView: View {
 }
 
 #Preview {
-    NavigationView {
+    NavigationStack {
         FileBrowserView()
     }
 }

@@ -895,7 +895,7 @@ struct FolderPackageListView: View {
         // the server list detaches its rclone calls.
         let id = folder.id
         let found = await Task.detached(priority: .userInitiated) {
-            await BackupDestinations.listPackages(folderId: id)
+            BackupDestinations.listPackages(folderId: id)
         }.value
         packages = found
         loading = false
@@ -921,7 +921,7 @@ struct ServerRestorePickerSheet: View {
     @State private var showAddServer = false
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             Form {
                 if !remotes.isEmpty {
                     Section {
@@ -1312,6 +1312,7 @@ struct ServerPackageListView: View {
             .disabled(cancelFlag.value)
         }
         .padding(24)
+        .presentationDetents([.height(240)])
         // No swipe-to-dismiss: leaving the sheet would hide a transfer that is
         // still running, which is how the concurrency problem started.
         .interactiveDismissDisabled(true)

@@ -4341,13 +4341,7 @@ final class VideoAttachment: NSTextAttachment {
 
             var thumb: UIImage?
             do {
-                // iOS 15 backport: AVAssetImageGenerator.image(at:) is iOS 16+
-                let cgImage = try await withCheckedThrowingContinuation { (cont: CheckedContinuation<CGImage, Error>) in
-                    generator.generateCGImagesAsynchronously(forTimes: [NSValue(time: .zero)]) { _, cgImage, _, _, error in
-                        if let cgImage { cont.resume(returning: cgImage) }
-                        else { cont.resume(throwing: error ?? NSError(domain: "SelectableMarkdownView", code: -1)) }
-                    }
-                }
+                let (cgImage, _) = try await generator.image(at: .zero)
                 thumb = UIImage(cgImage: cgImage)
             } catch {
                 // Fallback: no thumbnail
@@ -7796,15 +7790,10 @@ struct SelectableMarkdownView: UIViewRepresentable {
         // becomes a measurable chunk of every updateUIView pass (and
         // updateUIView runs on each SwiftUI body re-evaluation, so it
         // multiplies during streaming and self-sizing measurement loops).
-        // iOS 15 backport: Regex literals and String.ranges(of:) are iOS 16+
-        let imageMatches: [String] = (try? NSRegularExpression(pattern: "!\\[([^\\]]*)\\]\\(([^)]+)\\)"))
-            .map { regex in
-                let ns = markdown as NSString
-                return regex.matches(in: markdown, range: NSRange(location: 0, length: ns.length))
-                    .map { ns.substring(with: $0.range) }
-            } ?? []
+        let imageMatches = markdown.ranges(of: /!\[([^\]]*)\]\(([^)]+)\)/)
         if !imageMatches.isEmpty {
-            for matchStr in imageMatches {
+            for match in imageMatches {
+                let matchStr = String(markdown[match])
                 imgLogger.info("[MinisImage][StreamParse] image markdown found: \(matchStr)")
             }
             let imageBlockCount = content.blocks.flatMap { Self.collectImageNodes(from: $0) }.count

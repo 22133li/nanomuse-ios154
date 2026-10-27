@@ -26,7 +26,7 @@ struct EnhancedBackgroundSettingsView: View {
                 Toggle("Enhanced Background Execution", isOn: $keepAlive.enhancedBackgroundEnabled)
                     .focusHighlight(shouldFocus("enhancedBackgroundExecution", current: keepAlive.enhancedBackgroundEnabled))
             } footer: {
-                Text("Keeps agent tasks running when the app is in the background. Shows progress via Live Activity on the Lock Screen and Dynamic Island. Turning this on also enables Background Speak (required for the keep-alive to work).")
+                Text("Keeps agent tasks running when the app is in the background. Shows progress via Live Activity on the Lock Screen and Dynamic Island. Also turns on Background Speak so text-to-speech narration keeps playing.")
             }
 
             // [T-ipad16-liveactivity-restore-crash] Hidden on devices where

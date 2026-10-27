@@ -38,7 +38,7 @@ struct SwipeToSendHint: View {
                 Image(systemName: "arrow.up.circle.fill")
                     .font(.system(size: 34))
                     .symbolRenderingMode(.palette)
-                    .foregroundColor(chipFg) // iOS 15 backport: 2-arg foregroundStyle is iOS 17+
+                    .foregroundStyle(chipFg, chipBg)
                     .shadow(color: Color.black.opacity(0.18), radius: 6, y: 2)
                 Text(isEnqueue
                      ? AppLocalized("Release to queue")
@@ -68,20 +68,86 @@ struct SwipeToSendHint: View {
 // MARK: - Flow Layout
 
 /// A custom Layout that arranges subviews in a wrapping horizontal flow.
-// iOS 15 backport: the Layout protocol is iOS 16+. Simplified via LazyVGrid,
-// following the same replacement the OpenMinis 1.14 iOS 15.4 port uses.
-private struct FlowLayout<Content: View>: View {
+private struct FlowLayout: Layout {
     var hSpacing: CGFloat = 8
     var vSpacing: CGFloat = 8
     var alignment: HorizontalAlignment = .leading
-    let content: Content
-    init(hSpacing: CGFloat = 8, vSpacing: CGFloat = 8, alignment: HorizontalAlignment = .leading, @ViewBuilder content: () -> Content) {
-        self.hSpacing = hSpacing; self.vSpacing = vSpacing; self.alignment = alignment; self.content = content()
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let result = arrange(proposal: proposal, subviews: subviews)
+        // Use the full proposed width so the layout fills its container.
+        return CGSize(width: proposal.width ?? result.size.width, height: result.size.height)
     }
-    var body: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 60), spacing: hSpacing)], alignment: .leading, spacing: vSpacing) {
-            content
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let result = arrange(proposal: proposal, subviews: subviews)
+        let containerWidth = bounds.width
+        for (index, position) in result.positions.enumerated() {
+            let xOffset: CGFloat
+            if alignment == .trailing {
+                let rowWidth = result.rowWidths[result.rowIndices[index]]
+                xOffset = containerWidth - rowWidth + position.x
+            } else {
+                xOffset = position.x
+            }
+            subviews[index].place(
+                at: CGPoint(x: bounds.minX + xOffset, y: bounds.minY + position.y),
+                proposal: ProposedViewSize(result.sizes[index])
+            )
         }
+    }
+
+    private struct ArrangeResult {
+        var positions: [CGPoint]
+        var sizes: [CGSize]
+        var size: CGSize
+        var rowWidths: [CGFloat]
+        var rowIndices: [Int]
+    }
+
+    private func arrange(proposal: ProposedViewSize, subviews: Subviews) -> ArrangeResult {
+        let maxWidth = proposal.width ?? .infinity
+        var positions: [CGPoint] = []
+        var sizes: [CGSize] = []
+        var rowIndices: [Int] = []
+        var rowWidths: [CGFloat] = []
+        var x: CGFloat = 0
+        var y: CGFloat = 0
+        var rowHeight: CGFloat = 0
+        var totalWidth: CGFloat = 0
+        var currentRowStart = 0
+        var currentRow = 0
+
+        for (i, subview) in subviews.enumerated() {
+            let size = subview.sizeThatFits(.unspecified)
+            if x + size.width > maxWidth, x > 0 {
+                // Finish current row
+                rowWidths.append(x - hSpacing)
+                currentRow += 1
+                x = 0
+                y += rowHeight + vSpacing
+                rowHeight = 0
+                currentRowStart = i
+            }
+            positions.append(CGPoint(x: x, y: y))
+            sizes.append(size)
+            rowIndices.append(currentRow)
+            rowHeight = max(rowHeight, size.height)
+            x += size.width + hSpacing
+            totalWidth = max(totalWidth, x - hSpacing)
+        }
+        // Last row
+        if !subviews.isEmpty {
+            rowWidths.append(x - hSpacing)
+        }
+
+        return ArrangeResult(
+            positions: positions,
+            sizes: sizes,
+            size: CGSize(width: totalWidth, height: y + rowHeight),
+            rowWidths: rowWidths,
+            rowIndices: rowIndices
+        )
     }
 }
 
@@ -208,7 +274,7 @@ private struct AttachmentChip: View {
         .onAppear { loadThumbnailIfNeeded() }
         .onTapGesture { showPreview = true }
         .sheet(isPresented: $showPreview) {
-            NavigationView {
+            NavigationStack {
                 AttachmentPreviewView(url: attachment.cacheURL)
                     .navigationTitle(attachment.fileName)
                     .navigationBarTitleDisplayMode(.inline)
@@ -434,7 +500,23 @@ private struct AttachmentPreviewView: UIViewControllerRepresentable {
     }
 }
 
-// iOS 15 backport: VideoFileTransferable removed
+// MARK: - Video File Transferable (for PhotosPicker video export)
+
+struct VideoFileTransferable: Transferable {
+    let url: URL
+
+    static var transferRepresentation: some TransferRepresentation {
+        FileRepresentation(contentType: .movie) { video in
+            SentTransferredFile(video.url)
+        } importing: { received in
+            // Copy to a temp location so the file outlives the picker callback
+            let tmp = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString.prefix(8) + "_" + received.file.lastPathComponent)
+            try FileManager.default.copyItem(at: received.file, to: tmp)
+            return Self(url: tmp)
+        }
+    }
+}
 
 // MARK: - Camera Picker (UIImagePickerController wrapper)
 
@@ -1373,7 +1455,6 @@ struct PastableTextView: UIViewRepresentable {
         return tv
     }
 
-    @available(iOS 16.0, *)
     func sizeThatFits(_ proposal: ProposedViewSize, uiView tv: PastableUITextView, context: Context) -> CGSize? {
         let width = proposal.width ?? UIScreen.main.bounds.width
         // [T-share-url-input-height] UITextView.sizeThatFits returns the
