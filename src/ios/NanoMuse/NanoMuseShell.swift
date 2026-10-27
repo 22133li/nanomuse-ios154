@@ -727,7 +727,6 @@ struct NanoMuseHomeView: View {
             .toolbar(.hidden, for: .navigationBar)
             .animation(.easeInOut(duration: 0.25), value: star.pending)
             .animation(.easeInOut(duration: 0.25), value: allowance.pending)
-        }
     }
 
     /// The round hamburger: the drawer with the side chats.
