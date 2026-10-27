@@ -1071,7 +1071,7 @@ struct ThinkingLevelSheetView: View {
     let onSelect: (ThinkingLevel) -> Void
 
     var body: some View {
-        NavigationStack {
+        NanoMuseCompatNavigationStack {
             List {
                 thinkingRow(level: .off, isSelected: !currentLevel.isEnabled)
                 Section {

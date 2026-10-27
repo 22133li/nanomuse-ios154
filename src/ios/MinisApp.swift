@@ -261,7 +261,7 @@ struct MinisApp: App {
                     get: { sessionLockStore.appIsLocked ? nil : openRouter.pendingPackage },
                     set: { openRouter.pendingPackage = $0 }
                 )) { pending in
-                    NavigationStack {
+                    NanoMuseCompatNavigationStack {
                         // Opens on the RESTORE tab with the package already
                         // loaded. Someone who just tapped a .minisbak is mid
                         // device-migration — landing them on the backup form

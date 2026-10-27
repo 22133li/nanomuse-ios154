@@ -141,7 +141,7 @@ struct NanoMuseAccountSections: View {
                 .labelStyle(.iconOnly)
             }
             if !invite.url.isEmpty {
-                ShareLink(item: URL(string: invite.url) ?? NanoMuseStar.repoURL) {
+                NanoMuseShareLink(item: URL(string: invite.url) ?? NanoMuseStar.repoURL) {
                     Label(AppLocalized("Share the link"), systemImage: "square.and.arrow.up")
                 }
             }

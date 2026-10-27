@@ -138,17 +138,17 @@ struct ModelGroupsView: View {
         .navigationTitle("Model Groups")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showAddAgentModels) {
-            NavigationStack {
+            NanoMuseCompatNavigationStack {
                 UnifiedModelPicker(config: .agentLoopAddModels())
             }
         }
         .sheet(isPresented: $showAddAgentGroups) {
-            NavigationStack {
+            NanoMuseCompatNavigationStack {
                 AddAgentLoopGroupsSheet()
             }
         }
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
                 Menu {
                     Button {
                         showCreateGroup = true

@@ -403,10 +403,10 @@ struct NanoMuseAvatarStudioView: View {
         if embedded {
             content
         } else {
-            NavigationStack {
+            NanoMuseCompatNavigationStack {
                 content
                     .toolbar {
-                        ToolbarItem(placement: .topBarTrailing) {
+                        ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
                             Button(AppLocalized("Done")) { dismiss() }
                         }
                     }
@@ -468,7 +468,7 @@ struct NanoMuseAvatarStudioView: View {
                     askCost = false
                     studio.draw()
                 }
-                .presentationDetents([.medium])
+                .nanoMuseSheetSize(.medium)
             }
             .confirmationDialog(AppLocalized("Back to the built-in face"), isPresented: $confirmReset, titleVisibility: .visible) {
                 Button(AppLocalized("Back to the built-in face"), role: .destructive) { studio.reset() }
@@ -611,7 +611,7 @@ struct NanoMuseAvatarStudioView: View {
                 }
                 .padding(.vertical, 2)
             }
-            TextField(AppLocalized("Describe a new face"), text: $studio.description, axis: .vertical)
+            NanoMuseMultilineTextField(placeholder: AppLocalized("Describe a new face"), text: $studio.description, axisVerticalLineLimit: 2...5)
                 .lineLimit(2...5)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {

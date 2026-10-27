@@ -40,7 +40,7 @@ struct BrowserManagementView: View {
         .navigationTitle("Browser Settings")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
                 Button("Done") { dismiss() }
             }
         }
@@ -128,7 +128,7 @@ struct BrowserManagementView: View {
                     }
                 }
             }
-            TextField("Enter custom user agent...", text: $customUA, axis: .vertical)
+            NanoMuseMultilineTextField(placeholder: "Enter custom user agent...", text: $customUA)
                 .font(.system(size: 11, design: .monospaced))
                 .foregroundStyle(.secondary)
                 .lineLimit(2...4)

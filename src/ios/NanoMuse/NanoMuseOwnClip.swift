@@ -262,33 +262,12 @@ final class NanoMuseOwnClip: ObservableObject {
 
 // MARK: - Picking
 
-/// The picked video as a file: the photo library hands over a copy, kept in the temporary
-/// folder with its own extension until the import has looked at it.
-struct NanoMuseOwnClipFile: Transferable {
-    let url: URL
-
-    static var transferRepresentation: some TransferRepresentation {
-        FileRepresentation(contentType: .movie) { file in
-            SentTransferredFile(file.url)
-        } importing: { received in
-            let name = "own-clip-" + String(UUID().uuidString.prefix(8))
-            let ext = received.file.pathExtension
-            let tmp = FileManager.default.temporaryDirectory
-                .appendingPathComponent(ext.isEmpty ? name : name + "." + ext)
-            try? FileManager.default.removeItem(at: tmp)
-            try FileManager.default.copyItem(at: received.file, to: tmp)
-            return Self(url: tmp)
-        }
-    }
-}
-
 /// Picking a clip of one's own: the photo library's video picker, the checks, and the preview
 /// sheet with the clip playing in the face's own frame, "Use" and "Cancel". A screen calls
 /// `choose()` from a button or a menu and wears `.nanoMuseOwnClipHost(picker)` once.
 @MainActor
 final class NanoMuseOwnClipPicker: ObservableObject {
     @Published var presented = false
-    @Published var item: PhotosPickerItem?
     @Published var pending: NanoMuseOwnClip.Pending?
     var mood: NanoMuseMood?
     @Published var message: String?
@@ -311,7 +290,7 @@ final class NanoMuseOwnClipPicker: ObservableObject {
         previewTask?.cancel()
         previewTask = Task { @MainActor [weak self] in
             do {
-                try await Task.sleep(for: .milliseconds(350))
+                try await Task.sleep(nanoseconds: 350_000_000)
             } catch {
                 return
             }
@@ -322,18 +301,17 @@ final class NanoMuseOwnClipPicker: ObservableObject {
     }
 
     /// The picker returned: look at the file, refuse or preview.
-    func handle(_ picked: PhotosPickerItem?) {
+    func handle(_ picked: NanoMusePick?) {
         guard let picked else { return }
-        item = nil
         busy = true
         Task { @MainActor [weak self] in
             guard let self else { return }
             defer { self.busy = false }
-            guard let file = try? await picked.loadTransferable(type: NanoMuseOwnClipFile.self) else {
+            guard let fileURL = await picked.videoFileURL() else {
                 self.message = AppLocalized("The clip could not be read. Try another one.")
                 return
             }
-            switch await NanoMuseOwnClip.importClip(from: file.url) {
+            switch await NanoMuseOwnClip.importClip(from: fileURL) {
             case .ready(let next):
                 self.readyForPreview = next
                 self.presentPreviewWhenPickerCloses()
@@ -365,8 +343,9 @@ struct NanoMuseOwnClipHost: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .photosPicker(isPresented: $picker.presented, selection: $picker.item, matching: .videos)
-            .nmOnChange(of: picker.item) { picked in picker.handle(picked) }
+            .modifier(NanoMuseSinglePhotoPicker(isPresented: $picker.presented, allowsImages: false, allowsVideos: true) { picked in
+                picker.handle(picked)
+            })
             .nmOnChange(of: picker.presented) { shown in
                 if !shown { picker.presentPreviewWhenPickerCloses() }
             }
@@ -382,7 +361,7 @@ struct NanoMuseOwnClipHost: ViewModifier {
                         picker.pending = nil
                     }
                 )
-                .presentationDetents([.large])
+                .nanoMuseSheetSize(.large)
                 .interactiveDismissDisabled()
             }
             .alert(

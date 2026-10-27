@@ -130,11 +130,11 @@ struct ProviderInstancesView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if !store.instances.isEmpty {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: NanoMuseToolbarPlacement.leading) {
                     EditButton()
                 }
             }
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
                 Menu {
                     Button {
                         showAddProvider = true
@@ -161,7 +161,7 @@ struct ProviderInstancesView: View {
             }
         }
         .sheet(isPresented: $showAddProvider) {
-            NavigationStack {
+            NanoMuseCompatNavigationStack {
                 AddProviderView()
             }
         }

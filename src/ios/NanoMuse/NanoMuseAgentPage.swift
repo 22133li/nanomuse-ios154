@@ -50,7 +50,7 @@ struct NanoMuseAgentPage: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NanoMuseCompatNavigationStack {
             ScrollView {
                 VStack(spacing: 0) {
                     header
@@ -634,9 +634,19 @@ struct NanoMuseShareCard: View {
     @MainActor
     static func render(_ palette: NanoMuseSharePalette, agentName: String, scale: CGFloat = 1) -> UIImage? {
         let face = NanoMuseFaceStore.shared.image(for: palette.mood) ?? NanoMuseFaceStore.shared.image(for: .idle)
-        let renderer = ImageRenderer(content: NanoMuseShareCard(palette: palette, agentName: agentName, face: face))
-        renderer.scale = scale
-        return renderer.uiImage
+        // iOS 15 backport: SwiftUI's ImageRenderer is iOS 16+; on 16+ the
+        // official renderer is used unchanged, on 15 a off-screen snapshot.
+        if #available(iOS 16.0, *) {
+            let renderer = ImageRenderer(content: NanoMuseShareCard(palette: palette, agentName: agentName, face: face))
+            renderer.scale = scale
+            return renderer.uiImage
+        } else {
+            return ViewSnapshot.image(
+                of: NanoMuseShareCard(palette: palette, agentName: agentName, face: face),
+                size: CGSize(width: Self.width, height: Self.height),
+                scale: scale
+            )
+        }
     }
 }
 
@@ -699,7 +709,7 @@ struct NanoMuseAvatarShareSheet: View {
             .disabled(previews == nil)
         }
         .padding(20)
-        .presentationDetents([.medium, .large])
+        .nanoMuseSheetSize(.mediumOrLarge)
         .task {
             previews = NanoMuseSharePalette.all.compactMap { NanoMuseShareCard.render($0, agentName: agentName, scale: 0.3) }
         }

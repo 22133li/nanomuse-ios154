@@ -370,13 +370,13 @@ struct BackupSettingsView: View {
 
             if let result {
                 Section {
-                    LabeledContent("Size", value: byteText(result.totalBytes))
+                    NanoMuseLabeledContent("Size", value: byteText(result.totalBytes))
                     if result.skippedFiles > 0 {
                         // §3.4: a size-capped export has gaps, and the user is
                         // told here rather than discovering it at restore time.
                         // "too large" would be wrong when files were left out
                         // on purpose — nothing exceeded anything.
-                        LabeledContent(maxFileSizeMB == Self.noFilesTag
+                        NanoMuseLabeledContent(maxFileSizeMB == Self.noFilesTag
                                        ? "Files not included"
                                        : "Excluded (too large)",
                                        value: "\(result.skippedFiles) file(s)")
@@ -701,7 +701,7 @@ struct BackupSettingsView: View {
                 // The placeholder is the automatic name, so an untouched field
                 // shows the user what will be used rather than sitting blank.
                 TextField(DeviceIdentity.automaticName, text: $deviceNameDraft)
-                    .autocorrectionDisabled()
+                    .disableAutocorrection(true)
                     .textInputAutocapitalization(.words)
                     .submitLabel(.done)
                     .onSubmit { commitDeviceName() }

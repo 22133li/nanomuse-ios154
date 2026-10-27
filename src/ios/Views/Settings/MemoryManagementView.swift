@@ -261,7 +261,7 @@ private struct MemoryFileEditView: View {
             // user had to press Return to reveal it. Keeping it always present
             // sidesteps every input-source quirk. `save()` is a harmless
             // no-op rewrite when nothing changed.
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
                 Button("Save") { save() }
             }
         }

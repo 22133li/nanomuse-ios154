@@ -507,12 +507,12 @@ struct UnifiedModelPicker: View {
         }
         .toolbar { toolbarContent }
         .sheet(isPresented: $showCreateGroupSheet) {
-            NavigationStack {
+            NanoMuseCompatNavigationStack {
                 UnifiedModelPicker(config: createGroupConfig())
             }
         }
         .sheet(isPresented: $showGroupsManager) {
-            NavigationStack {
+            NanoMuseCompatNavigationStack {
                 ModelGroupsView()
                     .toolbar {
                         ToolbarItem(placement: .cancellationAction) {
@@ -530,8 +530,8 @@ struct UnifiedModelPicker: View {
             // model while TestSession still ran the OLD one.
             ModelQuickTestSheet(entry: entry)
                 .id(entry.id)
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
+                .nanoMuseSheetSize(.mediumOrLarge)
+                .nanoMuseSheetDragIndicator(true)
         }
     }
 
@@ -609,10 +609,10 @@ struct UnifiedModelPicker: View {
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         if isMulti {
-            ToolbarItem(placement: .topBarLeading) {
+            ToolbarItem(placement: NanoMuseToolbarPlacement.leading) {
                 Button("Cancel") { dismiss() }
             }
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
                 Button("Add (\(selectedEntryIds.count))") {
                     config.onAddMulti?(selectedEntryIds)
                     dismiss()
@@ -621,7 +621,7 @@ struct UnifiedModelPicker: View {
                 .disabled(selectedEntryIds.isEmpty)
             }
         } else {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
                 Button("Done") { dismiss() }
             }
         }

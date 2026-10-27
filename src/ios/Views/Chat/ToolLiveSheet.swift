@@ -478,7 +478,7 @@ struct ToolLiveSheet: View {
         .onReceive(block.objectWillChange) { _ in
             blockUpdateTick += 1
         }
-        .presentationDragIndicator(.hidden)
+        .nanoMuseSheetDragIndicator(false)
         // Tapping a URL in shell output (underlined via attributedShellLine)
         // routes through `activeSheet` so it shares one `.sheet(item:)`
         // modifier with the browser takeover below.
@@ -658,7 +658,7 @@ struct ToolLiveSheet: View {
         .padding(.vertical, 10)
         .background(Color(UIColor.systemBackground))
         .fullScreenCover(isPresented: $showTerminal) {
-            NavigationStack {
+            NanoMuseCompatNavigationStack {
                 // Pre-fill the shell command the tool is currently running,
                 // WITHOUT a trailing newline — the user can review/edit and
                 // press Enter themselves (intentional, not auto-run).
@@ -2117,7 +2117,7 @@ private struct ToolPreviewThumbnail: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 2)
                     .background(Color.black.opacity(0.6))
-                    .clipShape(UnevenRoundedRectangle(bottomLeadingRadius: 8, bottomTrailingRadius: 8))
+                    .clipShape(BackportUnevenRoundedRectangle(bottomLeadingRadius: 8, bottomTrailingRadius: 8))
             }
         }
         .shadow(color: .black.opacity(0.3), radius: 10, x: 0, y: 3)

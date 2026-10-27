@@ -274,12 +274,12 @@ private struct AttachmentChip: View {
         .onAppear { loadThumbnailIfNeeded() }
         .onTapGesture { showPreview = true }
         .sheet(isPresented: $showPreview) {
-            NavigationStack {
+            NanoMuseCompatNavigationStack {
                 AttachmentPreviewView(url: attachment.cacheURL)
                     .navigationTitle(attachment.fileName)
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
-                        ToolbarItem(placement: .topBarTrailing) {
+                        ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
                             Button("Done") { showPreview = false }
                         }
                     }
@@ -496,24 +496,6 @@ private struct AttachmentPreviewView: UIViewControllerRepresentable {
         func numberOfPreviewItems(in controller: QLPreviewController) -> Int { 1 }
         func previewController(_ controller: QLPreviewController, previewItemAt index: Int) -> QLPreviewItem {
             url as NSURL
-        }
-    }
-}
-
-// MARK: - Video File Transferable (for PhotosPicker video export)
-
-struct VideoFileTransferable: Transferable {
-    let url: URL
-
-    static var transferRepresentation: some TransferRepresentation {
-        FileRepresentation(contentType: .movie) { video in
-            SentTransferredFile(video.url)
-        } importing: { received in
-            // Copy to a temp location so the file outlives the picker callback
-            let tmp = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString.prefix(8) + "_" + received.file.lastPathComponent)
-            try FileManager.default.copyItem(at: received.file, to: tmp)
-            return Self(url: tmp)
         }
     }
 }

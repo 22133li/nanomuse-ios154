@@ -153,7 +153,7 @@ struct NanoMuseIdeasRoom: View {
                 case .goal: onStartGoal(NanoMuseGoalCategory.from(idea.category), idea.prompt)
                 }
             }
-            .presentationDetents([.medium, .large])
+            .nanoMuseSheetSize(.mediumOrLarge)
         }
     }
 
@@ -417,7 +417,7 @@ struct NanoMuseLibraryRoom: View {
                     }
                 }
                 .listStyle(.plain)
-                .scrollContentBackground(.hidden)
+                .nanoMuseHideScrollBackground()
             }
         }
         // Plain rows on the chat's canvas, as Android's LibraryTab and docs/design.md.

@@ -658,7 +658,7 @@ struct NanoMusePostDetail: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack {
+        NanoMuseCompatNavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     HStack(spacing: 8) {
@@ -708,7 +708,7 @@ struct NanoMuseFeedSettingsSheet: View {
     private var routine: NanoMuseRoutine? { NanoMuseFeedFlow.routine }
 
     var body: some View {
-        NavigationStack {
+        NanoMuseCompatNavigationStack {
             Form {
                 Section {
                     TextEditor(text: $text).frame(minHeight: 90)

@@ -391,7 +391,6 @@ struct AIChatView: View {
     @State private var pendingProviderImport: PendingProviderImport?
     @State private var providerImportResult: String?
     @State private var screenshotPreview: ChatScreenshotPreview?
-    @State private var selectedPhotoItems: [PhotosPickerItem] = []
     @State private var attachmentGridHeight: CGFloat = 0
     @State private var transcriptHeight: CGFloat = 0
     /// Tracks how much of recognizedText has already been appended to inputText.
@@ -749,7 +748,7 @@ struct AIChatView: View {
         }
         .sheet(item: $locateDownloadTarget) { target in
             if let sid = vm.sessionId {
-                NavigationStack {
+                NanoMuseCompatNavigationStack {
                     FileBrowserView(
                         rootPath: AIChatViewModel.minisWorkspacePersistentDir(for: sid),
                         rootLabel: "/var/minis/workspace",
@@ -883,8 +882,8 @@ struct AIChatView: View {
         }
         .sheet(item: $previewAudioFile) { fileURL in
             MinisAudioPreviewView(fileURL: fileURL)
-                .presentationDetents([.large])
-                .presentationDragIndicator(.hidden)
+                .nanoMuseSheetSize(.large)
+                .nanoMuseSheetDragIndicator(false)
         }
         .sheet(item: $previewTextFile) { fileURL in
             MinisTextPreviewView(fileURL: fileURL)
@@ -962,7 +961,7 @@ struct AIChatView: View {
             })
         }
         .sheet(isPresented: $showFileBrowser) {
-            NavigationStack {
+            NanoMuseCompatNavigationStack {
                 let base = RootfsManager.shared.dataPath
                 FileBrowserView(rootPath: base, initialPath: base.appendingPathComponent("var/minis"), rootLabel: "/")
             }
@@ -973,16 +972,16 @@ struct AIChatView: View {
             })
         }
         .sheet(isPresented: $showModelPicker) {
-            NavigationStack {
+            NanoMuseCompatNavigationStack {
                 SessionModelPicker(sessionId: vm.sessionId) {
                     await vm.ensureSessionReturningId()
                 }
             }
-            .presentationDetents([.large])
+            .nanoMuseSheetSize(.large)
         }
         .sheet(isPresented: $showTokenUsage) {
             TokenUsageSheet(vm: cached.vm)
-                .presentationDetents([.fraction(0.8), .large])
+                .nanoMuseSheetFractionOrLarge(0.8)
         }
         .sheet(item: $screenshotPreview) { preview in
             ChatScreenshotPreviewSheet(image: preview.image)
@@ -1063,7 +1062,7 @@ struct AIChatView: View {
         .fullScreenCover(isPresented: $showTerminal) {
             terminalInitCommand = nil
         } content: {
-            NavigationStack {
+            NanoMuseCompatNavigationStack {
                 ISHTerminalView(sessionId: vm.sessionId, showCloseButton: true, initCommand: terminalInitCommand)
                     .onAppear {
                         if let sid = vm.sessionId {
@@ -1107,10 +1106,8 @@ struct AIChatView: View {
                 }
             )
         }
-        .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhotoItems,
-                      maxSelectionCount: 50, matching: .any(of: [.images, .videos]))
-        .onChange(of: selectedPhotoItems) { items in
-            guard !items.isEmpty else { return }
+        .modifier(NanoMusePhotoPicker(isPresented: $showPhotoPicker, maxSelectionCount: 50) { picks in
+            guard !picks.isEmpty else { return }
             // [T-ios-photo-pick-placeholder] 1) Insert a loading placeholder chip
             // for every picked item RIGHT NOW (one main-actor batch update), so the
             // user immediately sees how many they picked instead of watching photos
@@ -1118,41 +1115,36 @@ struct AIChatView: View {
             // TaskGroup. 3) Resolve each placeholder in place as its bytes arrive
             // (success → real thumbnail, failure → error chip). The send button is
             // gated on `hasLoadingAttachments` until every item settles.
-            let kinds = items.map { item -> InputAttachment.Kind in
-                item.supportedContentTypes.contains(where: { $0.conforms(to: .movie) }) ? .video : .image
+            let kinds = picks.map { pick -> InputAttachment.Kind in
+                pick.isVideo ? .video : .image
             }
             let placeholderIDs = vm.addLoadingPlaceholders(kinds: kinds)
 
             // Snapshot per-item metadata synchronously (PHAsset fetch + UTI) so the
             // concurrent loaders don't touch SwiftUI state or PhotosUI mid-flight.
-            struct PickJob { let id: UUID; let item: PhotosPickerItem; let isVideo: Bool; let ext: String?; let date: Date? }
-            let jobs: [PickJob] = zip(placeholderIDs, items).map { pid, item in
-                let isVideo = item.supportedContentTypes.contains(where: { $0.conforms(to: .movie) })
+            struct PickJob { let id: UUID; let pick: NanoMusePick; let isVideo: Bool; let ext: String?; let date: Date? }
+            let jobs: [PickJob] = zip(placeholderIDs, picks).map { pid, pick in
                 var assetDate: Date?
-                if let aid = item.itemIdentifier,
+                if let aid = pick.assetIdentifier,
                    let asset = PHAsset.fetchAssets(withLocalIdentifiers: [aid], options: nil).firstObject {
                     assetDate = asset.creationDate
                 }
-                let ext = item.supportedContentTypes
-                    .first(where: { $0.conforms(to: .image) })?
-                    .preferredFilenameExtension
-                return PickJob(id: pid, item: item, isVideo: isVideo, ext: ext, date: assetDate)
+                return PickJob(id: pid, pick: pick, isVideo: pick.isVideo, ext: pick.fileExtension, date: assetDate)
             }
-            selectedPhotoItems = []
 
             Task {
                 await withTaskGroup(of: Void.self) { group in
                     for job in jobs {
                         group.addTask {
                             if job.isVideo {
-                                if let videoURL = try? await job.item.loadTransferable(type: VideoFileTransferable.self) {
+                                if let videoURL = await job.pick.videoFileURL() {
                                     await MainActor.run {
-                                        vm.finalizeVideoPlaceholder(id: job.id, from: videoURL.url, originalDate: job.date)
+                                        vm.finalizeVideoPlaceholder(id: job.id, from: videoURL, originalDate: job.date)
                                     }
                                 } else {
                                     await MainActor.run { vm.markPlaceholderFailed(id: job.id) }
                                 }
-                            } else if let data = try? await job.item.loadTransferable(type: Data.self) {
+                            } else if let data = await job.pick.imageData() {
                                 // Preserve original encoded bytes (PNG transparency,
                                 // HEIC, animated GIFs, EXIF) — written verbatim.
                                 await MainActor.run {
@@ -1165,7 +1157,7 @@ struct AIChatView: View {
                     }
                 }
             }
-        }
+        })
         .fileImporter(
             isPresented: $showDocumentPicker,
             allowedContentTypes: [.image, .pdf, .plainText, .json, .sourceCode, .presentation, .spreadsheet, .data],
@@ -2458,7 +2450,7 @@ struct AIChatView: View {
                     showThinkingLevelSheet = false
                 }
             )
-            .presentationDetents([.medium])
+            .nanoMuseSheetSize(.medium)
         }
     }
 
@@ -2820,7 +2812,7 @@ struct AIChatView: View {
                 // layout and trips a precondition on the iOS 18 async renderer
                 // (ViewGraphGeometryObservers.needsUpdate SIGTRAP). The action
                 // also fires with the initial value, covering the old onAppear.
-                .onGeometryChange(for: CGFloat.self) { proxy in
+                .onGeometryChangeBackport(for: CGFloat.self) { proxy in
                     proxy.size.height
                 } action: { newH in
                     floatingBarHeight = newH
@@ -3876,7 +3868,7 @@ struct AIChatView: View {
             // floating-bar site). Fires with the initial value too, so the
             // old onAppear seeding AND its diagnostic log are preserved as
             // a single unified line.
-            .onGeometryChange(for: CGRect.self) { proxy in
+            .onGeometryChangeBackport(for: CGRect.self) { proxy in
                 proxy.frame(in: .global)
             } action: { frame in
                 let newH = frame.size.height
@@ -4953,8 +4945,8 @@ private struct ProviderImportSheet: View {
             }
         }
         .padding(24)
-        .presentationDetents([.height(360), .medium])
-        .presentationDragIndicator(.visible)
+        .nanoMuseSheetHeightOrMedium(360)
+        .nanoMuseSheetDragIndicator(true)
         // Swipe-to-dismiss without tapping a button still needs cleanup.
         .onDisappear { if !chose { onCancel() } }
     }
@@ -5037,7 +5029,7 @@ private struct NavBarStyleModifier: ViewModifier {
                 // keeps the first row below it, as there.
                 .ignoresSafeArea(.container, edges: systemBarScrim ? Edge.Set.top : []) // nanoMuse:
                 .toolbarBackground(systemBarScrim ? Visibility.hidden : Visibility.visible, for: .navigationBar) // nanoMuse:
-                .toolbarBackground(ChatColors.background, for: .navigationBar)
+                .nanoMuseToolbarBackground(ChatColors.background)
                 .safeAreaInset(edge: .top, spacing: 0) { // nanoMuse:
                     if systemBarScrim {
                         Color.clear.frame(height: 0)
@@ -5052,7 +5044,7 @@ private struct NavBarStyleModifier: ViewModifier {
                     // stay outside it exactly as before, and the action's
                     // initial fire covers the old onAppear seed.
                     Color.clear
-                        .onGeometryChange(for: CGFloat.self) { proxy in
+                        .onGeometryChangeBackport(for: CGFloat.self) { proxy in
                             proxy.safeAreaInsets.top
                         } action: { topSafeAreaInset = $0 }
                         .ignoresSafeArea()
@@ -5242,7 +5234,7 @@ private struct ChatToolbarHost<Title: View, Trailing: View>: View, Equatable {
             .allowsHitTesting(false)
             .toolbar {
                 ToolbarItem(placement: .principal) { title() }
-                ToolbarItem(placement: .topBarTrailing) { trailing() }
+                ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) { trailing() }
             }
     }
 }
@@ -5684,7 +5676,7 @@ private struct MoveToSessionSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NanoMuseCompatNavigationStack {
             List {
                 if !isSearching {
                     Button {
@@ -6091,7 +6083,7 @@ private struct SpeechLanguagePickerSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NanoMuseCompatNavigationStack {
             List {
                 let preferred = filteredLocales.filter { preferredCodes.contains($0.language.languageCode?.identifier ?? "") }
                 let others = filteredLocales.filter { !preferredCodes.contains($0.language.languageCode?.identifier ?? "") }
@@ -6123,7 +6115,7 @@ private struct SpeechLanguagePickerSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        .nanoMuseSheetSize(.mediumOrLarge)
     }
 
     private func languageRow(_ loc: Locale) -> some View {
@@ -6163,7 +6155,7 @@ struct CompactSummarySheet: View {
     @State private var showRevertConfirm = false
 
     var body: some View {
-        NavigationStack {
+        NanoMuseCompatNavigationStack {
             VStack(spacing: 0) {
                 SelectableTextView(text: summary)
                     .padding(.horizontal, 16)
@@ -6188,13 +6180,13 @@ struct CompactSummarySheet: View {
             .navigationTitle("Compact Summary")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
                     Button { dismiss() } label: {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundStyle(.secondary)
                     }
                 }
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: NanoMuseToolbarPlacement.leading) {
                     Button {
                         UIPasteboard.general.string = summary
                         copied = true
@@ -6216,7 +6208,7 @@ struct CompactSummarySheet: View {
                 Text("The summary will be discarded and the messages it covered will become active again. This may push the conversation past the model's context window — if that happens, long-press a message to re-compact from that point.")
             }
         }
-        .presentationDetents([.large])
+        .nanoMuseSheetSize(.large)
     }
 }
 
@@ -6252,7 +6244,7 @@ private struct TokenUsageSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack {
+        NanoMuseCompatNavigationStack {
             List {
                 let s = vm.sessionTokenStats
 
@@ -6308,7 +6300,7 @@ private struct TokenUsageSheet: View {
             .navigationTitle("Session Token Usage")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
                     Button("Done") { dismiss() }
                 }
             }

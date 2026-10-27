@@ -289,15 +289,15 @@ private struct FolderSurface: ViewModifier {
     private var shape: AnyShape {
         switch kind {
         case .lone:
-            return AnyShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            return BackportAnyShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         case .top:
-            return AnyShape(UnevenRoundedRectangle(
+            return BackportAnyShape(BackportUnevenRoundedRectangle(
                 topLeadingRadius: 16, bottomLeadingRadius: 0,
                 bottomTrailingRadius: 0, topTrailingRadius: 16, style: .continuous))
         case .middle:
-            return AnyShape(Rectangle())
+            return BackportAnyShape(Rectangle())
         case .bottom:
-            return AnyShape(UnevenRoundedRectangle(
+            return BackportAnyShape(BackportUnevenRoundedRectangle(
                 topLeadingRadius: 0, bottomLeadingRadius: 16,
                 bottomTrailingRadius: 16, topTrailingRadius: 0, style: .continuous))
         }
@@ -368,10 +368,10 @@ private struct FolderCardBackground: ViewModifier {
 
     private var dropShape: AnyShape {
         isExpanded
-            ? AnyShape(UnevenRoundedRectangle(
+            ? BackportAnyShape(BackportUnevenRoundedRectangle(
                 topLeadingRadius: 16, bottomLeadingRadius: 0,
                 bottomTrailingRadius: 0, topTrailingRadius: 16, style: .continuous))
-            : AnyShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            : BackportAnyShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     func body(content: Content) -> some View {
@@ -561,7 +561,7 @@ private struct FolderPickerSheet: View {
     private var sessionCount: Int { sessionIds.count }
 
     var body: some View {
-        NavigationStack {
+        NanoMuseCompatNavigationStack {
             List {
                 Section {
                     HStack {
@@ -574,7 +574,7 @@ private struct FolderPickerSheet: View {
                     // One-sentence auto-grouping context (≤100 chars). Typed
                     // here or prefilled by AI Suggest; never shown in the
                     // list, editable later from Rename Group.
-                    TextField("Description (optional, guides auto-grouping)", text: $newFolderDesc, axis: .vertical)
+                    NanoMuseMultilineTextField(placeholder: "Description (optional, guides auto-grouping)", text: $newFolderDesc)
                         .lineLimit(1...2)
                         .font(.subheadline)
                         .onChange(of: newFolderDesc) { v in
@@ -746,7 +746,7 @@ private struct FolderPickerSheet: View {
                              : LocalizedStringKey("Move \(sessionCount) to Group"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
                     Button("Cancel") { dismiss() }
                 }
             }
@@ -1149,7 +1149,7 @@ struct ContentView: View {
     /// Whether the current window is wide enough for two-column layout.
     @State private var isWideLayout = false
     /// Navigation path for stack (compact) layout.
-    @State private var navigationPath = NavigationPath()
+    @State private var navigationPath: [String] = []
     /// Tracks the session ID currently visible on the compact navigation stack.
     @State private var currentStackSessionId: String?
     /// [T-ios-stacknav-transition-attributegraph-race] Compact-layout analogue
@@ -1230,7 +1230,7 @@ struct ContentView: View {
     ///
     /// Carries the deferral instant so a stale request can be dropped rather
     /// than flushed — see `pendingBackgroundNavigationTTL`.
-    @State private var pendingBackgroundNavigation: (path: NavigationPath, deferredAt: Date)?
+    @State private var pendingBackgroundNavigation: (path: [String], deferredAt: Date)?
 
     /// [T-ios-bg-nav-push-watchdog] How long a deferred push stays valid.
     ///
@@ -1436,7 +1436,7 @@ struct ContentView: View {
             }
         }
         .fullScreenCover(isPresented: $showTerminal) {
-            NavigationStack {
+            NanoMuseCompatNavigationStack {
                 ISHTerminalView(showCloseButton: true)
             }
         }
@@ -1448,10 +1448,10 @@ struct ContentView: View {
             case .settings:
                 SettingsSheet(showTerminal: $showTerminal)
             case .rootfsManagement:
-                NavigationStack {
+                NanoMuseCompatNavigationStack {
                     RootfsManagementView()
                         .toolbar {
-                            ToolbarItem(placement: .topBarTrailing) {
+                            ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
                                 Button("Done") { activeToolSheet = nil }
                             }
                         }
@@ -1459,14 +1459,14 @@ struct ContentView: View {
             case .browser:
                 BrowserSheetView(pool: browserPool)
             case .browserManagement:
-                NavigationStack {
+                NanoMuseCompatNavigationStack {
                     BrowserManagementView(pool: browserPool)
                 }
             case .syncMigrationDetail:
-                NavigationStack {
+                NanoMuseCompatNavigationStack {
                     SyncMigrationDetailView()
                         .toolbar {
-                            ToolbarItem(placement: .topBarTrailing) {
+                            ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
                                 Button("Done") { activeToolSheet = nil }
                             }
                         }
@@ -1492,7 +1492,7 @@ struct ContentView: View {
             .onAppear {
                 print("[DELETE] Sheet appeared. singleDeleteInfo is \(singleDeleteInfo == nil ? "nil" : "non-nil, sessionCount=\(singleDeleteInfo!.sessionCount)")")
             }
-            .presentationDetents([.medium])
+            .nanoMuseSheetSize(.medium)
         }
         .sheet(item: $sessionToEdit) { session in
             SessionEditSheet(session: session) { newTitle, newCategory in
@@ -1504,7 +1504,7 @@ struct ContentView: View {
                 }
                 sessionToEdit = nil
             }
-            .presentationDetents([.medium])
+            .nanoMuseSheetSize(.medium)
         }
         .sheet(isPresented: $showDeleteConfirm, onDismiss: {
             if deleteInfo == nil {
@@ -1521,7 +1521,7 @@ struct ContentView: View {
                 deleteSelectedSessions()
                 showDeleteConfirm = false
             }
-            .presentationDetents([.medium])
+            .nanoMuseSheetSize(.medium)
         }
         .sheet(isPresented: $showExportPreview) {
             ExportPreviewSheet(fileURL: exportFileURL, previewURL: exportPreviewURL, summary: exportSummary)
@@ -1556,7 +1556,7 @@ struct ContentView: View {
                 if req.fromMultiSelect { folderMoveApplied = true }
                 folderPickerRequest = nil
             }
-            .presentationDetents([.medium, .large])
+            .nanoMuseSheetSize(.mediumOrLarge)
         }
         .modifier(FolderAlertsModifier(
             folderToRename: $folderToRename,
@@ -2083,9 +2083,10 @@ struct ContentView: View {
     // MARK: - Stack Layout (iPhone / narrow window)
 
     private var stackLayout: some View {
-        NavigationStack(path: $navigationPath) {
-            sessionList(useNavigationLinks: true)
-                .navigationDestination(for: String.self) { id in
+        if #available(iOS 16.0, *) {
+            NavigationStack(path: $navigationPath) {
+                sessionList(useNavigationLinks: true)
+                    .navigationDestination(for: String.self) { id in
                     // `.id(id)` mirrors detailView (iPad): navigationDestination
                     // views are identified by stack depth, not path value, so
                     // replacing the top element in place (menu "New Chat" swaps
@@ -2127,6 +2128,50 @@ struct ContentView: View {
                             .onDisappear { shareLog.info("🔄SESSION stackNav DISAPPEAR id=\(id)") }
                     }
                 }
+            }
+        } else {
+            NavigationView {
+                sessionList(useNavigationLinks: true)
+                    .background(
+                        NavigationLink(
+                            destination: Group {
+                                if let id = navigationPath.last {
+                                    stackDestination(id)
+                                } else {
+                                    EmptyView()
+                                }
+                            },
+                            isActive: Binding(
+                                get: { !navigationPath.isEmpty },
+                                set: { if !$0 { navigationPath.removeLast() } }
+                            )
+                        ) { EmptyView() }
+                    )
+            }
+            .navigationViewStyle(.stack)
+        }
+    }
+
+    @ViewBuilder
+    private func stackDestination(_ id: String) -> some View {
+        if id.hasPrefix("remote:") {
+            let parts = id.split(separator: ":", maxSplits: 2)
+            if parts.count == 3 {
+                AIChatView(sessionId: String(parts[2]), remoteDeviceId: String(parts[1]))
+                    .id(id)
+            }
+        } else {
+            AIChatView(sessionId: Self.isNewSessionId(id) ? nil : id, draftId: Self.isNewSessionId(id) ? id : nil, initialGroupId: Self.extractGroupId(from: id))
+                .id(id)
+                .onAppear {
+                    if currentStackSessionId != id {
+                        currentStackSessionId = id
+                        previousStackSessionId = id
+                    }
+                    SessionBadgeStore.shared.remove(.unread, for: id)
+                    shareLog.info("🔄SESSION stackNav APPEAR id=\(id)")
+                }
+                .onDisappear { shareLog.info("🔄SESSION stackNav DISAPPEAR id=\(id)") }
         }
     }
 
@@ -3020,7 +3065,7 @@ struct ContentView: View {
                                             // container's bottom radii so it stays
                                             // wrapped by the corners.
                                             if isSessionHighlighted(session.id) {
-                                                UnevenRoundedRectangle(
+                                                BackportUnevenRoundedRectangle(
                                                     topLeadingRadius: 0,
                                                     bottomLeadingRadius: isLast ? 16 : 0,
                                                     bottomTrailingRadius: isLast ? 16 : 0,
@@ -3342,7 +3387,7 @@ struct ContentView: View {
                 }
             }
         }
-        ToolbarItem(placement: .topBarLeading) {
+        ToolbarItem(placement: NanoMuseToolbarPlacement.leading) {
             if isSelecting {
                 Button("Cancel") {
                     isSelecting = false
@@ -3356,7 +3401,7 @@ struct ContentView: View {
                 }
             }
         }
-        ToolbarItem(placement: .topBarTrailing) {
+        ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
             if isSelecting {
                 Button(selectedIds.count == sessions.count ? "Deselect All" : "Select All") {
                     if selectedIds.count == sessions.count {
@@ -3374,7 +3419,7 @@ struct ContentView: View {
                 }
             }
         }
-        ToolbarItem(placement: .topBarTrailing) {
+        ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
             if !isSelecting {
                 Menu {
                     Button {
@@ -3491,7 +3536,7 @@ struct ContentView: View {
         if isWideLayout {
             openSession(newId)
         } else {
-            commitNavigationPath(NavigationPath([newId]))
+            commitNavigationPath([newId])
             currentStackSessionId = newId
         }
     }
@@ -3525,7 +3570,7 @@ struct ContentView: View {
             if isWideLayout {
                 selectedSessionId = nil
             } else {
-                navigationPath = NavigationPath()
+                navigationPath = []
                 currentStackSessionId = nil
             }
         }
@@ -3544,7 +3589,7 @@ struct ContentView: View {
         if isWideLayout {
             openSession(newId)
         } else {
-            commitNavigationPath(NavigationPath([newId]))
+            commitNavigationPath([newId])
             currentStackSessionId = newId
         }
         QuickActionWorkflow.shared.attachTargetSession(newId)
@@ -3577,7 +3622,7 @@ struct ContentView: View {
     /// `previousStackSessionId` stays in lockstep because it is maintained by
     /// the `onChange(of: navigationPath)` observer, which simply runs later —
     /// when the deferred path is actually committed.
-    private func commitNavigationPath(_ newPath: NavigationPath) {
+    private func commitNavigationPath(_ newPath: [String]) {
         // [T-share-first-tap-no-response] `.inactive` is NOT the state this
         // gate was built for. The watchdog kills it prevents come from a push
         // running AIChatView's whole first layout while the app is genuinely
@@ -3646,7 +3691,7 @@ struct ContentView: View {
             return
         }
         searchFocused = false
-        commitNavigationPath(NavigationPath([id]))
+        commitNavigationPath([id])
         currentStackSessionId = id
     }
 
@@ -3987,12 +4032,12 @@ struct ContentView: View {
         .frame(maxHeight: .infinity)
         .padding(.horizontal, 32)
         .sheet(isPresented: $showAddProvider) {
-            NavigationStack {
+            NanoMuseCompatNavigationStack {
                 AddProviderView()
             }
         }
         .sheet(isPresented: $showSelectModels) {
-            NavigationStack {
+            NanoMuseCompatNavigationStack {
                 OnboardingModelSelectionView()
             }
         }
@@ -4429,7 +4474,7 @@ struct ContentView: View {
                                 .foregroundStyle(.secondary)
                             TextField("Search chats...", text: $searchText)
                                 .textFieldStyle(.plain)
-                                .autocorrectionDisabled()
+                                .disableAutocorrection(true)
                                 .focused($searchFocused)
                                 .onChange(of: searchText) { _ in scheduleSearch() }
                             searchClearButton
@@ -5620,7 +5665,7 @@ private struct DeleteConfirmSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack {
+        NanoMuseCompatNavigationStack {
             VStack(spacing: 0) {
                 if isLoading || info == nil {
                     Spacer()
@@ -5742,7 +5787,7 @@ private struct ExportPreviewSheet: View {
     private let previewLimit = 10000
 
     var body: some View {
-        NavigationStack {
+        NanoMuseCompatNavigationStack {
             VStack(spacing: 0) {
                 // Preview — summary for multi-select, full content for single.
                 if let summary {
@@ -5803,7 +5848,7 @@ private struct ExportPreviewSheet: View {
             .navigationTitle(AppLocalized("Export Preview"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
                     Button(AppLocalized("Done")) { dismiss() }
                 }
             }
@@ -6801,7 +6846,7 @@ struct SessionEditSheet: View {
     ]
 
     var body: some View {
-        NavigationStack {
+        NanoMuseCompatNavigationStack {
             List {
                 Section("Title") {
                     TextField("Session title", text: $editTitle)
@@ -7421,12 +7466,96 @@ private struct SettingsSheet: View {
     @AppStorage("appearanceMode") private var appearanceMode: Int = 0
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var deepLink = DeepLinkCoordinator.shared
-    @State private var navPath = NavigationPath()
+    @State private var navPath: [SettingsDestination] = []
     @State private var showFeedbackDialog = false
 
     var body: some View {
+        if #available(iOS 16.0, *) {
+            settingsStack16
+        } else {
+            settingsStack15
+        }
+    }
+
+    @available(iOS 16.0, *)
+    private var settingsStack16: some View {
         NavigationStack(path: $navPath) {
-            List {
+            settingsList
+                .navigationDestination(for: SettingsDestination.self) { dest in
+                    settingsDestination(dest)
+                }
+        }
+    }
+
+    private var settingsStack15: some View {
+        NavigationView {
+            settingsList
+                .background(
+                    NavigationLink(
+                        destination: Group {
+                            if let dest = navPath.last {
+                                settingsDestination(dest)
+                            } else {
+                                EmptyView()
+                            }
+                        },
+                        isActive: Binding(
+                            get: { !navPath.isEmpty },
+                            set: { if !$0 { navPath.removeLast() } }
+                        )
+                    ) { EmptyView() }
+                )
+        }
+        .navigationViewStyle(.stack)
+    }
+
+    @ViewBuilder
+    private func settingsDestination(_ dest: SettingsDestination) -> some View {
+        switch dest {
+        case .providers:
+            ProviderInstancesView()
+        case .providerDetail(let id):
+            ProviderInstanceDetailView(instanceId: id)
+        case .modelGroups:
+            ModelGroupsView()
+        case .modelGroupDetail(let id):
+            ModelGroupDetailView(groupId: id)
+        case .usage:
+            UsageStatsView()
+        case .skills:
+            SkillsManagementView()
+        case .soul:
+            SoulSettingsView()
+        case .memory:
+            MemoryManagementView()
+        case .storage:
+            StorageManagementView()
+        case .mountedFolders:
+            MountedFoldersSettingsView()
+        case .sharedFolders:
+            SharedFoldersSettingsView()
+        case .logs:
+            LogManagementView(initialTab: deepLink.pendingLogsTab ?? "logs")
+                .onAppear { deepLink.pendingLogsTab = nil }
+        case .appearance:
+            AppearanceSettingsView()
+        case .background:
+            EnhancedBackgroundSettingsView()
+        case .about:
+            AboutView()
+        case .environments:
+            EnvironmentVariablesView()
+        case .permissions:
+            OffloadPermissionSettingsView()
+        case .mcpIntegrations:
+            MCPIntegrationsView()
+        case .mcpServerDetail(let serverId):
+            MCPIntegrationsView(initialEditServerId: serverId)
+        }
+    }
+
+    private var settingsList: some View {
+        List {
                 // nanoMuse: the Muse settings — the model, the agent, the phone, the app, about — as cards.
                 // With the shell on, Settings opens them directly and this list is "All settings" under
                 // them, so the row would only lead back; it stays for the classic layout.
@@ -7736,58 +7865,8 @@ private struct SettingsSheet: View {
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
                     Button("Done") { dismiss() }
-                }
-            }
-            .navigationDestination(for: SettingsDestination.self) { dest in
-                switch dest {
-                case .providers:
-                    ProviderInstancesView()
-                case .providerDetail(let id):
-                    ProviderInstanceDetailView(instanceId: id)
-                case .modelGroups:
-                    ModelGroupsView()
-                case .modelGroupDetail(let id):
-                    ModelGroupDetailView(groupId: id)
-                case .usage:
-                    UsageStatsView()
-                case .skills:
-                    SkillsManagementView()
-                case .soul:
-                    SoulSettingsView()
-                case .memory:
-                    MemoryManagementView()
-                case .storage:
-                    StorageManagementView()
-                case .mountedFolders:
-                    MountedFoldersSettingsView()
-                case .sharedFolders:
-                    SharedFoldersSettingsView()
-                case .logs:
-                    // Pull a one-shot tab hint from the deep link router
-                    // (e.g. `?tab=config-audit`). LogManagementView clears
-                    // its local state independently; the published value
-                    // here is consumed once and reset to nil.
-                    LogManagementView(initialTab: deepLink.pendingLogsTab ?? "logs")
-                        .onAppear { deepLink.pendingLogsTab = nil }
-                case .appearance:
-                    AppearanceSettingsView()
-                case .background:
-                    EnhancedBackgroundSettingsView()
-                case .about:
-                    AboutView()
-                case .environments:
-                    EnvironmentVariablesView()
-                case .permissions:
-                    OffloadPermissionSettingsView()
-                // [T-mcp-oauth-deeplink] Detail = the list view told to open
-                // the server's edit sheet on appear; a deleted/unknown server
-                // just lands on the list (no crash, sensible fallback).
-                case .mcpIntegrations:
-                    MCPIntegrationsView()
-                case .mcpServerDetail(let serverId):
-                    MCPIntegrationsView(initialEditServerId: serverId)
                 }
             }
             .onAppear {
@@ -7839,7 +7918,7 @@ private struct SettingsSheet: View {
         // Reset path so deep links are predictable: a deep link always
         // lands on the requested destination as the only stack entry,
         // not on top of whatever the user was browsing earlier.
-        navPath = NavigationPath()
+        navPath = []
         switch target {
         case .home:
             break // already at Settings root

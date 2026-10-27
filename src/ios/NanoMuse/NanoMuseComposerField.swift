@@ -76,7 +76,7 @@ struct NanoMuseComposerField: View {
 
     @ViewBuilder
     private var field: some View {
-        let base = TextField(placeholder, text: returnAwareText, axis: .vertical)
+        let base = NanoMuseMultilineTextField(placeholder: placeholder, text: returnAwareText)
             .font(font)
             .foregroundStyle(ChatColors.primaryText)
             .textFieldStyle(.plain)
