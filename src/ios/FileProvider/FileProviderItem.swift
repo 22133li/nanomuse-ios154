@@ -77,6 +77,7 @@ final class FileProviderItem: NSObject, NSFileProviderItem {
                 .allowsDeleting]
     }
 
+    @available(iOS 16.0, *)
     var itemVersion: NSFileProviderItemVersion {
         let modDate = (attrs?[.modificationDate] as? Date) ?? Date()
         let stamp = "\(modDate.timeIntervalSince1970)".data(using: .utf8) ?? Data()
