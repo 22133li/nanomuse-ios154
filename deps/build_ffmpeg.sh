@@ -119,7 +119,7 @@ fetch_ffmpeg_source() {
     tmp="$(mktemp -d)"
 
     log_info "FFmpeg source not present — downloading ${version}..."
-    if ! curl -fL# "$url" -o "$tmp/$tarball"; then
+    if ! curl -fL# --retry 5 --retry-all-errors --retry-delay 15 --connect-timeout 30 "$url" -o "$tmp/$tarball"; then
         rm -rf "$tmp"
         log_error "Failed to download $url — check your network, or place the source at $FFMPEG_DIR manually."
     fi
