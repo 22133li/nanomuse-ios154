@@ -10,7 +10,7 @@ import AppIntents
 /// rejects AppShortcuts.xcstrings below iOS 17. Add new phrases here AND
 /// to every AppShortcuts.strings; keys must match exactly with
 /// `\(.applicationName)` spelled `${applicationName}` in the tables.
-@available(iOS 17.0, *)
+@available(iOS 16, *)
 struct MinisShortcutsProvider: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         // Siri-facing "ask nanoMuse" entry — opens the app and lands in the

@@ -513,6 +513,7 @@
 		F1W0E101 /* WebLoadError.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1W0E100 /* WebLoadError.swift */; };
 		FDD896F80E0A14A7B60B12EF /* VoiceLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28E23EA0E199D6D50EBC76F2 /* VoiceLog.swift */; };
 		LOC00001 /* AppLocalization.swift in Sources */ = {isa = PBXBuildFile; fileRef = LOC00002 /* AppLocalization.swift */; };
+		LOC00003 /* LocalizedStringResourceBackport.swift in Sources */ = {isa = PBXBuildFile; fileRef = LOC00004 /* LocalizedStringResourceBackport.swift */; };
 		RCL000010 /* Rclone.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = RCL000020 /* Rclone.xcframework */; };
 		RCL000110 /* RcloneBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = RCL000210 /* RcloneBridge.swift */; };
 		RCL000111 /* RcloneRemoteStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = RCL000211 /* RcloneRemoteStore.swift */; };
@@ -1199,6 +1200,7 @@
 		F1W0E100 /* WebLoadError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebLoadError.swift; sourceTree = "<group>"; };
 		F2941B643B8A2F048A2B154E /* VoiceProviderFactory.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VoiceProviderFactory.swift; sourceTree = "<group>"; };
 		LOC00002 /* AppLocalization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLocalization.swift; sourceTree = "<group>"; };
+		LOC00004 /* LocalizedStringResourceBackport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizedStringResourceBackport.swift; sourceTree = "<group>"; };
 		RCL000020 /* Rclone.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = Rclone.xcframework; path = ../../deps/frameworks/Rclone.xcframework; sourceTree = "<group>"; };
 		RCL000210 /* RcloneBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RcloneBridge.swift; path = Remote/RcloneBridge.swift; sourceTree = "<group>"; };
 		RCL000211 /* RcloneRemoteStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RcloneRemoteStore.swift; path = Remote/RcloneRemoteStore.swift; sourceTree = "<group>"; };
@@ -1772,6 +1774,7 @@
 				E5AT00011 /* AudioTogglePlaybackIntent.swift */,
 				E5Q000013 /* AppLogger.swift */,
 				LOC00002 /* AppLocalization.swift */,
+				LOC00004 /* LocalizedStringResourceBackport.swift */,
 				E5Q000011 /* BPETokenizer.swift */,
 				E5MDS0013 /* MarkdownStripper.swift */,
 				E5Q000012 /* cl100k_base.tiktoken */,
@@ -3029,6 +3032,7 @@
 				E5MDS0003 /* MarkdownStripper.swift in Sources */,
 				E5Q000003 /* AppLogger.swift in Sources */,
 				LOC00001 /* AppLocalization.swift in Sources */,
+				LOC00003 /* LocalizedStringResourceBackport.swift in Sources */,
 				F1S00012 /* ChatSessionIdEnvironment.swift in Sources */,
 				E5Q000004 /* FontSettings.swift in Sources */,
 				E5R000001 /* ICloudBackupManager.swift in Sources */,
