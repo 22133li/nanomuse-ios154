@@ -356,9 +356,15 @@ private struct SkillFileDocumentPicker: UIViewControllerRepresentable {
         // [T-ios154-skillpicker] iOS 15.4: forOpeningContentTypes without
         // asCopy never fires the delegate callback (same pit as the chat
         // picker; device-verified on the Minis line as [T-skill-pick-96]).
-        // With asCopy: true the system hands back a regular temp URL; the
-        // coordinator below already tolerates non-security-scoped URLs.
-        let picker = UIDocumentPickerViewController(forOpeningContentTypes: types, asCopy: true)
+        // iOS 16+ keeps the upstream initializer untouched; only the iOS 15
+        // branch passes asCopy: true (the system then hands back a regular
+        // temp URL; the coordinator below tolerates non-scoped URLs).
+        let picker: UIDocumentPickerViewController
+        if #available(iOS 16, *) {
+            picker = UIDocumentPickerViewController(forOpeningContentTypes: types)
+        } else {
+            picker = UIDocumentPickerViewController(forOpeningContentTypes: types, asCopy: true)
+        }
         picker.delegate = context.coordinator
         return picker
     }
@@ -886,11 +892,20 @@ private struct SkillFileDetailView: View {
             .navigationTitle(fileName)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
-                    // NOTE (iOS 15 backport): `if` at toolbar level is iOS 16+;
-                    // the condition lives inside the item (a ViewBuilder) instead.
+                if #available(iOS 16, *) {
+                    // Upstream form: the condition sits at toolbar level.
                     if hasChanges {
-                        Button(AppLocalized("Save")) { save() }
+                        ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
+                            Button(AppLocalized("Save")) { save() }
+                        }
+                    }
+                } else {
+                    // iOS 15 backport: `if` at toolbar level is iOS 16+; the
+                    // condition lives inside the item (a ViewBuilder) instead.
+                    ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
+                        if hasChanges {
+                            Button(AppLocalized("Save")) { save() }
+                        }
                     }
                 }
             }

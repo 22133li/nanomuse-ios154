@@ -1182,11 +1182,6 @@ extension CollectionViewMessageListV3 {
             }
             let messages = snapshotMessages.isEmpty ? vm.messages : snapshotMessages
             let width = maxContentWidth
-            // [round18] Discriminator for the reconfigure storm: one line
-            // per configureCell entry (item + cell identity) so a burst of
-            // [HostedCell] setter lines can be attributed to configureCell-
-            // driven applies vs UIKit state refreshes.
-            AppLogger(category: "CellPerf").info("[CellConfigure] item=\(item) cell=\(ObjectIdentifier(cell))")
 
             // [T-viewgraph-race-lifetime 2026-05-20] All 4 cell config sites
             // route through `cell.applyContentConfiguration(_:)` (not raw

@@ -341,7 +341,7 @@ struct AddProviderView: View {
                 }
             }
         }
-        .nmFileImporter(isPresented: $showImportFile, allowedContentTypes: [.json], asCopy: false) { result in
+        .nmFileImporter(isPresented: $showImportFile, allowedContentTypes: [.json], asCopy: true) { result in
             handleImport(result)
         }
         .alert(AppLocalized("Import"), isPresented: $showImportResult) {
@@ -362,12 +362,11 @@ struct AddProviderView: View {
         importSucceeded = false
         switch result {
         case .success(let url):
-            guard url.startAccessingSecurityScopedResource() else {
-                importMessage = AppLocalized("Cannot access the selected file.")
-                showImportResult = true
-                return
-            }
-            defer { url.stopAccessingSecurityScopedResource() }
+            // [T-ios154-fileimporter] iOS 15 picks return an asCopy temp
+            // URL (in-place picks never call back on 15.4), which is not
+            // security-scoped — tolerate it; the read below validates.
+            let accessed = url.startAccessingSecurityScopedResource()
+            defer { if accessed { url.stopAccessingSecurityScopedResource() } }
             guard let data = try? Data(contentsOf: url),
                   let json = String(data: data, encoding: .utf8) else {
                 importMessage = AppLocalized("Failed to read file.")

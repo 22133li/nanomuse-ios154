@@ -286,6 +286,36 @@ private struct FolderSurface: ViewModifier {
             : UIColor(red: 252/255.0, green: 252/255.0, blue: 252/255.0, alpha: 1)
     })
 
+    /// [audit-tier1] Upstream shape on iOS 16+: AnyShape forwards the
+    /// wrapped shape's animatableData (BackportAnyShape cannot). Only
+    /// referenced from the #available branch of cardBackground below.
+    @available(iOS 16.0, *)
+    private var upstreamShape: AnyShape {
+        switch kind {
+        case .lone:
+            return AnyShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        case .top:
+            return AnyShape(UnevenRoundedRectangle(
+                topLeadingRadius: 16, bottomLeadingRadius: 0,
+                bottomTrailingRadius: 0, topTrailingRadius: 16, style: .continuous))
+        case .middle:
+            return AnyShape(Rectangle())
+        case .bottom:
+            return AnyShape(UnevenRoundedRectangle(
+                topLeadingRadius: 0, bottomLeadingRadius: 16,
+                bottomTrailingRadius: 16, topTrailingRadius: 0, style: .continuous))
+        }
+    }
+
+    @ViewBuilder
+    private func cardBackground<Style: ShapeStyle>(_ content: Content, _ style: Style) -> some View {
+        if #available(iOS 16.0, *) {
+            content.background(upstreamShape.fill(style))
+        } else {
+            content.background(shape.fill(style))
+        }
+    }
+
     private var shape: BackportAnyShape {
         switch kind {
         case .lone:
@@ -319,15 +349,15 @@ private struct FolderSurface: ViewModifier {
             //   tier; ultraThin ran too dark here before).
             if kind == .lone {
                 if #available(iOS 26.0, *) {
-                    content.background(shape.fill(Self.sampledGlassColor))
+                    cardBackground(content, Self.sampledGlassColor)
                 } else {
-                    content.background(shape.fill(Color(UIColor.secondarySystemBackground)))
+                    cardBackground(content, Color(UIColor.secondarySystemBackground))
                 }
             } else {
                 if #available(iOS 26.0, *) {
-                    content.background(shape.fill(.regularMaterial))
+                    cardBackground(content, .regularMaterial)
                 } else {
-                    content.background(shape.fill(Color(UIColor.secondarySystemBackground)))
+                    cardBackground(content, Color(UIColor.secondarySystemBackground))
                 }
             }
         }
@@ -366,6 +396,16 @@ private struct FolderCardBackground: ViewModifier {
     let isDropTarget: Bool
     let isExpanded: Bool
 
+    /// [audit-tier1] Upstream shape on iOS 16+ (see FolderSurface).
+    @available(iOS 16.0, *)
+    private var upstreamDropShape: AnyShape {
+        isExpanded
+            ? AnyShape(UnevenRoundedRectangle(
+                topLeadingRadius: 16, bottomLeadingRadius: 0,
+                bottomTrailingRadius: 0, topTrailingRadius: 16, style: .continuous))
+            : AnyShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
     private var dropShape: BackportAnyShape {
         isExpanded
             ? BackportAnyShape(BackportUnevenRoundedRectangle(
@@ -379,9 +419,16 @@ private struct FolderCardBackground: ViewModifier {
             .modifier(FolderSurface(kind: isExpanded ? .top : .lone))
             .overlay {
                 if isDropTarget {
-                    ZStack {
-                        dropShape.fill(Color.accentColor.opacity(0.15))
-                        dropShape.stroke(Color.accentColor, lineWidth: 1.5)
+                    if #available(iOS 16.0, *) {
+                        ZStack {
+                            upstreamDropShape.fill(Color.accentColor.opacity(0.15))
+                            upstreamDropShape.stroke(Color.accentColor, lineWidth: 1.5)
+                        }
+                    } else {
+                        ZStack {
+                            dropShape.fill(Color.accentColor.opacity(0.15))
+                            dropShape.stroke(Color.accentColor, lineWidth: 1.5)
+                        }
                     }
                 }
             }
@@ -7419,9 +7466,15 @@ private struct AppearanceSettingsView: View {
                                 .foregroundStyle(.primary)
                             Spacer()
                             if appLanguage == lang.id {
-                                Image(systemName: "checkmark")
-                                    .font(.body.weight(.semibold))
-                                    .foregroundStyle(.blue)
+                                if #available(iOS 16, *) {
+                                    Image(systemName: "checkmark")
+                                        .foregroundStyle(.blue)
+                                        .fontWeight(.semibold)
+                                } else {
+                                    Image(systemName: "checkmark")
+                                        .font(.body.weight(.semibold))
+                                        .foregroundStyle(.blue)
+                                }
                             }
                         }
                     }

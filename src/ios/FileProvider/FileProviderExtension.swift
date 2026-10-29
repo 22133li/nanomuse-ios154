@@ -31,6 +31,7 @@ final class FileProviderExtension: NSFileProviderExtension {
             try? fm.createDirectory(at: root.appendingPathComponent("skills", isDirectory: true), withIntermediateDirectories: true)
             try? fm.createDirectory(at: root.appendingPathComponent("shared", isDirectory: true), withIntermediateDirectories: true)
             cleanupLegacyMountedFoldersIfNeeded(root: root)
+            cleanupLegacyLogsDirIfNeeded(root: root)
             recoverFakeTrashDirIfNeeded(root: root)
             return root
         }
@@ -63,6 +64,27 @@ final class FileProviderExtension: NSFileProviderExtension {
         let canonical = container.appendingPathComponent("MinisConfig/mounted-folders.json")
         if fm.fileExists(atPath: canonical.path) {
             try? fm.removeItem(at: legacy)
+        }
+    }
+
+    /// [audit-tier2] Restored verbatim from the replicated implementation:
+    /// remove the legacy `logs/` directories older builds wrote.
+    private static func cleanupLegacyLogsDirIfNeeded(root: URL) {
+        let fm = FileManager.default
+
+        // Location 1: under providerRoot (would leak into iOS Files).
+        let inProvider = root.appendingPathComponent("logs", isDirectory: true)
+        var isDir: ObjCBool = false
+        if fm.fileExists(atPath: inProvider.path, isDirectory: &isDir), isDir.boolValue {
+            try? fm.removeItem(at: inProvider)
+        }
+
+        // Location 2: under MinisConfig (private but still pure cruft).
+        if let container = fm.containerURL(forSecurityApplicationGroupIdentifier: "group.io.github.nanomuse.app") {
+            let inConfig = container.appendingPathComponent("MinisConfig/logs", isDirectory: true)
+            if fm.fileExists(atPath: inConfig.path, isDirectory: &isDir), isDir.boolValue {
+                try? fm.removeItem(at: inConfig)
+            }
         }
     }
 

@@ -91,10 +91,12 @@ struct BackupRestoreView: View {
         }
         .modifier(StandaloneTitle(title: AppLocalized("Restore"),
                                  active: !embedded))
+        // [T-ios154-fileimporter] asCopy: true — false never calls back
+        // on 15.4; load() tolerates non-scoped URLs and copies out at once.
         .nmFileImporter(isPresented: $showPicker,
                       allowedContentTypes: [BackupDelivery.contentType, .data],
                       allowsMultipleSelection: false,
-                      asCopy: false) { result in
+                      asCopy: true) { result in
             switch result {
             case .success(let urls):
                 if let url = urls.first { load(url) }

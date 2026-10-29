@@ -2857,7 +2857,7 @@ struct AIChatView: View {
                 .onGeometryChangeBackport(for: CGFloat.self, tag: GeometryChangeFloatingBarTag.self) { proxy in
                     proxy.size.height
                 } action: { newH in
-                    if abs(newH - floatingBarHeight) > 0.5 { floatingBarHeight = newH }
+                    floatingBarHeight = newH
                 }
                 .onDisappear {
                     floatingBarHeight = 0
@@ -5088,7 +5088,7 @@ private struct NavBarStyleModifier: ViewModifier {
                     Color.clear
                         .onGeometryChangeBackport(for: CGFloat.self, tag: GeometryChangeTopSafeAreaTag.self) { proxy in
                             proxy.safeAreaInsets.top
-                        } action: { if topSafeAreaInset != $0 { topSafeAreaInset = $0 } }
+                        } action: { topSafeAreaInset = $0 }
                         .ignoresSafeArea()
                         .frame(height: 0)
                 }
@@ -6178,9 +6178,15 @@ private struct SpeechLanguagePickerSheet: View {
                 }
                 Spacer()
                 if loc.identifier == speechManager.locale.identifier {
-                    Image(systemName: "checkmark")
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(Color.accentColor)
+                    if #available(iOS 16, *) {
+                        Image(systemName: "checkmark")
+                            .foregroundStyle(Color.accentColor)
+                            .fontWeight(.semibold)
+                    } else {
+                        Image(systemName: "checkmark")
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(Color.accentColor)
+                    }
                 }
             }
         }
