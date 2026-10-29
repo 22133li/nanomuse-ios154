@@ -309,7 +309,7 @@ private extension AIChatView {
             inputBarHealthProbe?.cancel()
             let probeBaseline = inputBarGeometryTick
             inputBarHealthProbe = Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(900))
+                try? await Task.sleep(nanoseconds: 900_000_000)
                 guard !Task.isCancelled else { return }
                 let ticked = inputBarGeometryTick != probeBaseline
                 let age = inputBarLastGeometryAt.map { CFAbsoluteTimeGetCurrent() - $0 } ?? -1
