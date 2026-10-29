@@ -32,7 +32,7 @@ final class FileProviderItem: NSObject, NSFileProviderItem {
     }
 
     var filename: String {
-        if isRoot { return "nanoMuse" }
+        if isRoot { return "Minis" }
         return fileURL.lastPathComponent
     }
 
@@ -75,12 +75,6 @@ final class FileProviderItem: NSObject, NSFileProviderItem {
         }
         return [.allowsReading, .allowsWriting, .allowsRenaming, .allowsReparenting,
                 .allowsDeleting]
-    }
-
-    var itemVersion: NSFileProviderItemVersion {
-        let modDate = (attrs?[.modificationDate] as? Date) ?? Date()
-        let stamp = "\(modDate.timeIntervalSince1970)".data(using: .utf8) ?? Data()
-        return NSFileProviderItemVersion(contentVersion: stamp, metadataVersion: stamp)
     }
 
     var documentSize: NSNumber? {
