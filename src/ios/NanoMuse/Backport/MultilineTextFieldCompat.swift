@@ -16,10 +16,26 @@ struct NanoMuseMultilineTextField: View {
 
     /// iOS 15 only: the sizing twin's measured height; the editor is framed
     /// to it explicitly (see the iOS 15 branch for why the twin alone
-    /// cannot size the stack).
+    /// cannot size the stack). The twin's 8+8 vertical padding mirrors
+    /// TextEditor's own insets, so this height includes them.
     @State private var measuredH: CGFloat = 0
 
+    /// iOS 15 only: the TextEditor's frame height — the measured height
+    /// (text + insets), floored at 36 (one line + insets). The editor
+    /// needs every point of it or its text is clipped.
     private var editorH: CGFloat { max(measuredH, 36) }
+
+    /// iOS 15 only: the height this view reports to its parent — the pure
+    /// text height, editorH minus the 16pt of editor insets. Upstream's
+    /// iOS 16 vertical TextField reports just the text height, and the
+    /// composer pill's row is bottom-aligned, so reporting the
+    /// inset-inclusive editorH sank the + and send/stop buttons 16pt
+    /// below centre on iOS 15. The editor keeps its full editorH frame
+    /// inside this shorter slot and overflows it 8pt above and below;
+    /// SwiftUI does not clip, so the text renders in full, centred on
+    /// the slot — and the placeholder, positioned from the editor's
+    /// frame origin as before, still coincides with the editor's text.
+    private var slotH: CGFloat { editorH - 16 }
 
     /// The text the invisible sizing twin renders on iOS 15: a space stands
     /// in for the empty field (one line), and a trailing newline gets a
@@ -50,6 +66,11 @@ struct NanoMuseMultilineTextField: View {
             // full-screen.) The twin's padding mirrors TextEditor's own
             // insets (8pt vertical, 5pt line-fragment padding) so the
             // measured height is the editor's content height.
+            // The stack is framed to slotH (editorH - 16), not editorH:
+            // the layout height reported upward is the pure text height,
+            // exactly what upstream's iOS 16 field reports, while the
+            // editor keeps its editorH frame and overflows the slot
+            // symmetrically (8pt each side, unclipped).
             ZStack(alignment: .topLeading) {
                 TextEditor(text: $text)
                     .frame(height: editorH)
@@ -72,7 +93,7 @@ struct NanoMuseMultilineTextField: View {
                         .allowsHitTesting(false)
                 }
             }
-            .frame(minHeight: 36)
+            .frame(height: slotH)
         }
     }
 }
