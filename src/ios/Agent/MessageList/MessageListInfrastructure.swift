@@ -685,6 +685,12 @@ class SelfSizingCell: UICollectionViewCell {
 /// exactly what `SelfSizingCell` measures).
 struct HostingCellConfiguration: UIContentConfiguration {
     var rootView: AnyView
+    /// [round18] Content fingerprint for equal-value dedup in
+    /// `HostingCellContentView.configuration`'s setter: item identity +
+    /// object identity + content length + host width. See configureCell
+    /// for the per-case construction and what is deliberately NOT in it
+    /// (live @Published state propagates through the observed objects).
+    var contentKey: String
     /// List view controller the hosting controller is added to as a child,
     /// so SwiftUI lifecycle callbacks (onAppear/onDisappear) fire as they do
     /// under UIHostingConfiguration.
@@ -702,11 +708,29 @@ struct HostingCellConfiguration: UIContentConfiguration {
 final class HostingCellContentView: UIView, UIContentView {
     private let hostingController: UIHostingController<AnyView>
     private var currentConfiguration: HostingCellConfiguration
+    /// [round18] Reentrancy guard for systemLayoutSizeFitting (see below).
+    private var isFitting = false
+    /// Last successfully fitted height, returned to reentrant probes.
+    private var lastFittedHeight: CGFloat = 0
 
     var configuration: UIContentConfiguration {
         get { currentConfiguration }
         set {
             guard let newConfig = newValue as? HostingCellConfiguration else { return }
+            // [round18] Equal-value dedup (crash-loop breaker): when the
+            // fingerprint matches, the hosted view already renders exactly
+            // this content — swapping rootView again would rebuild the whole
+            // SwiftUI graph inside the cell for no change, and that churn,
+            // repeated across all visible cells ~1Hz and spiking to ~12Hz on
+            // session switches (2026-10-29 device log), is what feeds the
+            // ViewGraph geometry recursion. Only re-attach (cheap, guarded)
+            // and return: no rootView swap, no invalidate, no setNeedsLayout.
+            // The stored configuration is deliberately NOT replaced here —
+            // the key match means it is equivalent for rendering purposes.
+            if newConfig.contentKey == currentConfiguration.contentKey {
+                attachIfNeeded(parent: newConfig.hostParent)
+                return
+            }
             currentConfiguration = newConfig
             hostingController.rootView = newConfig.rootView
             attachIfNeeded(parent: newConfig.hostParent)
@@ -767,6 +791,40 @@ final class HostingCellContentView: UIView, UIContentView {
             // rather than the sentinel — UIKit raises on the sentinel.
             return .zero
         }
+        // [round18] Reentrancy gate (crash-loop breaker, second half):
+        // this function calls layoutIfNeeded() on the hosting view below,
+        // and a layout pass in flight can re-enter this same function for
+        // the same cell. The nested call must NOT run setNeedsLayout /
+        // layoutIfNeeded again — that synchronous re-entry is the other
+        // half of the geometry recursion. Return the last good height
+        // (sizeThatFits as fallback, then the current bounds height).
+        if isFitting {
+            let fallback = hostingController.sizeThatFits(
+                in: CGSize(width: measureWidth, height: .greatestFiniteMagnitude)).height
+            let h: CGFloat
+            if lastFittedHeight > 0 {
+                h = lastFittedHeight
+            } else if fallback.isFinite && fallback > 0 && fallback < expandedWidth {
+                h = fallback
+            } else if bounds.height.isFinite {
+                h = bounds.height
+            } else {
+                h = 0
+            }
+            return CGSize(width: measureWidth, height: h)
+        }
+        isFitting = true
+        defer { isFitting = false }
+        // [round18] Concrete width proposal (iOS 16 parity, right-edge
+        // truncation fix): pin the hosting view's frame width to this pass's
+        // measureWidth BEFORE layoutIfNeeded, so the SwiftUI graph lays out
+        // at the host cell's real width instead of whatever width the
+        // not-yet-laid-out content view implies (which on a no-proposal
+        // pass could be the full screen width, rendering text wider than
+        // the cell and clipping its right edge). Constraints re-impose the
+        // superview width on the next superview layout; only the measured
+        // height from this pass is kept.
+        hostingController.view.frame.size.width = measureWidth
         // [T-ios15-hostfit-al] Build112 on-device evidence (minis-2026-10-27,
         // process 10257): the prime did NOT help. Repeated sizeThatFits calls
         // on a fresh UIHostingController agree with each other yet stay
@@ -803,6 +861,7 @@ final class HostingCellContentView: UIView, UIContentView {
         if !(height.isFinite && height > 0 && height < expandedWidth) {
             height = bounds.height.isFinite ? bounds.height : 0
         }
+        if height > 0 { lastFittedHeight = height }
         return CGSize(width: measureWidth, height: height)
     }
 

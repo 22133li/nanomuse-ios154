@@ -8229,7 +8229,17 @@ struct SelectableMarkdownView: UIViewRepresentable {
 
     @available(iOS 16.0, *)
     func sizeThatFits(_ proposal: ProposedViewSize, uiView: SelectableMarkdownTextView, context: Context) -> CGSize? {
-        let width = proposal.width ?? UIScreen.main.bounds.width
+        // [round18] Concrete-width fallback chain (was: screen width).
+        // A measurement pass with no proposal used to pin the text to the
+        // full screen width, so long replies rendered wider than their host
+        // cell and their right edge was clipped. Prefer the live view's own
+        // bounds, then the last concrete width this coordinator saw; keep
+        // the screen width only when neither exists (a first measure on a
+        // view that has never been laid out). On iOS 16+ the proposal is
+        // normally present, so this chain rarely changes behavior there.
+        let proposed = proposal.width ?? 0
+        if proposed > 0 { context.coordinator.lastConcreteWidth = proposed }
+        let width = proposed > 0 ? proposed : (uiView.bounds.width > 0 ? uiView.bounds.width : (context.coordinator.lastConcreteWidth > 0 ? context.coordinator.lastConcreteWidth : UIScreen.main.bounds.width))
         // Key the size cache on the SwiftUI binding length, not
         // uiView.textStorage.length. Within a single render pass SwiftUI calls
         // sizeThatFits BEFORE updateUIView, so textStorage still reflects the
@@ -8883,6 +8893,12 @@ struct SelectableMarkdownView: UIViewRepresentable {
         /// CollectionView self-sizing pass. A single-width cache was being
         /// bypassed on every probe, triggering full TextKit1 relayouts.
         var cachedSizes: [Int: CGFloat] = [:]
+        /// [round18] Last concrete width SwiftUI offered in sizeThatFits.
+        /// Fallback for measurement passes that arrive with no proposal
+        /// width: the old screen-width fallback pinned long replies to the
+        /// full screen width, rendering them wider than their host cell and
+        /// clipping their right edge.
+        var lastConcreteWidth: CGFloat = 0
         var cachedSizeMarkdownCount: Int = 0
         /// Last textContainer width at which `updateUIView` ran. Used so that
         /// a rotation that arrives as `(markdown unchanged, width changed)`
