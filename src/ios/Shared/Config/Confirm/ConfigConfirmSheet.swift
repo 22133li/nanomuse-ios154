@@ -121,7 +121,7 @@ private struct ConfigConfirmRow: View {
                     Text(item.newDisplay)
                         .lineLimit(2)
                         .truncationMode(.middle)
-.fontWeight(.medium)
+                        .font(.system(.footnote, design: .monospaced).weight(.medium))
                         .foregroundStyle(item.risk == .destructive ? .red
                                          : item.risk == .sensitive ? .orange
                                          : .primary)

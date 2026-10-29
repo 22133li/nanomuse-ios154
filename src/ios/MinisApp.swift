@@ -558,7 +558,9 @@ struct MinisApp: App {
                     SkillFilesystemNotifier.shared.drainIfDirtyAsync(reason: "scenePhase active")
                 }
 
-                Self.signalFileProvider()
+                if #available(iOS 16.0, *) {
+                    Self.signalFileProvider()
+                }
                 MountedFoldersManager.shared.refreshAllWritability()
 
                 // Credential-presence diagnostic (Keychain reads off-main)
@@ -903,6 +905,7 @@ struct MinisApp: App {
         }
     }
 
+    @available(iOS 16, *)
     private static func signalFileProvider() {
         NSFileProviderManager(for: fileProviderDomain)?.signalEnumerator(for: .rootContainer) { error in
             if let error {

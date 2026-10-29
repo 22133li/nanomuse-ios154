@@ -166,6 +166,31 @@ class SystemResourceMonitor: ObservableObject {
 
 // MARK: - Main View
 
+private extension AIChatView {
+    /// Delayed auto-focus after a reply finishes. Extracted from the
+    /// `.onChange(of: vm.isProcessing)` handler so the compiler can
+    /// type-check that handler in reasonable time; behaviour unchanged.
+    func scheduleAutoFocusAfterReply() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            guard !hasOverlayPresented, isChatViewVisible else { return }
+            guard !vm.isProcessing, vm.promptQueue.isEmpty else { return }
+            // Re-check: a retry started during the 1.5s window would
+            // otherwise be focused by this older timer.
+            guard !vm.turnStartedByRetry else { return }
+            let lastAssistant = vm.messages.last
+            let lastAssistantLength: Int
+            if let lastAssistant, lastAssistant.role == .assistant {
+                lastAssistantLength = lastAssistant.blocks.reduce(0) { $0 + $1.content.count }
+            } else {
+                lastAssistantLength = 0
+            }
+            if lastAssistantLength < 600 {
+                inputFocused = true
+            }
+        }
+    }
+}
+
 struct AIChatView: View {
     var sessionId: String? = nil
     /// The draft ID from the parent (e.g. "__new__<UUID>") for notification correlation.
@@ -1546,23 +1571,7 @@ struct AIChatView: View {
                 if GCKeyboard.coalesced != nil {
                     inputFocused = true
                 } else {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                        guard !hasOverlayPresented, isChatViewVisible else { return }
-                        guard !vm.isProcessing, vm.promptQueue.isEmpty else { return }
-                        // Re-check: a retry started during the 1.5s window would
-                        // otherwise be focused by this older timer.
-                        guard !vm.turnStartedByRetry else { return }
-                        let lastAssistant = vm.messages.last
-                        let lastAssistantLength: Int
-                        if let lastAssistant, lastAssistant.role == .assistant {
-                            lastAssistantLength = lastAssistant.blocks.reduce(0) { $0 + $1.content.count }
-                        } else {
-                            lastAssistantLength = 0
-                        }
-                        if lastAssistantLength < 600 {
-                            inputFocused = true
-                        }
-                    }
+                    scheduleAutoFocusAfterReply()
                 }
             }
         }

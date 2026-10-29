@@ -43,6 +43,30 @@ struct ProviderInstancesView: View {
         .tint(.blue)
     }
 
+    @ViewBuilder
+    private func instanceRows(for type: ProviderType, instances: [ProviderInstance]) -> some View {
+        ForEach(instances) { instance in
+            NavigationLink {
+                ProviderInstanceDetailView(instanceId: instance.id)
+            } label: {
+                InstanceRow(instance: instance)
+            }
+            // [T-provider-group-swipe-actions] Swipe actions and
+            // `.onMove` coexist without extra work: UIKit routes a
+            // horizontal drag to the row's swipe actions and a
+            // vertical one to the reorder engine, and in edit mode
+            // the drag handles take over entirely. No custom
+            // gesture is introduced here precisely so that
+            // arbitration stays UIKit's.
+            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                instanceTrailingSwipeActions(for: instance)
+            }
+        }
+        .onMove { source, destination in
+            moveInstances(in: type, from: source, to: destination)
+        }
+    }
+
     var body: some View {
         List {
             // nanoMuse: the relay first — a phone number or an e-mail address, no key needed.
@@ -62,26 +86,7 @@ struct ProviderInstancesView: View {
                 let instancesOfType = store.instances.filter { $0.providerType == type }
                 if !instancesOfType.isEmpty {
                     Section(type.displayName) {
-                        ForEach(instancesOfType) { instance in
-                            NavigationLink {
-                                ProviderInstanceDetailView(instanceId: instance.id)
-                            } label: {
-                                InstanceRow(instance: instance)
-                            }
-                            // [T-provider-group-swipe-actions] Swipe actions and
-                            // `.onMove` coexist without extra work: UIKit routes a
-                            // horizontal drag to the row's swipe actions and a
-                            // vertical one to the reorder engine, and in edit mode
-                            // the drag handles take over entirely. No custom
-                            // gesture is introduced here precisely so that
-                            // arbitration stays UIKit's.
-                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                instanceTrailingSwipeActions(for: instance)
-                            }
-                        }
-                        .onMove { source, destination in
-                            moveInstances(in: type, from: source, to: destination)
-                        }
+                        instanceRows(for: type, instances: instancesOfType)
                     }
                 }
             }
