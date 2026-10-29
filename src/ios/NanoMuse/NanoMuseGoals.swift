@@ -409,7 +409,7 @@ struct NanoMuseGoalsRoom: View {
                 pickedCategory = nil
                 onStartGoal(category)
             }
-            .presentationDetents([.medium])
+            .nanoMuseSheetSize(.medium)
         }
         .sheet(item: $editingRoutine) { routine in
             NanoMuseRoutineEditor(routine: routine)
@@ -674,7 +674,7 @@ struct NanoMuseRoutineEditor: View {
     private var isNew: Bool { NanoMuseScheduler.shared.routine(id: routine.id) == nil }
 
     var body: some View {
-        NavigationStack {
+        NanoMuseCompatNavigationStack {
             Form {
                 Section {
                     TextField(AppLocalized("Name"), text: $routine.label)

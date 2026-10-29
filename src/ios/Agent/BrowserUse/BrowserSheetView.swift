@@ -14,7 +14,7 @@ struct BrowserSheetView: View {
     private var manager: BrowserUseManager? { pool.activeManager }
 
     var body: some View {
-        NavigationStack {
+        NanoMuseCompatNavigationStack {
             VStack(spacing: 0) {
                 if !isFullscreen {
                     // Tab bar
@@ -28,7 +28,7 @@ struct BrowserSheetView: View {
                         TextField("Search or enter URL", text: $addressText)
                             .font(.system(size: 13, design: .monospaced))
                             .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
+                            .disableAutocorrection(true)
                             .keyboardType(.URL)
                             .submitLabel(.go)
                             .focused($addressFocused)
@@ -164,9 +164,9 @@ struct BrowserSheetView: View {
                     }
                 }
             }
-            .toolbar(isFullscreen ? .hidden : .visible, for: .navigationBar)
+            .nmNavigationBarHidden(isFullscreen)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: NanoMuseToolbarPlacement.leading) {
                     HStack(spacing: 12) {
                         Button {
                             _ = pool.newTab()
@@ -183,7 +183,7 @@ struct BrowserSheetView: View {
                         .disabled(isAgentBusy)
                     }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
                     Button("Done") { dismiss() }
                 }
                 ToolbarItemGroup(placement: .keyboard) {
@@ -504,7 +504,7 @@ struct BrowserDownloadPanelSheet: View {
     let onLocate: (String) -> Void
 
     var body: some View {
-        NavigationStack {
+        NanoMuseCompatNavigationStack {
             Group {
                 let items = center.downloads(for: sessionId)
                     .sorted { $0.startedAt > $1.startedAt }
@@ -553,7 +553,7 @@ struct BrowserDownloadPanelSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        .nanoMuseSheetSize(.mediumOrLarge)
         // Viewing the panel clears the badge; records themselves persist
         // until the user clears them (rows / Clear Completed) — the floating
         // button hides only when the list is actually empty.

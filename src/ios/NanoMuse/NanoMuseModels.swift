@@ -318,7 +318,7 @@ struct NanoMuseOwnKeySheet: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NanoMuseCompatNavigationStack {
             let ways = self.ways
             Form {
                 Section {

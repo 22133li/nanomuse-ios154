@@ -394,7 +394,7 @@ private struct NanoMuseSearchField: View {
                 TextField(placeholder, text: $text)
                     .font(.body)
                     .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
+                    .disableAutocorrection(true)
                 if !text.isEmpty {
                     Button { text = "" } label: {
                         Image(systemName: "xmark.circle.fill")

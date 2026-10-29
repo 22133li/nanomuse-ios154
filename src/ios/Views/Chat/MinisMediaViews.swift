@@ -940,7 +940,14 @@ private struct MinisTextView: UIViewRepresentable {
     let text: String
 
     func makeUIView(context: Context) -> UITextView {
-        let textView = UITextView(usingTextLayoutManager: true)
+        // UITextView(usingTextLayoutManager:) is iOS 16+ (TextKit 2).
+        // iOS 15 gets the TextKit 1 initializer; both render the same plain text here.
+        let textView: UITextView
+        if #available(iOS 16, *) {
+            textView = UITextView(usingTextLayoutManager: true)
+        } else {
+            textView = UITextView()
+        }
         textView.isEditable = false
         textView.isSelectable = true
         textView.backgroundColor = .clear
@@ -1126,11 +1133,11 @@ struct MinisHTMLPreviewView: View {
                                       sourceSessionId: AIChatViewModel.activeSessionId)
                 }
         }
-        .presentationDetents([.large])
+        .nanoMuseSheetSize(.large)
         // [T-ios-html-preview-wide-sheet] Widen to a page-style sheet on
         // iPad/Mac, matching MinisMarkdownPreviewView. iPhone unaffected.
         .modifier(WideSheetSizingModifier())
-        .presentationDragIndicator(.hidden)
+        .nanoMuseSheetDragIndicator(false)
         .preferredColorScheme(appearanceMode == 1 ? .light : appearanceMode == 2 ? .dark : nil)
     }
 }

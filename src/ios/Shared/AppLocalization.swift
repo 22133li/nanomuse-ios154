@@ -76,9 +76,9 @@ func AppLocalized(_ key: String.LocalizationValue, comment: StaticString? = nil)
 
 /// `LocalizedStringResource` overload, for call sites that already hold a
 /// resource (App Intents build these) rather than a literal key.
+/// iOS 15 backport: LocalizedStringResource is String — localize via the
+/// current bundle instead of returning as-is, otherwise in-app language
+/// selection has no effect on iOS 15 and UI stays in English.
 func AppLocalized(_ resource: LocalizedStringResource) -> String {
-    // A LocalizedStringResource carries its own bundle reference, so it cannot
-    // be re-pointed the way a literal key can. Resolve it as-is rather than
-    // pretending the override applies.
-    String(localized: resource)
+    AppBundle.current.localizedString(forKey: resource, value: resource, table: nil)
 }

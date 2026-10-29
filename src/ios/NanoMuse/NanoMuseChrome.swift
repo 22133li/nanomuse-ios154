@@ -34,7 +34,8 @@ extension View {
 /// A row of small things (chips, the buttons under a card) that wraps to the next line when
 /// the width runs out, so four names or three actions fit an iPhone SE and a large text size
 /// without being cut off. Leading-aligned; `spacing` between items and between lines.
-struct NanoMuseFlowLayout: Layout {
+@available(iOS 16, *)
+struct NanoMuseFlowLayoutImpl: Layout {
     var spacing: CGFloat = 8
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
@@ -80,6 +81,29 @@ struct NanoMuseFlowLayout: Layout {
                 lx += item.size.width + spacing
             }
             y += lineHeight + spacing
+        }
+    }
+}
+
+// iOS 15 backport: `Layout` (and its callAsFunction container use) is iOS 16+.
+// On 16+ this renders the upstream flow layout unchanged; on 15 it falls back
+// to main line's LazyVGrid arrangement (the build96 behaviour), so the same
+// call sites compile on both.
+struct NanoMuseFlowLayout<Content: View>: View {
+    var spacing: CGFloat = 8
+    let content: Content
+    init(spacing: CGFloat = 8, @ViewBuilder content: () -> Content) {
+        self.spacing = spacing; self.content = content()
+    }
+    var body: some View {
+        if #available(iOS 16, *) {
+            NanoMuseFlowLayoutImpl(spacing: spacing) {
+                content
+            }
+        } else {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 60), spacing: spacing)], alignment: .leading, spacing: spacing) {
+                content
+            }
         }
     }
 }
@@ -520,7 +544,7 @@ struct NanoMusePage<Content: View, Trailing: View>: View {
             }
         }
         .background(NanoMuseTones.canvas.ignoresSafeArea())
-        .toolbar(.hidden, for: .navigationBar)
+        .nmNavigationBarHidden(true)
     }
 }
 

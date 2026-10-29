@@ -114,14 +114,29 @@ check_prerequisites() {
 fetch_ffmpeg_source() {
     local version="6.1.2"
     local tarball="ffmpeg-${version}.tar.xz"
-    local url="https://ffmpeg.org/releases/${tarball}"
     local tmp
     tmp="$(mktemp -d)"
 
     log_info "FFmpeg source not present — downloading ${version}..."
-    if ! curl -fL# "$url" -o "$tmp/$tarball"; then
+    # Primary: official release tarball. Fallback: FFmpeg's GitHub mirror
+    # (same 6.1.2 tag tree) for runners where ffmpeg.org is unreachable.
+    local urls=(
+        "https://ffmpeg.org/releases/${tarball}"
+        "https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n${version}.tar.gz"
+    )
+    local downloaded=""
+    local url
+    for url in "${urls[@]}"; do
+        log_info "Trying $url ..."
+        if curl -fL# --retry 3 --retry-all-errors --retry-delay 10 --connect-timeout 30 "$url" -o "$tmp/$tarball"; then
+            downloaded=1
+            break
+        fi
+        log_warning "Download failed from $url, trying next source..."
+    done
+    if [ -z "$downloaded" ]; then
         rm -rf "$tmp"
-        log_error "Failed to download $url — check your network, or place the source at $FFMPEG_DIR manually."
+        log_error "Failed to download FFmpeg ${version} from all sources — check your network, or place the source at $FFMPEG_DIR manually."
     fi
 
     log_info "Extracting..."
@@ -130,7 +145,14 @@ fetch_ffmpeg_source() {
         log_error "Failed to extract $tarball"
     fi
 
-    mv "$tmp/ffmpeg-${version}" "$FFMPEG_DIR"
+    if [ -d "$tmp/ffmpeg-${version}" ]; then
+        mv "$tmp/ffmpeg-${version}" "$FFMPEG_DIR"
+    elif [ -d "$tmp/FFmpeg-n${version}" ]; then
+        mv "$tmp/FFmpeg-n${version}" "$FFMPEG_DIR"
+    else
+        rm -rf "$tmp"
+        log_error "Unexpected archive layout for $tarball"
+    fi
     rm -rf "$tmp"
     log_success "FFmpeg ${version} source ready at $FFMPEG_DIR"
 }

@@ -507,12 +507,12 @@ struct UnifiedModelPicker: View {
         }
         .toolbar { toolbarContent }
         .sheet(isPresented: $showCreateGroupSheet) {
-            NavigationStack {
+            NanoMuseCompatNavigationStack {
                 UnifiedModelPicker(config: createGroupConfig())
             }
         }
         .sheet(isPresented: $showGroupsManager) {
-            NavigationStack {
+            NanoMuseCompatNavigationStack {
                 ModelGroupsView()
                     .toolbar {
                         ToolbarItem(placement: .cancellationAction) {
@@ -530,8 +530,8 @@ struct UnifiedModelPicker: View {
             // model while TestSession still ran the OLD one.
             ModelQuickTestSheet(entry: entry)
                 .id(entry.id)
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
+                .nanoMuseSheetSize(.mediumOrLarge)
+                .nanoMuseSheetDragIndicator(true)
         }
     }
 
@@ -608,20 +608,24 @@ struct UnifiedModelPicker: View {
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
-        if isMulti {
-            ToolbarItem(placement: .topBarLeading) {
+        // NOTE (iOS 15 backport): `if/else` at toolbar level uses
+        // ToolbarContentBuilder.buildEither (iOS 16+). Split into two items
+        // whose conditions live inside (a ViewBuilder) instead; a false
+        // condition renders an empty item.
+        ToolbarItem(placement: NanoMuseToolbarPlacement.leading) {
+            if isMulti {
                 Button("Cancel") { dismiss() }
             }
-            ToolbarItem(placement: .topBarTrailing) {
+        }
+        ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
+            if isMulti {
                 Button("Add (\(selectedEntryIds.count))") {
                     config.onAddMulti?(selectedEntryIds)
                     dismiss()
                 }
                 .font(.body.weight(.semibold))
                 .disabled(selectedEntryIds.isEmpty)
-            }
-        } else {
-            ToolbarItem(placement: .topBarTrailing) {
+            } else {
                 Button("Done") { dismiss() }
             }
         }

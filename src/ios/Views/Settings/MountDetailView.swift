@@ -142,7 +142,7 @@ struct MountDetailView: View {
             }
         }
         .sheet(isPresented: $showingBrowser) {
-            NavigationStack {
+            NanoMuseCompatNavigationStack {
                 FileBrowserView(
                     rootPath: context.hostURL,
                     rootLabel: context.linuxPath
@@ -213,7 +213,7 @@ struct MountDetailView: View {
         Section {
             TextField("name", text: $nameText)
                 .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
+                .disableAutocorrection(true)
             if nameChanged && !nameIsValid {
                 Text("Mount name must not be empty, contain '/', or be '.' or '..'.")
                     .font(.caption)

@@ -819,13 +819,21 @@ final class BackgroundKeepAliveManager: NSObject, ObservableObject, CLLocationMa
     private func refreshActiveTaskBadge(sessions: Set<String>, enabled: Bool) {
         let center = UNUserNotificationCenter.current()
         guard enabled else {
-            center.setBadgeCount(0) { _ in }
+            if #available(iOS 16, *) {
+                center.setBadgeCount(0) { _ in }
+            } else {
+                DispatchQueue.main.async { UIApplication.shared.applicationIconBadgeNumber = 0 }
+            }
             return
         }
-        center.setBadgeCount(sessions.count) { err in
-            if let err {
-                logger.error("[Badge] setBadgeCount failed: \(err.localizedDescription)")
+        if #available(iOS 16, *) {
+            center.setBadgeCount(sessions.count) { err in
+                if let err {
+                    logger.error("[Badge] setBadgeCount failed: \(err.localizedDescription)")
+                }
             }
+        } else {
+            DispatchQueue.main.async { UIApplication.shared.applicationIconBadgeNumber = sessions.count }
         }
     }
 
@@ -1739,7 +1747,7 @@ struct BackgroundInterruptionBanner: View {
                 .gesture(swipeToDismiss)
                 .animation(.spring(response: 0.35), value: tracker.showBanner)
                 .sheet(isPresented: $showSettings) {
-                    NavigationStack { EnhancedBackgroundSettingsView() }
+                    NanoMuseCompatNavigationStack { EnhancedBackgroundSettingsView() }
                 }
                 // [T-ios-scene-create-watchdog-corelocation] Subscribe only once
                 // the banner is actually on screen — the subscription exists to
@@ -1797,9 +1805,17 @@ struct BackgroundInterruptionBanner: View {
         .padding(.vertical, 12)
         .padding(.top, 4)
         .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color.orange.gradient)
-                .shadow(color: .black.opacity(0.15), radius: 8, y: 4)
+            Group {
+                if #available(iOS 16, *) {
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(Color.orange.gradient)
+                        .shadow(color: .black.opacity(0.15), radius: 8, y: 4)
+                } else {
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(Color.orange)
+                        .shadow(color: .black.opacity(0.15), radius: 8, y: 4)
+                }
+            }
         )
         .padding(.horizontal, 12)
         .padding(.top, 8)

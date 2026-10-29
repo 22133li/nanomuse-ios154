@@ -240,6 +240,7 @@
 		E5FP00009 /* MinisFileProvider.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = E5FP00010 /* MinisFileProvider.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		E5FP00100 /* AppGroupChangeWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5FP00101 /* AppGroupChangeWatcher.swift */; };
 		E5FP00200 /* FPSyncTraceLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5FP00201 /* FPSyncTraceLog.swift */; };
+		E5FP00300 /* FileProviderBootHealth.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5FP00301 /* FileProviderBootHealth.swift */; };
 		E5G000001 /* BackgroundKeepAliveManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5G000011 /* BackgroundKeepAliveManager.swift */; };
 		E5G000002 /* AgentLiveActivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5G000012 /* AgentLiveActivityManager.swift */; };
 		E5G000003 /* EnhancedBackgroundSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5G000013 /* EnhancedBackgroundSettingsView.swift */; };
@@ -512,6 +513,7 @@
 		F1W0E101 /* WebLoadError.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1W0E100 /* WebLoadError.swift */; };
 		FDD896F80E0A14A7B60B12EF /* VoiceLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28E23EA0E199D6D50EBC76F2 /* VoiceLog.swift */; };
 		LOC00001 /* AppLocalization.swift in Sources */ = {isa = PBXBuildFile; fileRef = LOC00002 /* AppLocalization.swift */; };
+		LOC00003 /* LocalizedStringResourceBackport.swift in Sources */ = {isa = PBXBuildFile; fileRef = LOC00004 /* LocalizedStringResourceBackport.swift */; };
 		RCL000010 /* Rclone.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = RCL000020 /* Rclone.xcframework */; };
 		RCL000110 /* RcloneBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = RCL000210 /* RcloneBridge.swift */; };
 		RCL000111 /* RcloneRemoteStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = RCL000211 /* RcloneRemoteStore.swift */; };
@@ -907,6 +909,7 @@
 		E5FP00015 /* FileProvider.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FileProvider.entitlements; sourceTree = "<group>"; };
 		E5FP00101 /* AppGroupChangeWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppGroupChangeWatcher.swift; sourceTree = "<group>"; };
 		E5FP00201 /* FPSyncTraceLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FPSyncTraceLog.swift; sourceTree = "<group>"; };
+		E5FP00301 /* FileProviderBootHealth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileProviderBootHealth.swift; sourceTree = "<group>"; };
 		E5G000011 /* BackgroundKeepAliveManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundKeepAliveManager.swift; sourceTree = "<group>"; };
 		E5G000012 /* AgentLiveActivityManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentLiveActivityManager.swift; sourceTree = "<group>"; };
 		E5G000013 /* EnhancedBackgroundSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnhancedBackgroundSettingsView.swift; sourceTree = "<group>"; };
@@ -1197,6 +1200,7 @@
 		F1W0E100 /* WebLoadError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebLoadError.swift; sourceTree = "<group>"; };
 		F2941B643B8A2F048A2B154E /* VoiceProviderFactory.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VoiceProviderFactory.swift; sourceTree = "<group>"; };
 		LOC00002 /* AppLocalization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLocalization.swift; sourceTree = "<group>"; };
+		LOC00004 /* LocalizedStringResourceBackport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizedStringResourceBackport.swift; sourceTree = "<group>"; };
 		RCL000020 /* Rclone.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = Rclone.xcframework; path = ../../deps/frameworks/Rclone.xcframework; sourceTree = "<group>"; };
 		RCL000210 /* RcloneBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RcloneBridge.swift; path = Remote/RcloneBridge.swift; sourceTree = "<group>"; };
 		RCL000211 /* RcloneRemoteStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RcloneRemoteStore.swift; path = Remote/RcloneRemoteStore.swift; sourceTree = "<group>"; };
@@ -1770,6 +1774,7 @@
 				E5AT00011 /* AudioTogglePlaybackIntent.swift */,
 				E5Q000013 /* AppLogger.swift */,
 				LOC00002 /* AppLocalization.swift */,
+				LOC00004 /* LocalizedStringResourceBackport.swift */,
 				E5Q000011 /* BPETokenizer.swift */,
 				E5MDS0013 /* MarkdownStripper.swift */,
 				E5Q000012 /* cl100k_base.tiktoken */,
@@ -1837,6 +1842,7 @@
 				E5FP00015 /* FileProvider.entitlements */,
 				E5FP00101 /* AppGroupChangeWatcher.swift */,
 				E5FP00201 /* FPSyncTraceLog.swift */,
+				E5FP00301 /* FileProviderBootHealth.swift */,
 			);
 			path = FileProvider;
 			sourceTree = "<group>";
@@ -3026,6 +3032,7 @@
 				E5MDS0003 /* MarkdownStripper.swift in Sources */,
 				E5Q000003 /* AppLogger.swift in Sources */,
 				LOC00001 /* AppLocalization.swift in Sources */,
+				LOC00003 /* LocalizedStringResourceBackport.swift in Sources */,
 				F1S00012 /* ChatSessionIdEnvironment.swift in Sources */,
 				E5Q000004 /* FontSettings.swift in Sources */,
 				E5R000001 /* ICloudBackupManager.swift in Sources */,
@@ -3134,6 +3141,7 @@
 				E5FP00002 /* FileProviderEnumerator.swift in Sources */,
 				E5FP00003 /* FileProviderItem.swift in Sources */,
 				E5FP00200 /* FPSyncTraceLog.swift in Sources */,
+				E5FP00300 /* FileProviderBootHealth.swift in Sources */,
 				E5SHV0002 /* SharedFolderVisibility.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

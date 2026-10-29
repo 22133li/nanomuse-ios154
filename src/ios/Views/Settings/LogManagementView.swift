@@ -176,8 +176,10 @@ struct LogManagementView: View {
             }
         }
         .toolbar {
-            if !vm.logFiles.isEmpty && tab == "logs" {
-                ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
+                // NOTE (iOS 15 backport): `if` at toolbar level is iOS 16+;
+                // the condition lives inside the item (a ViewBuilder) instead.
+                if !vm.logFiles.isEmpty && tab == "logs" {
                     Button {
                         showShareSheet = true
                     } label: {
@@ -220,8 +222,8 @@ struct LogDetailView: View {
         .navigationTitle(name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                ShareLink(item: url)
+            ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
+                NanoMuseDefaultShareLink(item: url)
             }
         }
         .task {
@@ -241,7 +243,14 @@ private struct LogTextView: UIViewRepresentable {
     let text: String
 
     func makeUIView(context: Context) -> UITextView {
-        let textView = UITextView(usingTextLayoutManager: true)
+        // UITextView(usingTextLayoutManager:) is iOS 16+ (TextKit 2).
+        // iOS 15 gets the TextKit 1 initializer; both render the same plain text here.
+        let textView: UITextView
+        if #available(iOS 16, *) {
+            textView = UITextView(usingTextLayoutManager: true)
+        } else {
+            textView = UITextView()
+        }
         textView.isEditable = false
         textView.isSelectable = true
         textView.backgroundColor = .clear

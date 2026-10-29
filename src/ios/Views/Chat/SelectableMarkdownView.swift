@@ -4341,8 +4341,13 @@ final class VideoAttachment: NSTextAttachment {
 
             var thumb: UIImage?
             do {
-                let (cgImage, _) = try await generator.image(at: .zero)
-                thumb = UIImage(cgImage: cgImage)
+                if #available(iOS 16, *) {
+                    let (cgImage, _) = try await generator.image(at: .zero)
+                    thumb = UIImage(cgImage: cgImage)
+                } else {
+                    let cgImage = try generator.copyCGImage(at: .zero, actualTime: nil)
+                    thumb = UIImage(cgImage: cgImage)
+                }
             } catch {
                 // Fallback: no thumbnail
             }
@@ -7790,7 +7795,12 @@ struct SelectableMarkdownView: UIViewRepresentable {
         // becomes a measurable chunk of every updateUIView pass (and
         // updateUIView runs on each SwiftUI body re-evaluation, so it
         // multiplies during streaming and self-sizing measurement loops).
-        let imageMatches = markdown.ranges(of: /!\[([^\]]*)\]\(([^)]+)\)/)
+        // NSRegularExpression spelling of the same pattern: Swift Regex is iOS 16+.
+        // Only used for logging below; ranges are whole-match ranges as before.
+        let imageMatches: [Range<String.Index>] = {
+            guard let regex = try? NSRegularExpression(pattern: #"!\[([^\]]*)\]\(([^)]+)\)"#) else { return [] }
+            return regex.matches(in: markdown, range: NSRange(markdown.startIndex..., in: markdown)).compactMap { Range($0.range, in: markdown) }
+        }()
         if !imageMatches.isEmpty {
             for match in imageMatches {
                 let matchStr = String(markdown[match])
