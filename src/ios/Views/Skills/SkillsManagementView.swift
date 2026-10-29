@@ -892,20 +892,11 @@ private struct SkillFileDetailView: View {
             .navigationTitle(fileName)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                if #available(iOS 16, *) {
-                    // Upstream form: the condition sits at toolbar level.
+                ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
+                    // NOTE (iOS 15 backport): `if` at toolbar level is iOS 16+;
+                    // the condition lives inside the item (a ViewBuilder) instead.
                     if hasChanges {
-                        ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
-                            Button(AppLocalized("Save")) { save() }
-                        }
-                    }
-                } else {
-                    // iOS 15 backport: `if` at toolbar level is iOS 16+; the
-                    // condition lives inside the item (a ViewBuilder) instead.
-                    ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
-                        if hasChanges {
-                            Button(AppLocalized("Save")) { save() }
-                        }
+                        Button(AppLocalized("Save")) { save() }
                     }
                 }
             }
