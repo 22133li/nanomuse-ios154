@@ -42,10 +42,18 @@ jobs:
       - run: ./deps/build_rclone_ios.sh
       - run: |
           cd src/ios
+          set -o pipefail
           xcodebuild -project Minis.xcodeproj -scheme Minis -configuration Release \
             -sdk iphoneos -derivedDataPath ../../build/derived \
             CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY="" DEVELOPMENT_TEAM="" \
-            IPHONEOS_DEPLOYMENT_TARGET=15.4
+            IPHONEOS_DEPLOYMENT_TARGET=15.4 2>&1 | tee ../../build-xcodebuild.log
+      - name: Upload xcodebuild log (diagnostics)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-log
+          path: build-xcodebuild.log
+          if-no-files-found: ignore
       - run: |
           APP_PATH=$(find build/derived/Build/Products/Release-iphoneos -name "Minis.app" -maxdepth 1)
           mkdir -p build/ipa/Payload
