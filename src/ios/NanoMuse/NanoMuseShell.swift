@@ -724,7 +724,7 @@ struct NanoMuseHomeView: View {
             .background(NanoMuseEdgeSwipe(enabled: tab == .chat && chatPath.isEmpty && !drawerOpen) { drawerOpen = true })
             .nmRenameAlert(rename)
             // The system bar stays out of the main chat; side chats pushed from here keep theirs.
-            .toolbar(.hidden, for: .navigationBar)
+            .nmNavigationBarHidden(true)
             .animation(.easeInOut(duration: 0.25), value: star.pending)
             .animation(.easeInOut(duration: 0.25), value: allowance.pending)
     }
@@ -1328,7 +1328,7 @@ struct NanoMuseDrawer: View {
                             row(session)
                         }
                         .listRowBackground(session.id == currentId ? NanoMuseTones.fill : Color.clear)
-                        .contextMenu {
+                        .nmContextMenu {
                             Button {
                                 close()
                                 onPinMain(session.id)

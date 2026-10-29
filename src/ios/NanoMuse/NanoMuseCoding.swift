@@ -443,7 +443,7 @@ struct NanoMuseCodingSessionView: View {
             Divider()
             HStack(alignment: .bottom, spacing: 8) {
                 NanoMuseMultilineTextField(placeholder: continuesAsNew ? AppLocalized("Made in the IDE: continues as a new chat in the same workspace…") : String(format: AppLocalized("Message %@…"), agentName), text: $draft)
-                    .lineLimit(1...5)
+                    .nmLineLimit(1...5)
                     .textFieldStyle(.roundedBorder)
                 if live?.status == "running" {
                     Button {

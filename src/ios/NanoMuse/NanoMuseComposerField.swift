@@ -81,7 +81,7 @@ struct NanoMuseComposerField: View {
             .foregroundStyle(ChatColors.primaryText)
             .textFieldStyle(.plain)
             .submitLabel(UserDefaults.standard.integer(forKey: "returnKeyBehavior") == 1 ? .send : .return)
-            .lineLimit(1...lineCap)
+            .nmLineLimit(1...lineCap)
         if let fixedHeight {
             base.frame(height: fixedHeight, alignment: .top)
         } else {

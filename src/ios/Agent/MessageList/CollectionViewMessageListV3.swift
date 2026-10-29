@@ -358,7 +358,7 @@ private struct BridgedAssistantBlockV3: View {
         // (same pattern as BridgedAssistantFooterV3).
         .overlay {
             Color.clear.frame(width: 0, height: 0)
-                .contextMenu {
+                .nmContextMenu {
                     Button {
                         let text = message.blocks
                             .filter { if case .text = $0.kind { return true }; return false }
@@ -516,7 +516,7 @@ private struct BridgedAssistantFooterV3: View {
         // report inflated heights to systemLayoutSizeFitting, causing height oscillation.
         .overlay {
             Color.clear.frame(width: 0, height: 0)
-                .contextMenu {
+                .nmContextMenu {
                     Button {
                         let text = message.blocks
                             .filter { if case .text = $0.kind { return true }; return false }
@@ -715,6 +715,91 @@ private final class WholeMessageCellV3: SelfSizingCell {}
 private final class AssistantHeaderCellV3: SelfSizingCell {}
 private final class AssistantBlockCellV3: SelfSizingCell {}
 private final class AssistantFooterCellV3: SelfSizingCell {}
+
+// MARK: - iOS 15 cell hosting (hosting-configuration backport)
+// Copied verbatim from main line (build96-proven) so the 4 cell config
+// sites below can host their SwiftUI content on iOS 15, where
+// UIHostingConfiguration does not exist. iOS 16+ keeps the upstream
+// UIHostingConfiguration path unchanged.
+
+// MARK: - iOS 15 cell hosting (hosting-configuration backport)
+
+/// Associated-object key retaining each cell's `UIHostingController` for the
+/// cell's lifetime. (The iOS 16+ hosting-configuration API is unavailable.)
+nonisolated(unsafe) private var hostedCellControllerKey: UInt8 = 0
+
+/// A no-op `UIContentConfiguration` whose content view is an empty `UIView`.
+///
+/// `SelfSizingCell.preferredLayoutAttributesFitting` requires
+/// `contentConfiguration != nil` for its live self-size path, so every hosted
+/// cell still gets a configuration applied via `applyContentConfiguration`
+/// (which also bumps the config generation and clears the height caches,
+/// exactly as before). The empty view contributes nothing to
+/// `systemLayoutSizeFitting` — the real measurement comes from the pinned
+/// `UIHostingController` view.
+private struct EmptyCellContentConfiguration: UIContentConfiguration {
+    func makeContentView() -> any UIView & UIContentView {
+        EmptyCellContentView(configuration: self)
+    }
+
+    func updated(for state: any UIConfigurationState) -> EmptyCellContentConfiguration {
+        self
+    }
+}
+
+private final class EmptyCellContentView: UIView, UIContentView {
+    var configuration: any UIContentConfiguration
+
+    init(configuration: any UIContentConfiguration) {
+        self.configuration = configuration
+        super.init(frame: .zero)
+        backgroundColor = .clear
+        // The real content is the pinned hosting view below; never intercept.
+        isUserInteractionEnabled = false
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is unavailable")
+    }
+}
+
+/// iOS 15 backport for the 4 cell config sites (the iOS 16+ hosting-
+/// configuration API is unavailable). Hosts `content` in a `UIHostingController` whose view is pinned
+/// to the cell's `contentView`. The controller is retained for the cell's
+/// lifetime (associated object); on reuse only `rootView` is swapped, which
+/// mirrors the old hosting-configuration update path.
+///
+/// The hosted view keeps `.transaction { $0.disablesAnimations = true }` and
+/// `.environmentObject(vm)` applied by the caller — the latter is required or
+/// ToolCapsuleView's `@EnvironmentObject` read crashes the app
+/// ([T-ios-tool-capsule-vm-envobject-crash]).
+///
+/// The existing `SelfSizingCell` self-sizing is untouched: the pinned hosting
+/// view is measured through `contentView.systemLayoutSizeFitting`, and the
+/// empty content configuration keeps `contentConfiguration != nil` so the
+/// off-collection guard and the generation/cache machinery behave exactly as
+/// before.
+private func setHostedCellContent<Content: View>(_ cell: SelfSizingCell, _ content: Content) {
+    let host: UIHostingController<AnyView>
+    if let existing = objc_getAssociatedObject(cell, &hostedCellControllerKey) as? UIHostingController<AnyView> {
+        host = existing
+        host.rootView = AnyView(content)
+    } else {
+        host = UIHostingController(rootView: AnyView(content))
+        host.view.backgroundColor = .clear
+        host.view.translatesAutoresizingMaskIntoConstraints = false
+        cell.contentView.addSubview(host.view)
+        NSLayoutConstraint.activate([
+            host.view.leadingAnchor.constraint(equalTo: cell.contentView.leadingAnchor),
+            host.view.trailingAnchor.constraint(equalTo: cell.contentView.trailingAnchor),
+            host.view.topAnchor.constraint(equalTo: cell.contentView.topAnchor),
+            host.view.bottomAnchor.constraint(equalTo: cell.contentView.bottomAnchor),
+        ])
+        objc_setAssociatedObject(cell, &hostedCellControllerKey, host, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+    }
+    cell.applyContentConfiguration(EmptyCellContentConfiguration())
+}
 
 // MARK: - V3 Coordinator
 
@@ -1197,8 +1282,7 @@ extension CollectionViewMessageListV3 {
                 let message = messages[msgIdx]
                 let bridge = getOrCreateBridge(for: message, in: messages)
                 cell.backgroundColor = .clear
-                let config = UIHostingConfiguration {
-                    BridgedWholeMessageV3(
+                let hostedContent = BridgedWholeMessageV3(
                         message: message,
                         bridge: bridge,
                         maxWidth: width
@@ -1222,20 +1306,25 @@ extension CollectionViewMessageListV3 {
                     // explicitly on every hosting config.
                     // [T-ios-tool-capsule-vm-envobject-crash]
                     .environmentObject(vm)
-                }.minSize(width: 0, height: 0).margins(.all, 0)
-                cell.applyContentConfiguration(config)
+                if #available(iOS 16, *) {
+                    cell.applyContentConfiguration(UIHostingConfiguration { hostedContent }.minSize(width: 0, height: 0).margins(.all, 0))
+                } else {
+                    setHostedCellContent(cell, hostedContent)
+                }
 
             case .assistantHeader(let msgId):
                 guard let msgIdx = messageIndex[msgId], msgIdx < messages.count else { return }
                 let message = messages[msgIdx]
                 cell.backgroundColor = .clear
-                let config = UIHostingConfiguration {
-                    BridgedAssistantHeaderV3(message: message, maxWidth: width,
+                let hostedContent = BridgedAssistantHeaderV3(message: message, maxWidth: width,
                                             onOpenSoulSettings: onOpenSoulSettings)
                         .transaction { $0.disablesAnimations = true }
                         .environmentObject(vm)
-                }.minSize(width: 0, height: 0).margins(.all, 0)
-                cell.applyContentConfiguration(config)
+                if #available(iOS 16, *) {
+                    cell.applyContentConfiguration(UIHostingConfiguration { hostedContent }.minSize(width: 0, height: 0).margins(.all, 0))
+                } else {
+                    setHostedCellContent(cell, hostedContent)
+                }
 
             case .assistantBlock(let msgId, let blockId):
                 guard let msgIdx = messageIndex[msgId], msgIdx < messages.count else {
@@ -1249,8 +1338,7 @@ extension CollectionViewMessageListV3 {
                 }
                 let bridge = getOrCreateBridge(for: message, in: messages)
                 cell.backgroundColor = .clear
-                let config = UIHostingConfiguration {
-                    BridgedAssistantBlockV3(
+                let hostedContent = BridgedAssistantBlockV3(
                         block: block,
                         message: message,
                         bridge: bridge,
@@ -1258,24 +1346,29 @@ extension CollectionViewMessageListV3 {
                     )
                     .transaction { $0.disablesAnimations = true }
                     .environmentObject(vm)
-                }.minSize(width: 0, height: 0).margins(.all, 0)
-                cell.applyContentConfiguration(config)
+                if #available(iOS 16, *) {
+                    cell.applyContentConfiguration(UIHostingConfiguration { hostedContent }.minSize(width: 0, height: 0).margins(.all, 0))
+                } else {
+                    setHostedCellContent(cell, hostedContent)
+                }
 
             case .assistantFooter(let msgId):
                 guard let msgIdx = messageIndex[msgId], msgIdx < messages.count else { return }
                 let message = messages[msgIdx]
                 let bridge = getOrCreateBridge(for: message, in: messages)
                 cell.backgroundColor = .clear
-                let config = UIHostingConfiguration {
-                    BridgedAssistantFooterV3(
+                let hostedContent = BridgedAssistantFooterV3(
                         message: message,
                         bridge: bridge,
                         maxWidth: width
                     )
                     .transaction { $0.disablesAnimations = true }
                     .environmentObject(vm)
-                }.minSize(width: 0, height: 0).margins(.all, 0)
-                cell.applyContentConfiguration(config)
+                if #available(iOS 16, *) {
+                    cell.applyContentConfiguration(UIHostingConfiguration { hostedContent }.minSize(width: 0, height: 0).margins(.all, 0))
+                } else {
+                    setHostedCellContent(cell, hostedContent)
+                }
             }
 
             // [T-ios-scroll-decel-height-drift] Seed this cell with the real

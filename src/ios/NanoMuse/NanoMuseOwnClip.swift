@@ -226,8 +226,13 @@ final class NanoMuseOwnClip: ObservableObject {
         let generator = AVAssetImageGenerator(asset: AVURLAsset(url: url))
         generator.appliesPreferredTrackTransform = true
         generator.maximumSize = CGSize(width: 512, height: 512)
-        guard let result = try? await generator.image(at: .zero) else { return nil }
-        return UIImage(cgImage: result.image)
+        if #available(iOS 16, *) {
+            guard let result = try? await generator.image(at: .zero) else { return nil }
+            return UIImage(cgImage: result.image)
+        } else {
+            guard let cgImage = try? generator.copyCGImage(at: .zero, actualTime: nil) else { return nil }
+            return UIImage(cgImage: cgImage)
+        }
     }
 
     /// The whole import: a look first, and a clip the rule refuses never reaches the avatar

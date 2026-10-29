@@ -575,7 +575,7 @@ private struct FolderPickerSheet: View {
                     // here or prefilled by AI Suggest; never shown in the
                     // list, editable later from Rename Group.
                     NanoMuseMultilineTextField(placeholder: "Description (optional, guides auto-grouping)", text: $newFolderDesc)
-                        .lineLimit(1...2)
+                        .nmLineLimit(1...2)
                         .font(.subheadline)
                         .onChange(of: newFolderDesc) { v in
                             if v.count > 100 { newFolderDesc = String(v.prefix(100)) }
@@ -606,9 +606,10 @@ private struct FolderPickerSheet: View {
                         .buttonStyle(.borderless)
                         .disabled(suggesting)
                         Spacer()
-                        Button("Create", action: createIfNamed)
+                        Button(action: createIfNamed) {
+                            Text("Create").fontWeight(.semibold)
+                        }
                             .buttonStyle(.borderless)
-                            .fontWeight(.semibold)
                             .disabled(trimmedName.isEmpty || duplicateFolder != nil)
                     }
                     // [T-folder-duplicate-name] Name already taken. Says so, and
@@ -1075,8 +1076,6 @@ struct ContentView: View {
     @State private var sessionRefreshPending = false
     /// Whether the initial session load has completed (prevents showing the list before we decide to auto-navigate).
     @State private var didInitialLoad = false
-    /// Controls sidebar visibility on iPad (automatic handles iPhone collapse).
-    @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
 
     /// Launch screen preference: 0=Auto, 1=Last Session, 2=New Chat.
     @AppStorage("launchScreen") private var launchScreen: Int = 0
@@ -2059,6 +2058,24 @@ struct ContentView: View {
 
     // MARK: - Split Layout (iPad / wide window)
 
+    /// iOS 16-only split container: owns the NavigationSplitViewVisibility
+    /// state (an iOS 16+ type) so ContentView itself stays compilable on
+    /// iOS 15. On 16+ the split layout below renders exactly as before.
+    @available(iOS 16, *)
+    private struct ContentSplitLayout16<Sidebar: View, Detail: View>: View {
+        @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
+        let sidebar: Sidebar
+        let detail: Detail
+        var body: some View {
+            NavigationSplitView(columnVisibility: $columnVisibility) {
+                sidebar
+            } detail: {
+                detail
+            }
+        }
+    }
+
+    @ViewBuilder
     private var splitLayout: some View {
         // [T-ios-gh29-font-scale-split-column] App-base font scale for the iPad
         // split view. `appFontScale()` is environment-based (`.dynamicTypeSize`),
@@ -2071,12 +2088,23 @@ struct ContentView: View {
         // session-switch / tap lag is a separate issue (ChatSession Array `==`
         // in SwiftUI's transaction flush; an A/B test confirmed the font
         // injection is not its cause), so per-column injection is safe here.
-        NavigationSplitView(columnVisibility: $columnVisibility) {
-            sessionList(useNavigationLinks: false)
-                .appFontScale()
-        } detail: {
-            detailView
-                .appFontScale()
+        // iOS 15 backport: NavigationSplitView is iOS 16+. On 15 the split
+        // layout is an HStack (main line's proven shape) with the sidebar at
+        // the branch's ideal column width.
+        if #available(iOS 16, *) {
+            ContentSplitLayout16(
+                sidebar: sessionList(useNavigationLinks: false).appFontScale(),
+                detail: detailView.appFontScale()
+            )
+        } else {
+            HStack(spacing: 0) {
+                sessionList(useNavigationLinks: false)
+                    .appFontScale()
+                    .frame(width: 380)
+                Divider()
+                detailView
+                    .appFontScale()
+            }
         }
     }
 
@@ -2869,7 +2897,7 @@ struct ContentView: View {
                                 // with a hand-rolled gesture sequence — the
                                 // gesture layer is where system gestures are
                                 // beaten (see the WebView sheet-dismiss fix).
-                                .draggable(session.id)
+                                .nmDraggable(session.id)
                                 .overlay {
                                     if regeneratingTitleSessionId == session.id {
                                         ZStack {
@@ -2879,9 +2907,20 @@ struct ContentView: View {
                                     }
                                 }
                                 .background(
-                                    NavigationLink(value: session.id) { EmptyView() }
-                                        .opacity(0)
+                                    Group {
+                                        if #available(iOS 16, *) {
+                                            NavigationLink(value: session.id) { EmptyView() }
+                                                .opacity(0)
+                                        } else {
+                                            EmptyView()
+                                        }
+                                    }
                                 )
+                                // iOS 15 backport: no value links; the row tap
+                                // navigates directly (wide: detail selection,
+                                // narrow: navigationPath push, same as
+                                // switchToSession's existing behaviour).
+                                .nmOnTapGesture15 { switchToSession(session.id) }
                             .listRowInsets(EdgeInsets())
                             .listRowSeparator(.hidden)
                             .listRowBackground(Group {
@@ -3005,7 +3044,7 @@ struct ContentView: View {
                                 // with a hand-rolled gesture sequence — the
                                 // gesture layer is where system gestures are
                                 // beaten (see the WebView sheet-dismiss fix).
-                                .draggable(session.id)
+                                .nmDraggable(session.id)
                                 .overlay {
                                     if regeneratingTitleSessionId == session.id {
                                         ZStack {
@@ -3108,7 +3147,7 @@ struct ContentView: View {
 
         }
         .listStyle(.plain)
-        .navigationSplitViewColumnWidth(min: 340, ideal: 380, max: 500)
+        .nmNavigationSplitViewColumnWidth(min: 340, ideal: 380, max: 500)
         .opacity(didInitialLoad ? 1 : 0)
         .overlay { if didInitialLoad, displaySessions.isEmpty, !isSearching { emptyState } }
         .overlay(alignment: .top) { folderMiniBarOverlay(scrollProxy) }
@@ -3860,8 +3899,16 @@ struct ContentView: View {
             Section {
                 ForEach(entry.ids, id: \.self) { sessionId in
                     if let session = byId["\(entry.deviceId):\(sessionId)"] {
-                        NavigationLink(value: "remote:\(entry.deviceId):\(session.id)") {
-                            RemoteSessionRow(session: session)
+                        Group {
+                            if #available(iOS 16, *) {
+                                NavigationLink(value: "remote:\(entry.deviceId):\(session.id)") {
+                                    RemoteSessionRow(session: session)
+                                }
+                            } else {
+                                NavigationLink(destination: AIChatView(sessionId: session.id, remoteDeviceId: entry.deviceId)) {
+                                    RemoteSessionRow(session: session)
+                                }
+                            }
                         }
                         .listRowInsets(EdgeInsets())
                         .listRowSeparator(.hidden)
@@ -4625,7 +4672,7 @@ struct ContentView: View {
             // Dropping on a date-bucket header moves the sessions OUT of any
             // folder — the drag gesture works both directions, otherwise
             // moving out would still require a trip through the menu.
-            .dropDestination(for: String.self) { sessionIds, _ in
+            .nmDropDestination(for: String.self) { sessionIds, _ in
                 Task { @MainActor in
                     await ChatStore.shared.setFolder(nil, forSessions: sessionIds)
                     refreshSessionList()
@@ -4832,7 +4879,7 @@ struct ContentView: View {
         // ScrollViewReader anchor for the mini-bar's "back to header" jump.
         .id("folderHeader-\(group.folderId ?? "")")
         .listRowInsets(EdgeInsets())
-        .dropDestination(for: String.self) { sessionIds, _ in
+        .nmDropDestination(for: String.self) { sessionIds, _ in
             guard let fid = group.folderId else { return false }
             Task { @MainActor in
                 await ChatStore.shared.setFolder(fid, forSessions: sessionIds)
@@ -6901,12 +6948,13 @@ struct SessionEditSheet: View {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
+                    Button {
                         let title = editTitle.trimmingCharacters(in: .whitespacesAndNewlines)
                         guard !title.isEmpty else { return }
                         onSave(title, editCategory.isEmpty ? nil : editCategory)
+                    } label: {
+                        Text("Save").bold()
                     }
-                    .bold()
                     .disabled(editTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
@@ -7372,8 +7420,8 @@ private struct AppearanceSettingsView: View {
                             Spacer()
                             if appLanguage == lang.id {
                                 Image(systemName: "checkmark")
+                                    .font(.body.weight(.semibold))
                                     .foregroundStyle(.blue)
-                                    .fontWeight(.semibold)
                             }
                         }
                     }

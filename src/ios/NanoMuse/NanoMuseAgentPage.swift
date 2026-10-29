@@ -71,7 +71,7 @@ struct NanoMuseAgentPage: View {
             }
             .background(NanoMuseTones.canvas.ignoresSafeArea())
             // Muse's chrome (Android: AgentProfileScreen): a round close disc and a round share disc, no bar.
-            .toolbar(.hidden, for: .navigationBar)
+            .nmNavigationBarHidden(true)
             .safeAreaInset(edge: .top, spacing: 0) {
                 HStack {
                     NanoMuseRoundButton(symbol: "xmark", label: AppLocalized("Close")) { dismiss() }
@@ -84,7 +84,7 @@ struct NanoMuseAgentPage: View {
             }
             .sheet(isPresented: $showShare) { NanoMuseAvatarShareSheet(agentName: name) }
             .sheet(isPresented: $showEditName) {
-                NavigationStack { SoulSettingsView() }
+                NanoMuseCompatNavigationStack { SoulSettingsView() }
             }
             .nanoMuseOwnClipHost(clipPicker)
             .onReceive(NotificationCenter.default.publisher(for: .soulMdChanged)) { _ in

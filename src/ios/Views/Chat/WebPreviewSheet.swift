@@ -617,7 +617,7 @@ struct MinisSafariView: View {
                 .padding(.bottom, 18) // clears the home-indicator gutter
         }
         .statusBarHidden(true)
-        .persistentSystemOverlays(.hidden)
+        .nmPersistentSystemOverlaysHidden()
         .preferredColorScheme(appearanceMode == 1 ? .light : appearanceMode == 2 ? .dark : nil)
         .sheet(isPresented: $showShareSheet) {
             MinisShareSheet(url: shareURL)

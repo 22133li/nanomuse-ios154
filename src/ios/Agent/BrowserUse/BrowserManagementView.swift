@@ -131,7 +131,7 @@ struct BrowserManagementView: View {
             NanoMuseMultilineTextField(placeholder: "Enter custom user agent...", text: $customUA)
                 .font(.system(size: 11, design: .monospaced))
                 .foregroundStyle(.secondary)
-                .lineLimit(2...4)
+                .nmLineLimit(2...4)
                 .onSubmit {
                     pool.customUserAgentString = customUA
                     pool.setUserAgentProfile(.custom)

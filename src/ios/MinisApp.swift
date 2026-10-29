@@ -400,8 +400,10 @@ struct MinisApp: App {
                     BackgroundKeepAliveManager.shared.setup()
                     // Monitor network changes to keep iSH DNS up to date
                     NetworkMonitor.shared.start()
-                    // Register FileProvider domain for shared files
-                    Self.registerFileProviderDomain()
+                    // Register FileProvider domain for shared files (iOS 16+)
+                    if #available(iOS 16.0, *) {
+                        Self.registerFileProviderDomain()
+                    }
                     // Migrate legacy shared dir to App Group container
                     Self.migrateSharedDirToAppGroup()
                     // Trace the resolved AppGroup paths so we can confirm the
@@ -528,7 +530,11 @@ struct MinisApp: App {
                 debugServer.restartIfDead(port: 8321)
                 #endif
 
-                try? await UNUserNotificationCenter.current().setBadgeCount(0)
+                if #available(iOS 16, *) {
+                    try? await UNUserNotificationCenter.current().setBadgeCount(0)
+                } else {
+                    await MainActor.run { UIApplication.shared.applicationIconBadgeNumber = 0 }
+                }
                 BackgroundInterruptionTracker.shared.checkOnForeground()
                 // [T-shortcuts-diag-and-pending] Scan for AppIntent runs that
                 // were marked pending but never cleared (i.e. the process was
@@ -663,6 +669,7 @@ struct MinisApp: App {
 
     // MARK: - FileProvider
 
+    @available(iOS 16, *)
     private static let fileProviderDomain = NSFileProviderDomain(
         identifier: NSFileProviderDomainIdentifier("io.github.nanomuse.app.files"),
         displayName: "nanoMuse"
@@ -726,6 +733,7 @@ struct MinisApp: App {
         lifecycleLog.info("[FPSyncTrace] app-updated old=\(previous ?? "none") new=\(current) mac=\(onMac)")
     }
 
+    @available(iOS 16, *)
     private static func registerFileProviderDomain() {
         logAppUpdateMarkerForFPTrace()
         let root = AIChatViewModel.minisAppGroupRoot

@@ -65,11 +65,12 @@ struct ConfigConfirmSheet: View {
                     }
                 }
                 ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
-                    Button(approvedCount == 0 ? "Reject All" : "Apply") {
+                    Button {
                         confirmSheetLogger.info("tap primary pending=\(change.id) items=\(workingItems.count) approved=\(approvedCount)")
                         gate.userApprove(items: workingItems)
+                    } label: {
+                        Text(approvedCount == 0 ? "Reject All" : "Apply").bold()
                     }
-                    .bold()
                     .disabled(workingItems.isEmpty)
                 }
             }
@@ -120,10 +121,10 @@ private struct ConfigConfirmRow: View {
                     Text(item.newDisplay)
                         .lineLimit(2)
                         .truncationMode(.middle)
+.fontWeight(.medium)
                         .foregroundStyle(item.risk == .destructive ? .red
                                          : item.risk == .sensitive ? .orange
                                          : .primary)
-                        .fontWeight(.medium)
                 }
             }
             .font(.system(.footnote, design: .monospaced))

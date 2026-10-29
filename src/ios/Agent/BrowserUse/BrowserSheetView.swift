@@ -164,7 +164,7 @@ struct BrowserSheetView: View {
                     }
                 }
             }
-            .toolbar(isFullscreen ? .hidden : .visible, for: .navigationBar)
+            .nmNavigationBarHidden(isFullscreen)
             .toolbar {
                 ToolbarItem(placement: NanoMuseToolbarPlacement.leading) {
                     HStack(spacing: 12) {

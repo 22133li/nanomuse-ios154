@@ -28,7 +28,7 @@ private let logger = AppLogger(category: "VoicePromptIntent")
 /// Opens nanoMuse and starts voice input in a chat.
 @available(iOS 16, *)
 struct VoicePromptIntent: AppIntent {
-    static var title: LocalizedStringResource = "Voice Prompt"
+    static var title: Foundation.LocalizedStringResource = "Voice Prompt"
     static var description = IntentDescription(
         "Opens nanoMuse and starts listening. What you say lands in the composer; you send it with a tap."
     )

@@ -1552,9 +1552,13 @@ struct AIChatView: View {
                         // Re-check: a retry started during the 1.5s window would
                         // otherwise be focused by this older timer.
                         guard !vm.turnStartedByRetry else { return }
-                        let lastAssistantLength = vm.messages.last.flatMap {
-                            $0.role == .assistant ? $0.blocks.reduce(0) { $0 + $1.content.count } : nil
-                        } ?? 0
+                        let lastAssistant = vm.messages.last
+                        let lastAssistantLength: Int
+                        if let lastAssistant, lastAssistant.role == .assistant {
+                            lastAssistantLength = lastAssistant.blocks.reduce(0) { $0 + $1.content.count }
+                        } else {
+                            lastAssistantLength = 0
+                        }
                         if lastAssistantLength < 600 {
                             inputFocused = true
                         }
@@ -3950,7 +3954,7 @@ struct AIChatView: View {
                     // is taken; we only re-read what onGeometryChange reported.
                     let voiceAtSeed = voiceInputActive
                     inputBarHeightDebounce = Task { @MainActor in
-                        try? await Task.sleep(for: .milliseconds(380))
+                        try? await Task.sleep(nanoseconds: 380 * 1_000_000)
                         guard !Task.isCancelled, voiceAtSeed == voiceInputActive else { return }
                         let settled = latestInputBarFrameH
                         if settled > 0, abs(settled - newH) > 0.5 {
@@ -3981,7 +3985,7 @@ struct AIChatView: View {
                     // 200ms, which is stale), so the timer routinely expired
                     // while the panel was still moving and SwiftUI's final
                     // geometry callback had not landed yet.
-                    try? await Task.sleep(for: .milliseconds(380))
+                    try? await Task.sleep(nanoseconds: 380 * 1_000_000)
                     guard !Task.isCancelled else { return }
                     // [T-voice-inputbar-branch-swap] During rapid streaming
                     // re-renders, voiceInputActive can glitch for one frame,
@@ -4008,7 +4012,7 @@ struct AIChatView: View {
                     // height, which is the bottom-gap symptom. No new
                     // measurement is taken: we only re-read what
                     // onGeometryChange already reported.
-                    try? await Task.sleep(for: .milliseconds(320))
+                    try? await Task.sleep(nanoseconds: 320 * 1_000_000)
                     guard !Task.isCancelled else { return }
                     guard voiceAtCapture == voiceInputActive else { return }
                     let settled = latestInputBarFrameH
@@ -4350,7 +4354,7 @@ struct AIChatView: View {
                     }
                 }
             }
-            .scrollIndicators(.visible)
+            .nmScrollIndicatorsVisible()
             .frame(height: Self.slashPickerFixedHeight)
         }
     }
@@ -4420,7 +4424,7 @@ struct AIChatView: View {
                         // [T-slash-picker-fixed-height] Match slash popup:
                         // exactly 4 rows tall, scrolls on overflow with the
                         // visible indicator above.
-                        .scrollIndicators(.visible)
+                        .nmScrollIndicatorsVisible()
                         .frame(height: Self.slashPickerFixedHeight)
                         .onChange(of: vm.mentionSelectedIndex) { newIndex in
                             guard newIndex >= 0, newIndex < rows.count else { return }
@@ -5028,7 +5032,7 @@ private struct NavBarStyleModifier: ViewModifier {
                 // somewhere to fade; the bar is UIKit's, so the list's `.automatic` adjustment
                 // keeps the first row below it, as there.
                 .ignoresSafeArea(.container, edges: systemBarScrim ? Edge.Set.top : []) // nanoMuse:
-                .toolbarBackground(systemBarScrim ? Visibility.hidden : Visibility.visible, for: .navigationBar) // nanoMuse:
+                .nmToolbarBackgroundHidden(systemBarScrim) // nanoMuse:
                 .nanoMuseToolbarBackground(ChatColors.background)
                 .safeAreaInset(edge: .top, spacing: 0) { // nanoMuse:
                     if systemBarScrim {
@@ -5527,6 +5531,9 @@ private struct ChatTrailingMenuButton: UIViewRepresentable {
     /// icon-sized footprint and the system wraps it in the same round glass
     /// as a plain toolbar icon (a representable otherwise accepts the full
     /// proposed width -> stretched capsule, the 2026-07-17 regression).
+    // UIViewRepresentable.sizeThatFits is iOS 16+. On iOS 15 UIButton's
+    // intrinsicContentSize drives the size, which is what this returns anyway.
+    @available(iOS 16, *)
     func sizeThatFits(_ proposal: ProposedViewSize, uiView: UIButton, context: Context) -> CGSize? {
         uiView.intrinsicContentSize
     }
@@ -6079,14 +6086,14 @@ private struct SpeechLanguagePickerSheet: View {
 
     /// Indices where the preferred/non-preferred boundary lies for section headers.
     private var preferredCodes: Set<String> {
-        Set(Locale.preferredLanguages.map { Locale(identifier: $0).language.languageCode?.identifier ?? "" })
+        Set(Locale.preferredLanguages.map { Locale(identifier: $0).languageCode ?? "" })
     }
 
     var body: some View {
         NanoMuseCompatNavigationStack {
             List {
-                let preferred = filteredLocales.filter { preferredCodes.contains($0.language.languageCode?.identifier ?? "") }
-                let others = filteredLocales.filter { !preferredCodes.contains($0.language.languageCode?.identifier ?? "") }
+                let preferred = filteredLocales.filter { preferredCodes.contains($0.languageCode ?? "") }
+                let others = filteredLocales.filter { !preferredCodes.contains($0.languageCode ?? "") }
 
                 if !preferred.isEmpty {
                     Section(AppLocalized("Preferred", comment: "Section header for preferred speech languages")) {
@@ -6134,8 +6141,8 @@ private struct SpeechLanguagePickerSheet: View {
                 Spacer()
                 if loc.identifier == speechManager.locale.identifier {
                     Image(systemName: "checkmark")
+                        .font(.body.weight(.semibold))
                         .foregroundStyle(Color.accentColor)
-                        .fontWeight(.semibold)
                 }
             }
         }

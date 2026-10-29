@@ -608,20 +608,24 @@ struct UnifiedModelPicker: View {
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
-        if isMulti {
-            ToolbarItem(placement: NanoMuseToolbarPlacement.leading) {
+        // NOTE (iOS 15 backport): `if/else` at toolbar level uses
+        // ToolbarContentBuilder.buildEither (iOS 16+). Split into two items
+        // whose conditions live inside (a ViewBuilder) instead; a false
+        // condition renders an empty item.
+        ToolbarItem(placement: NanoMuseToolbarPlacement.leading) {
+            if isMulti {
                 Button("Cancel") { dismiss() }
             }
-            ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
+        }
+        ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
+            if isMulti {
                 Button("Add (\(selectedEntryIds.count))") {
                     config.onAddMulti?(selectedEntryIds)
                     dismiss()
                 }
                 .font(.body.weight(.semibold))
                 .disabled(selectedEntryIds.isEmpty)
-            }
-        } else {
-            ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
+            } else {
                 Button("Done") { dismiss() }
             }
         }

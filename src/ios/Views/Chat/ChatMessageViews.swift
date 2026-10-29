@@ -415,7 +415,7 @@ struct ChatMessageRow: View {
             // is RoundedRectangle(cornerRadius: 18). iOS 16+ lets us specify the
             // preview clip shape independently from the interaction shape.
             .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: 18))
-            .contextMenu {
+            .nmContextMenu {
                 Button {
                     UIPasteboard.general.string = message.content
                 } label: {
@@ -593,7 +593,7 @@ struct ChatMessageRow: View {
             // blank areas — UITextView link taps in the foreground take priority.
             Color.clear
                 .contentShape(Rectangle())
-                .contextMenu {
+                .nmContextMenu {
                     // [T-ios-msg-contextmenu-recursion-crash] Gate the eager menu
                     // tree behind an Equatable key so the cell body churn during
                     // `gh`/shell streaming output doesn't rebuild + re-diff the

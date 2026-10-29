@@ -36,8 +36,10 @@ struct BackupHistoryDetailView: View {
             // Hidden while the run is live: a delete that dropped the record
             // while the upload kept running would strand a job with nothing
             // tracking it. Stop it first — this button is then right here.
-            if !isLive {
-                ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
+            ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
+                // NOTE (iOS 15 backport): `if` at toolbar level is iOS 16+;
+                // the condition lives inside the item (a ViewBuilder) instead.
+                if !isLive {
                     Button(role: .destructive) {
                         showDeleteConfirm = true
                     } label: {

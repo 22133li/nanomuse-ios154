@@ -107,8 +107,10 @@ struct RcloneAddServerView: View {
                 // of a long directory listing it moved with the scroll and
                 // could sit off-screen entirely in a folder with many
                 // entries — the one control the screen exists to offer.
-                if connectedRemote != nil {
-                    ToolbarItem(placement: .confirmationAction) {
+                ToolbarItem(placement: .confirmationAction) {
+                    // NOTE (iOS 15 backport): `if` at toolbar level is iOS 16+;
+                    // the condition lives inside the item (a ViewBuilder) instead.
+                    if connectedRemote != nil {
                         Button("Save Here") { saveHere() }
                             .disabled(isListing)
                     }

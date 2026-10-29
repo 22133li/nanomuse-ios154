@@ -20,6 +20,29 @@ struct ProviderInstancesView: View {
     /// it must never be a one-swipe irreversible act.
     @State private var pendingDeleteInstance: ProviderInstance?
 
+    // Extracted from the swipe-actions closure: the nested if + Buttons made
+    // the compiler time out type-checking the row expression.
+    @ViewBuilder
+    private func instanceTrailingSwipeActions(for instance: ProviderInstance) -> some View {
+        // Destructive first = rightmost, the platform's position for Delete.
+        // `allowsFullSwipe: false` so a long swipe cannot delete a provider
+        // (and its keys) without the confirmation below.
+        // nanoMuse: not on the Cloud instance; it is the account (see ProviderInstanceDetailView).
+        if instance.id != NanoMuseCloud.instance?.id {
+            Button(role: .destructive) {
+                pendingDeleteInstance = instance
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
+        Button {
+            editingInstanceId = instance.id
+        } label: {
+            Label("Edit", systemImage: "pencil")
+        }
+        .tint(.blue)
+    }
+
     var body: some View {
         List {
             // nanoMuse: the relay first — a phone number or an e-mail address, no key needed.
@@ -53,24 +76,7 @@ struct ProviderInstancesView: View {
                             // gesture is introduced here precisely so that
                             // arbitration stays UIKit's.
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                // Destructive first = rightmost, the platform's
-                                // position for Delete. `allowsFullSwipe: false`
-                                // so a long swipe cannot delete a provider (and
-                                // its keys) without the confirmation below.
-                                // nanoMuse: not on the Cloud instance; it is the account (see ProviderInstanceDetailView).
-                                if instance.id != NanoMuseCloud.instance?.id {
-                                    Button(role: .destructive) {
-                                        pendingDeleteInstance = instance
-                                    } label: {
-                                        Label("Delete", systemImage: "trash")
-                                    }
-                                }
-                                Button {
-                                    editingInstanceId = instance.id
-                                } label: {
-                                    Label("Edit", systemImage: "pencil")
-                                }
-                                .tint(.blue)
+                                instanceTrailingSwipeActions(for: instance)
                             }
                         }
                         .onMove { source, destination in

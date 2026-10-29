@@ -15,7 +15,7 @@ struct NanoMuseCompatNavigationStack<Content: View>: View {
 
     var body: some View {
         if #available(iOS 16.0, *) {
-            NanoMuseCompatNavigationStack {
+            NavigationStack {
                 content
             }
         } else {
@@ -23,20 +23,6 @@ struct NanoMuseCompatNavigationStack<Content: View>: View {
                 content
             }
             .navigationViewStyle(.stack)
-        }
-    }
-}
-
-// iOS 15 backport: `presentationDetents` / `presentationDragIndicator` are
-// iOS 16+. Applying them only on iOS 16+ leaves the iOS 15 sheet at the
-// system default height instead of silently changing the sheet's content.
-extension View {
-    @ViewBuilder
-    func nanoMusePresentationDetents(_ detents: Set<PresentationDetent>) -> some View {
-        if #available(iOS 16.0, *) {
-            self.presentationDetents(detents)
-        } else {
-            self
         }
     }
 }

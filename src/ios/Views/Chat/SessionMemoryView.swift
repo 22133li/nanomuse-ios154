@@ -274,8 +274,10 @@ private struct MemoryContentView: View {
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if fileURL != nil {
-                ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
+            ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
+                // NOTE (iOS 15 backport): `if` at toolbar level is iOS 16+;
+                // the condition lives inside the item (a ViewBuilder) instead.
+                if fileURL != nil {
                     if isEditing {
                         Button("Save") {
                             save()

@@ -68,7 +68,8 @@ struct SwipeToSendHint: View {
 // MARK: - Flow Layout
 
 /// A custom Layout that arranges subviews in a wrapping horizontal flow.
-private struct FlowLayout: Layout {
+@available(iOS 16, *)
+private struct FlowLayoutImpl: Layout {
     var hSpacing: CGFloat = 8
     var vSpacing: CGFloat = 8
     var alignment: HorizontalAlignment = .leading
@@ -148,6 +149,31 @@ private struct FlowLayout: Layout {
             rowWidths: rowWidths,
             rowIndices: rowIndices
         )
+    }
+}
+
+// iOS 15 backport: `Layout` (and its callAsFunction container use) is iOS 16+.
+// On 16+ this renders the upstream flow layout unchanged; on 15 it falls back
+// to main line's LazyVGrid arrangement (the build96 behaviour), so the same
+// call sites compile on both.
+private struct FlowLayout<Content: View>: View {
+    var hSpacing: CGFloat = 8
+    var vSpacing: CGFloat = 8
+    var alignment: HorizontalAlignment = .leading
+    let content: Content
+    init(hSpacing: CGFloat = 8, vSpacing: CGFloat = 8, alignment: HorizontalAlignment = .leading, @ViewBuilder content: () -> Content) {
+        self.hSpacing = hSpacing; self.vSpacing = vSpacing; self.alignment = alignment; self.content = content()
+    }
+    var body: some View {
+        if #available(iOS 16, *) {
+            FlowLayoutImpl(hSpacing: hSpacing, vSpacing: vSpacing, alignment: alignment) {
+                content
+            }
+        } else {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 60), spacing: hSpacing)], alignment: .leading, spacing: vSpacing) {
+                content
+            }
+        }
     }
 }
 
@@ -1437,6 +1463,9 @@ struct PastableTextView: UIViewRepresentable {
         return tv
     }
 
+    // UIViewRepresentable.sizeThatFits is iOS 16+. On iOS 15 the text view's
+    // intrinsicContentSize (overridden below) drives the height instead.
+    @available(iOS 16, *)
     func sizeThatFits(_ proposal: ProposedViewSize, uiView tv: PastableUITextView, context: Context) -> CGSize? {
         let width = proposal.width ?? UIScreen.main.bounds.width
         // [T-share-url-input-height] UITextView.sizeThatFits returns the

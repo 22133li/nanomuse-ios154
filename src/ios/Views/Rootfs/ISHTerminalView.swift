@@ -96,8 +96,12 @@ struct ISHTerminalView: View {
         .navigationTitle("nanoMuse Shell")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if showCloseButton {
-                ToolbarItem(placement: .navigationBarLeading) {
+            ToolbarItem(placement: .navigationBarLeading) {
+                // NOTE (iOS 15 backport): `if` at toolbar level uses
+                // ToolbarContentBuilder.buildIf (iOS 16+). The condition
+                // lives inside the item (a ViewBuilder) instead; a false
+                // condition renders an empty item.
+                if showCloseButton {
                     Button { dismiss() } label: {
                         Image(systemName: "xmark")
                     }

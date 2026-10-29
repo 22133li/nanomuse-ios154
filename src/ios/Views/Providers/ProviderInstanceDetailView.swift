@@ -1493,7 +1493,7 @@ struct ModelEntryDetailSheet: View {
             }
             .navigationTitle("Model Details")
             .navigationBarTitleDisplayMode(.inline)
-            .scrollDismissesKeyboard(.interactively)
+            .nmScrollDismissesKeyboardInteractively()
             .toolbar {
                 ToolbarItem(placement: NanoMuseToolbarPlacement.leading) {
                     Button("Cancel") { dismiss() }

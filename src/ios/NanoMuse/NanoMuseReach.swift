@@ -93,7 +93,7 @@ private struct NanoMuseReachSheet: View {
 
                 Section {
                     NanoMuseMultilineTextField(placeholder: AppLocalized("A short note"), text: $note)
-                        .lineLimit(1...4)
+                        .nmLineLimit(1...4)
                     Button(AppLocalized("Send the note")) {
                         run("notify", ["text": note.trimmingCharacters(in: .whitespacesAndNewlines), "title": "nanoMuse"]) { _ in
                             AppLocalized("Sent.")
@@ -110,7 +110,7 @@ private struct NanoMuseReachSheet: View {
                             .font(.system(.body, design: .monospaced))
                             .textInputAutocapitalization(.never)
                             .disableAutocorrection(true)
-                            .lineLimit(1...4)
+                            .nmLineLimit(1...4)
                         Button(AppLocalized("Run it there")) {
                             run("shell", ["command": command, "timeout": 120]) { body in
                                 let out = (body["stdout"] as? String ?? "") + (body["stderr"] as? String ?? "")

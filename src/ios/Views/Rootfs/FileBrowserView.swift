@@ -488,8 +488,10 @@ private struct MarkdownFilePreview: View {
             }
         }
         .toolbar {
-            if case .loaded = loadState {
-                ToolbarItem(placement: NanoMuseToolbarPlacement.leading) {
+            ToolbarItem(placement: NanoMuseToolbarPlacement.leading) {
+                // NOTE (iOS 15 backport): `if` at toolbar level is iOS 16+;
+                // the condition lives inside the item (a ViewBuilder) instead.
+                if case .loaded = loadState {
                     // Single toggle button, NOT a segmented Picker.
                     //
                     // A `.segmented` Picker asks for the width of all its

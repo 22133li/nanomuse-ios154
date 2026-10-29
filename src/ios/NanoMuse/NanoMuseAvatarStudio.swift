@@ -612,7 +612,7 @@ struct NanoMuseAvatarStudioView: View {
                 .padding(.vertical, 2)
             }
             NanoMuseMultilineTextField(placeholder: AppLocalized("Describe a new face"), text: $studio.description, axisVerticalLineLimit: 2...5)
-                .lineLimit(2...5)
+                .nmLineLimit(2...5)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(NanoMuseAvatarStyle.allCases) { style in
