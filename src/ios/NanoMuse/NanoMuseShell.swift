@@ -619,23 +619,41 @@ struct NanoMuseHomeView: View {
                     }
             }
         } else {
+            // [T-ios154-navlink-reentry] iOS 15 navigation, low-reentry form.
+            // The hidden link used to ride in chatRoot's .background; the
+            // build108 crash stack (SIGTRAP, ViewGraphGeometryObservers
+            // recursion — same signature as build100/102) symbolicated into
+            // exactly that background+NavigationLink evaluation, and its
+            // isActive setter mutated chatPath synchronously inside the
+            // navigation update pass. The link now sits as a ZStack sibling
+            // (outside the background evaluation path), and the pop sync is
+            // deferred to the next main-runloop turn — the same out-of-band
+            // delivery the geometry backport uses. Behaviour is unchanged:
+            // chatPath empty = main chat, one entry = that side chat pushed,
+            // swipe-back or removeAll() pops to the main chat.
             NavigationView {
-                chatRoot
-                    .background(
-                        NavigationLink(
-                            destination: Group {
-                                if let id = chatPath.last {
-                                    chatSideDestination(id)
-                                } else {
-                                    EmptyView()
+                ZStack {
+                    chatRoot
+                    NavigationLink(
+                        destination: Group {
+                            if let id = chatPath.last {
+                                chatSideDestination(id)
+                            } else {
+                                EmptyView()
+                            }
+                        },
+                        isActive: Binding(
+                            get: { !chatPath.isEmpty },
+                            set: { active in
+                                if !active, !chatPath.isEmpty {
+                                    DispatchQueue.main.async {
+                                        if !chatPath.isEmpty { chatPath.removeLast() }
+                                    }
                                 }
-                            },
-                            isActive: Binding(
-                                get: { !chatPath.isEmpty },
-                                set: { if !$0 { chatPath.removeLast() } }
-                            )
-                        ) { EmptyView() }
-                    )
+                            }
+                        )
+                    ) { EmptyView() }
+                }
             }
             .navigationViewStyle(.stack)
         }
