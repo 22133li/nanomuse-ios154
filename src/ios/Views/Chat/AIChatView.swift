@@ -233,6 +233,12 @@ private extension AIChatView {
             }
         }
     }
+
+    func chatTurnEndOutcome() -> ChatTurnOutcome {
+        if vm.userDidCancel { return .stopped }
+        if vm.errorMessage != nil { return .failed }
+        return .finished
+    }
 }
 
 struct AIChatView: View {
@@ -1571,11 +1577,7 @@ struct AIChatView: View {
         // blind user must still hear that the reply ended regardless of an
         // unrelated keyboard preference. The outcome closure is evaluated at
         // the end edge so it sees the final cancel/error state.
-        .announceChatTurnEnd(isProcessing: vm.isProcessing) {
-            if vm.userDidCancel { return .stopped }
-            if vm.errorMessage != nil { return .failed }
-            return .finished
-        }
+        .announceChatTurnEnd(isProcessing: vm.isProcessing) { chatTurnEndOutcome() }
         .onChange(of: vm.isProcessing) { processing in handleProcessingChange(processing) }
         // [T-ios-retry-hide-when-processing] Inject the view model so deep
         // descendants (e.g. ToolCapsuleView's long-press menu) can react to

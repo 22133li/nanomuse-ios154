@@ -150,8 +150,8 @@ struct ProviderInstancesView: View {
         .navigationTitle("Providers")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if !store.instances.isEmpty {
-                ToolbarItem(placement: NanoMuseToolbarPlacement.leading) {
+            ToolbarItem(placement: NanoMuseToolbarPlacement.leading) {
+                if !store.instances.isEmpty {
                     EditButton()
                 }
             }
