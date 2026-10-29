@@ -186,7 +186,7 @@ struct ProviderInstancesView: View {
                 AddProviderView()
             }
         }
-        .fileImporter(isPresented: $showImportFile, allowedContentTypes: [.json]) { result in
+        .nmFileImporter(isPresented: $showImportFile, allowedContentTypes: [.json], asCopy: false) { result in
             switch result {
             case .success(let url):
                 guard url.startAccessingSecurityScopedResource() else {

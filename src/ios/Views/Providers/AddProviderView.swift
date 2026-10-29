@@ -341,7 +341,7 @@ struct AddProviderView: View {
                 }
             }
         }
-        .fileImporter(isPresented: $showImportFile, allowedContentTypes: [.json]) { result in
+        .nmFileImporter(isPresented: $showImportFile, allowedContentTypes: [.json], asCopy: false) { result in
             handleImport(result)
         }
         .alert(AppLocalized("Import"), isPresented: $showImportResult) {

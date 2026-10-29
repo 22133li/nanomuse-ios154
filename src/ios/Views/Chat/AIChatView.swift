@@ -1384,10 +1384,11 @@ struct AIChatView: View {
                 }
             }
         })
-        .fileImporter(
+        .nmFileImporter(
             isPresented: $showDocumentPicker,
             allowedContentTypes: [.image, .pdf, .plainText, .json, .sourceCode, .presentation, .spreadsheet, .data],
-            allowsMultipleSelection: true
+            allowsMultipleSelection: true,
+            asCopy: true
         ) { result in
             switch result {
             case .success(let urls):

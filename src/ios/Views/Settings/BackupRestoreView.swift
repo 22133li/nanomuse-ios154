@@ -91,9 +91,10 @@ struct BackupRestoreView: View {
         }
         .modifier(StandaloneTitle(title: AppLocalized("Restore"),
                                  active: !embedded))
-        .fileImporter(isPresented: $showPicker,
+        .nmFileImporter(isPresented: $showPicker,
                       allowedContentTypes: [BackupDelivery.contentType, .data],
-                      allowsMultipleSelection: false) { result in
+                      allowsMultipleSelection: false,
+                      asCopy: false) { result in
             switch result {
             case .success(let urls):
                 if let url = urls.first { load(url) }
