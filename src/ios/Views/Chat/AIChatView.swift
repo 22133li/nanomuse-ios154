@@ -896,12 +896,32 @@ struct AIChatView: View {
         // .background position — the gate silently never engaged. EquatableView
         // wrapping is the only guaranteed path to ==.
         .background(
-            ChatToolbarHost(key: chatToolbarKey, title: {
-                chatNavPrincipalContent
-            }, trailing: {
-                trailingMenu
-            })
-            .equatable()
+            // iOS 15 backport (T1-1): upstream hides the whole system
+            // navigation bar on the main chat (.toolbar(.hidden, for:
+            // .navigationBar)); the iOS 15 .navigationBarHidden equivalent
+            // cannot suppress the bar while this host keeps registering
+            // toolbar items, so the principal header leaked next to the
+            // shell's own Muse header. On iOS 15 with the shell header in
+            // place (nmTopOverlay > 0) the host is not mounted at all;
+            // side chats and the classic layout keep nmTopOverlay == 0 and
+            // are unchanged, and iOS 16+ always mounts as upstream does.
+            Group {
+                if #available(iOS 16.0, *) {
+                    ChatToolbarHost(key: chatToolbarKey, title: {
+                        chatNavPrincipalContent
+                    }, trailing: {
+                        trailingMenu
+                    })
+                    .equatable()
+                } else if nmTopOverlay == 0 {
+                    ChatToolbarHost(key: chatToolbarKey, title: {
+                        chatNavPrincipalContent
+                    }, trailing: {
+                        trailingMenu
+                    })
+                    .equatable()
+                }
+            }
         )
         .sheet(item: $titlePillEditSession) { session in
             SessionEditSheet(session: session) { newTitle, newCategory in
@@ -2833,10 +2853,10 @@ struct AIChatView: View {
                 // layout and trips a precondition on the iOS 18 async renderer
                 // (ViewGraphGeometryObservers.needsUpdate SIGTRAP). The action
                 // also fires with the initial value, covering the old onAppear.
-                .onGeometryChangeBackport(for: CGFloat.self) { proxy in
+                .onGeometryChangeBackport(for: CGFloat.self, tag: GeometryChangeFloatingBarTag.self) { proxy in
                     proxy.size.height
                 } action: { newH in
-                    floatingBarHeight = newH
+                    if abs(newH - floatingBarHeight) > 0.5 { floatingBarHeight = newH }
                 }
                 .onDisappear {
                     floatingBarHeight = 0
@@ -3889,7 +3909,7 @@ struct AIChatView: View {
             // floating-bar site). Fires with the initial value too, so the
             // old onAppear seeding AND its diagnostic log are preserved as
             // a single unified line.
-            .onGeometryChangeBackport(for: CGRect.self) { proxy in
+            .onGeometryChangeBackport(for: CGRect.self, tag: GeometryChangeComposerFrameTag.self) { proxy in
                 proxy.frame(in: .global)
             } action: { frame in
                 let newH = frame.size.height
@@ -5065,9 +5085,9 @@ private struct NavBarStyleModifier: ViewModifier {
                     // stay outside it exactly as before, and the action's
                     // initial fire covers the old onAppear seed.
                     Color.clear
-                        .onGeometryChangeBackport(for: CGFloat.self) { proxy in
+                        .onGeometryChangeBackport(for: CGFloat.self, tag: GeometryChangeTopSafeAreaTag.self) { proxy in
                             proxy.safeAreaInsets.top
-                        } action: { topSafeAreaInset = $0 }
+                        } action: { if topSafeAreaInset != $0 { topSafeAreaInset = $0 } }
                         .ignoresSafeArea()
                         .frame(height: 0)
                 }

@@ -1064,6 +1064,7 @@ struct MinisApp: App {
     /// 2. Library/MinisChat/memory/ → App Group MinisFileProvider/memory/
     /// 3. Library/MinisChat/skills/ → App Group MinisFileProvider/skills/
     /// 4. Old App Group MinisShared/ → App Group MinisFileProvider/shared/
+    @available(iOS 16, *)
     private static func migrateSharedDirToAppGroup() {
         let fm = FileManager.default
         let library = fm.urls(for: .libraryDirectory, in: .userDomainMask).first!

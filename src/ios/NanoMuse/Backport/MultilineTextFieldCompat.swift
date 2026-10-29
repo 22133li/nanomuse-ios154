@@ -59,7 +59,7 @@ struct NanoMuseMultilineTextField: View {
                     .modifier(TwinLineLimit(range: axisVerticalLineLimit))
                     .opacity(0)
                     .allowsHitTesting(false)
-                    .onGeometryChangeBackport(for: CGFloat.self) { proxy in
+                    .onGeometryChangeBackport(for: CGFloat.self, tag: GeometryChangeComposerTwinTag.self) { proxy in
                         proxy.size.height
                     } action: { h in
                         if h > 0, abs(h - measuredH) > 0.5 { measuredH = h }

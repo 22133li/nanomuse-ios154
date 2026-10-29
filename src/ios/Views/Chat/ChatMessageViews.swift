@@ -586,9 +586,9 @@ struct ChatMessageRow: View {
         // (ViewGraphGeometryObservers.needsUpdate SIGTRAP). onGeometryChange
         // measures the same row bounds the background GeometryReader did,
         // and its initial fire covers the old onAppear seed.
-        .onGeometryChangeBackport(for: CGRect.self) { proxy in
+        .onGeometryChangeBackport(for: CGRect.self, tag: GeometryChangeMessageRowTag.self) { proxy in
             proxy.frame(in: .global)
-        } action: { rowFrameInWindow = $0 }
+        } action: { if rowFrameInWindow != $0 { rowFrameInWindow = $0 } }
         .background {
             // Context menu on the background layer so it only fires on
             // blank areas — UITextView link taps in the foreground take priority.

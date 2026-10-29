@@ -33,6 +33,7 @@ struct NanoMuseShareLink<Label: View>: View {
 
 struct NanoMuseDefaultShareLink: View {
     private let url: URL
+    @State private var showing = false
 
     init(item: URL) { self.url = item }
 
@@ -40,17 +41,18 @@ struct NanoMuseDefaultShareLink: View {
         if #available(iOS 16.0, *) {
             ShareLink(item: url)
         } else {
-            Button { share() } label: {
+            // iOS 15 backport (T1-3): present through .sheet like
+            // NanoMuseShareLink above. The previous imperative
+            // rootViewController.present() silently did nothing when the
+            // root already had a presented chain (e.g. from the log
+            // detail page), leaving the button dead.
+            Button { showing = true } label: {
                 Label(url.lastPathComponent, systemImage: "square.and.arrow.up")
             }
+            .sheet(isPresented: $showing) {
+                NanoMuseActivitySheet(items: [url])
+            }
         }
-    }
-
-    private func share() {
-        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let root = scene.windows.first(where: \.isKeyWindow)?.rootViewController else { return }
-        let activity = UIActivityViewController(activityItems: [url], applicationActivities: nil)
-        root.present(activity, animated: true)
     }
 }
 

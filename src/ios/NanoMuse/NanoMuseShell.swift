@@ -709,7 +709,7 @@ struct NanoMuseHomeView: View {
                         .transition(.move(edge: .top).combined(with: .opacity))
                     }
                 }
-                .onGeometryChangeBackport(for: CGFloat.self) { proxy in
+                .onGeometryChangeBackport(for: CGFloat.self, tag: GeometryChangeShellHeaderTag.self) { proxy in
                     proxy.size.height
                 } action: { height in
                     if abs(height - chatHeaderHeight) > 0.5 { chatHeaderHeight = height }
