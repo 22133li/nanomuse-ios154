@@ -353,7 +353,12 @@ private struct SkillFileDocumentPicker: UIViewControllerRepresentable {
         if let skillType = UTType(filenameExtension: "skill", conformingTo: .zip) {
             types.append(skillType)
         }
-        let picker = UIDocumentPickerViewController(forOpeningContentTypes: types)
+        // [T-ios154-skillpicker] iOS 15.4: forOpeningContentTypes without
+        // asCopy never fires the delegate callback (same pit as the chat
+        // picker; device-verified on the Minis line as [T-skill-pick-96]).
+        // With asCopy: true the system hands back a regular temp URL; the
+        // coordinator below already tolerates non-security-scoped URLs.
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: types, asCopy: true)
         picker.delegate = context.coordinator
         return picker
     }
