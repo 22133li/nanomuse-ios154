@@ -67,6 +67,55 @@ struct ProviderInstancesView: View {
         }
     }
 
+    @ViewBuilder
+    private func providerTypeSections() -> some View {
+        // [T-mimo-shadow-voice] EVERY instance appears under its providerType
+        // section now (no voice-only exclusion) — a mixed vendor like MiMo
+        // shows its text models here AND a shadow voice row below ("dual
+        // visibility"). Pure-voice vendors (ElevenLabs etc.) still appear here
+        // too; they just have no usable text models, which is expected.
+        ForEach(ProviderType.allCases, id: \.self) { type in
+            let instancesOfType = store.instances.filter { $0.providerType == type }
+            if !instancesOfType.isEmpty {
+                Section(type.displayName) {
+                    instanceRows(for: type, instances: instancesOfType)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func shadowVoiceSection() -> some View {
+        // [T-mimo-shadow-voice] Voice Services = a read-only SHADOW view of any
+        // instance that has audio-modality models, FOLDED by base URL so two
+        // instances on the same host show one row (shares that instance's
+        // credential/endpoint). Tapping opens the shadow detail (voice models
+        // + a "disable this voice row" toggle).
+        let shadows = store.shadowVoiceProviders()
+        if !shadows.isEmpty {
+            Section("Voice Services") {
+                if store.hasFoldedShadowDuplicates() {
+                    // Non-destructive hint: same MiMo service configured twice.
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "info.circle")
+                            .foregroundStyle(.secondary)
+                        Text("A voice service is configured more than once. Voice is merged into a single row here; you can delete the extra provider above if you want.",
+                             comment: "Duplicate voice provider hint")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                ForEach(shadows) { shadow in
+                    NavigationLink {
+                        ShadowVoiceProviderDetailView(instanceId: shadow.instanceId)
+                    } label: {
+                        ShadowVoiceRow(shadow: shadow)
+                    }
+                }
+            }
+        }
+    }
+
     var body: some View {
         List {
             // nanoMuse: the relay first — a phone number or an e-mail address, no key needed.
@@ -77,47 +126,8 @@ struct ProviderInstancesView: View {
                     NanoMuseCloudRow()
                 }
             }
-            // [T-mimo-shadow-voice] EVERY instance appears under its providerType
-            // section now (no voice-only exclusion) — a mixed vendor like MiMo
-            // shows its text models here AND a shadow voice row below ("dual
-            // visibility"). Pure-voice vendors (ElevenLabs etc.) still appear here
-            // too; they just have no usable text models, which is expected.
-            ForEach(ProviderType.allCases, id: \.self) { type in
-                let instancesOfType = store.instances.filter { $0.providerType == type }
-                if !instancesOfType.isEmpty {
-                    Section(type.displayName) {
-                        instanceRows(for: type, instances: instancesOfType)
-                    }
-                }
-            }
-            // [T-mimo-shadow-voice] Voice Services = a read-only SHADOW view of any
-            // instance that has audio-modality models, FOLDED by base URL so two
-            // instances on the same host show one row (shares that instance's
-            // credential/endpoint). Tapping opens the shadow detail (voice models
-            // + a "disable this voice row" toggle).
-            let shadows = store.shadowVoiceProviders()
-            if !shadows.isEmpty {
-                Section("Voice Services") {
-                    if store.hasFoldedShadowDuplicates() {
-                        // Non-destructive hint: same MiMo service configured twice.
-                        HStack(alignment: .top, spacing: 8) {
-                            Image(systemName: "info.circle")
-                                .foregroundStyle(.secondary)
-                            Text("A voice service is configured more than once. Voice is merged into a single row here; you can delete the extra provider above if you want.",
-                                 comment: "Duplicate voice provider hint")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    ForEach(shadows) { shadow in
-                        NavigationLink {
-                            ShadowVoiceProviderDetailView(instanceId: shadow.instanceId)
-                        } label: {
-                            ShadowVoiceRow(shadow: shadow)
-                        }
-                    }
-                }
-            }
+            providerTypeSections()
+            shadowVoiceSection()
 
             if store.instances.isEmpty {
                 Section {

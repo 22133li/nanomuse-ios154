@@ -189,6 +189,50 @@ private extension AIChatView {
             }
         }
     }
+
+    func handleProcessingChange(_ processing: Bool) {
+        if !processing {
+            // Reply reading is handled INCREMENTALLY during streaming (the
+            // SSE loop splits into sentences/titles + tool announcements and
+            // queues them as they arrive — see speakQueued/extractNewSentences).
+            // No whole-reply speak here; that would double-read everything.
+            // [T-keyboard-auto-pop default flip] Gate behind a Settings
+            // toggle. Default ON — most users want the composer ready
+            // for a follow-up immediately. `object(forKey:)` lets us
+            // distinguish "never toggled" (nil → use new ON default)
+            // from "explicitly set OFF" (NSNumber(false) → respect).
+            // Existing length-based skip is still applied so very long
+            // replies still don't trigger the auto-focus.
+            let autoFocusEnabled = (UserDefaults.standard.object(forKey: "chat.autoFocusAfterReply") as? Bool) ?? true
+            guard autoFocusEnabled else { return }
+            // [T-ios-retry-keyboard] Don't treat the end of a RETRIED turn
+            // as "a reply arrived".
+            //
+            // Trigger chain being cut: the user taps Retry on a failure from
+            // a while back -> retry() sets isProcessing=true -> the re-sent
+            // request fails fast (kernel down, no concurrency slot, or an
+            // immediate provider error) -> isProcessing flips back to false
+            // -> this observer fires. The edge is indistinguishable from a
+            // successful reply, and the delayed block's guards now all pass
+            // (the user IS looking at the chat, nothing is queued, and the
+            // errored message is short so the <600 length check succeeds) —
+            // so the keyboard rises seconds after a tap that only meant
+            // "try that again".
+            //
+            // Scoped to the turn's ORIGIN, not its outcome: auto-focus when
+            // a fresh send fails is existing, accepted behaviour and is
+            // deliberately left alone. Consumed (not just read) so it
+            // governs exactly one turn.
+            let wasRetry = vm.turnStartedByRetry
+            vm.turnStartedByRetry = false
+            guard !wasRetry else { return }
+            if GCKeyboard.coalesced != nil {
+                inputFocused = true
+            } else {
+                scheduleAutoFocusAfterReply()
+            }
+        }
+    }
 }
 
 struct AIChatView: View {
@@ -1532,49 +1576,7 @@ struct AIChatView: View {
             if vm.errorMessage != nil { return .failed }
             return .finished
         }
-        .onChange(of: vm.isProcessing) { processing in
-            if !processing {
-                // Reply reading is handled INCREMENTALLY during streaming (the
-                // SSE loop splits into sentences/titles + tool announcements and
-                // queues them as they arrive — see speakQueued/extractNewSentences).
-                // No whole-reply speak here; that would double-read everything.
-                // [T-keyboard-auto-pop default flip] Gate behind a Settings
-                // toggle. Default ON — most users want the composer ready
-                // for a follow-up immediately. `object(forKey:)` lets us
-                // distinguish "never toggled" (nil → use new ON default)
-                // from "explicitly set OFF" (NSNumber(false) → respect).
-                // Existing length-based skip is still applied so very long
-                // replies still don't trigger the auto-focus.
-                let autoFocusEnabled = (UserDefaults.standard.object(forKey: "chat.autoFocusAfterReply") as? Bool) ?? true
-                guard autoFocusEnabled else { return }
-                // [T-ios-retry-keyboard] Don't treat the end of a RETRIED turn
-                // as "a reply arrived".
-                //
-                // Trigger chain being cut: the user taps Retry on a failure from
-                // a while back -> retry() sets isProcessing=true -> the re-sent
-                // request fails fast (kernel down, no concurrency slot, or an
-                // immediate provider error) -> isProcessing flips back to false
-                // -> this observer fires. The edge is indistinguishable from a
-                // successful reply, and the delayed block's guards now all pass
-                // (the user IS looking at the chat, nothing is queued, and the
-                // errored message is short so the <600 length check succeeds) —
-                // so the keyboard rises seconds after a tap that only meant
-                // "try that again".
-                //
-                // Scoped to the turn's ORIGIN, not its outcome: auto-focus when
-                // a fresh send fails is existing, accepted behaviour and is
-                // deliberately left alone. Consumed (not just read) so it
-                // governs exactly one turn.
-                let wasRetry = vm.turnStartedByRetry
-                vm.turnStartedByRetry = false
-                guard !wasRetry else { return }
-                if GCKeyboard.coalesced != nil {
-                    inputFocused = true
-                } else {
-                    scheduleAutoFocusAfterReply()
-                }
-            }
-        }
+        .onChange(of: vm.isProcessing) { processing in handleProcessingChange(processing) }
         // [T-ios-retry-hide-when-processing] Inject the view model so deep
         // descendants (e.g. ToolCapsuleView's long-press menu) can react to
         // `vm.isProcessing` without threading the vm through every level.
