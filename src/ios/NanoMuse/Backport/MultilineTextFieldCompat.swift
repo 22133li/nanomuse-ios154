@@ -73,6 +73,7 @@ struct NanoMuseMultilineTextField: View {
             // symmetrically (8pt each side, unclipped).
             ZStack(alignment: .topLeading) {
                 TextEditor(text: $text)
+                    .background(TextEditorBackgroundClearer())
                     .frame(height: editorH)
                 Text(measureText)
                     .padding(.vertical, 8)
@@ -95,6 +96,46 @@ struct NanoMuseMultilineTextField: View {
             }
             .frame(height: slotH)
         }
+    }
+}
+
+/// [ios15-texteditor-bg] iOS 15 only: SwiftUI's TextEditor paints its
+/// UITextView's default background (black in dark mode, white in light)
+/// inside the composer pill, where upstream's field is transparent over
+/// the pill's flat grey capsule — the iOS 16 vertical TextField has no
+/// background, and upstream's own UIKit text view for the classic bar
+/// sets backgroundColor = .clear explicitly (ChatInputBar.swift). There
+/// is no scrollContentBackground on 15, so this sibling representable
+/// walks its own ancestor subtree (which holds only this editor) and
+/// clears the text view's background.
+private struct TextEditorBackgroundClearer: UIViewRepresentable {
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.isUserInteractionEnabled = false
+        return view
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {
+        DispatchQueue.main.async {
+            var ancestor = uiView.superview
+            var hops = 0
+            while let node = ancestor, hops < 4 {
+                if let textView = Self.findTextView(in: node) {
+                    textView.backgroundColor = .clear
+                    return
+                }
+                ancestor = node.superview
+                hops += 1
+            }
+        }
+    }
+
+    private static func findTextView(in view: UIView) -> UITextView? {
+        if let textView = view as? UITextView { return textView }
+        for subview in view.subviews {
+            if let found = findTextView(in: subview) { return found }
+        }
+        return nil
     }
 }
 
