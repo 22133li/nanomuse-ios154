@@ -1,7 +1,7 @@
 name: nanoMuse iOS 15.4 Backport Build
 on:
   push:
-    branches: [main, master, ios15-v1.0.7-clean, ios15-v1.0.8-clean]
+    branches: [main, master, ios15-v1.0.7-clean, ios15-v1.0.8-clean, ios15-v1.0.9-clean]
   workflow_dispatch:
 jobs:
   build:
