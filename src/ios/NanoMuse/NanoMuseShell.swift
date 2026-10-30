@@ -694,6 +694,10 @@ struct NanoMuseHomeView: View {
                         liveId: main.liveId,
                         name: agentName,
                         onFace: { NotificationCenter.default.post(name: .nanoMuseOpenAgentPage, object: main.liveId ?? main.chatId) },
+                        // [round28-user-request] With the model shown under the name,
+                        // tapping the pill opens this chat's model picker (the same
+                        // action as the menu's Model row); switch off keeps upstream.
+                        onName: NanoMuseAppearance.shared.headerModel ? { chatAction(.model) } : nil,
                         leading: { drawerDisc },
                         trailing: { chatMenu }
                     )
@@ -1133,6 +1137,10 @@ struct NanoMuseChatHeaderHost<Leading: View, Trailing: View>: View {
     var liveId: String?
     var name: String
     var onFace: () -> Void
+    /// [round28-user-request] Optional name-pill action (the model picker on the
+    /// main chat while the header-model switch is on); nil keeps upstream's
+    /// fall-through to onFace.
+    var onName: (() -> Void)? = nil
     @ViewBuilder var leading: () -> Leading
     @ViewBuilder var trailing: () -> Trailing
 
@@ -1141,7 +1149,7 @@ struct NanoMuseChatHeaderHost<Leading: View, Trailing: View>: View {
     var body: some View {
         Group {
             if let vm {
-                NanoMuseLiveHeader(vm: vm, name: name, onFace: onFace, leading: leading, trailing: trailing)
+                NanoMuseLiveHeader(vm: vm, name: name, onFace: onFace, onName: onName, leading: leading, trailing: trailing)
             } else {
                 NanoMuseStillHeader(name: name, onFace: onFace, leading: leading, trailing: trailing)
             }

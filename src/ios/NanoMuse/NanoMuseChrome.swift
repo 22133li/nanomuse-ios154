@@ -310,9 +310,17 @@ struct NanoMuseLiveHeader<Leading: View, Trailing: View>: View {
     }
 
     /// Idle, with the Appearance switch on: the model answering, as Android's model rows.
+    /// [round28-user-request] The owner explicitly requires the actual model under the
+    /// name on the home header: upstream shows only the binding's group/display name
+    /// (a group name reads as no model at all), so resolve to "model · provider" via
+    /// the same helper the model picker uses, falling back to the upstream line.
     private var idleLine: String? {
         guard appearance.headerModel else { return nil }
-        let line = SessionModelDisplay(store: configStore, draftGroupId: vm.initialGroupId).displayName(for: vm.sessionId)
+        let display = SessionModelDisplay(store: configStore, draftGroupId: vm.initialGroupId)
+        if let detail = display.resolvedDetail(for: vm.sessionId) {
+            return "\(detail.modelName) · \(detail.providerLabel)"
+        }
+        let line = display.displayName(for: vm.sessionId)
         return line.isEmpty ? nil : line
     }
 
