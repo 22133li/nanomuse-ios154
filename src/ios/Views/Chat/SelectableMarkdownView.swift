@@ -5111,6 +5111,14 @@ final class SelectableMarkdownTextView: UITextView, UIGestureRecognizerDelegate 
     ///     did) fire while the user is still dragging, landing straight back in
     ///     the same skip branch.
     private var deferredCorrectionPending = false
+    /// [ios15-defer-escape] Fingerprint of the content at the moment the
+    /// current deferred-correction debt was created. A later attempt whose
+    /// fingerprint still matches is provably looking at final, non-growing
+    /// content (streaming growth mutates the storage length on every chunk),
+    /// which is what licenses the iOS 15 escape in invalidateCellSizeIfNeeded.
+    private var debtStorageLen: Int = -1
+    private var debtWidth: CGFloat = 0
+    private var debtTableGenSum: UInt64 = 0
     /// Records the last time the layout loop tripped the re-entry guard, for
     /// watchdog diagnostics. If this fires many times per second we know the
     /// loop is hot even if we successfully short-circuit it.
@@ -7187,6 +7195,32 @@ final class SelectableMarkdownTextView: UITextView, UIGestureRecognizerDelegate 
         let layout = cvOpt?.collectionViewLayout as? MessageListLayout
         let isDeferred = layout?.deferSelfSizing ?? false
 
+        // [ios15-defer-escape] iOS 15 only. On 16+ the representable sizing
+        // hook is a second, authoritative channel, so a correction deferred
+        // by a scroll window still lands through normal layout. On 15 the
+        // invalidation path below is the ONLY channel: when the defer window
+        // is held open by a long streaming turn (user browsing mid-stream,
+        // follow-scroll glides), a finished text sits one line short for
+        // minutes and the next block row overlaps its last line — the exact
+        // screenshot the settle comment in CollectionViewMessageListV3
+        // describes. Escape narrowly, mirroring the media-attachment escape
+        // below: the debt must already exist (this is a retry, not the first
+        // skip), the content fingerprint must be unchanged since the debt
+        // was created (final text; a still-streaming storage grows and its
+        // fingerprint never matches), the correction must be growth, the
+        // view must be attached, and the user's finger must be off the
+        // scroll view (a live drag keeps upstream's defer untouched).
+        let ios15DeferredEscape: Bool = {
+            if #available(iOS 16, *) { return false }
+            guard isDeferred, delta > 0, deferredCorrectionPending,
+                  self.window != nil else { return false }
+            guard textStorage.length == debtStorageLen,
+                  abs(measureWidth - debtWidth) < 0.5,
+                  tableGenSum == debtTableGenSum else { return false }
+            guard let cv = cvOpt, !cv.isTracking else { return false }
+            return true
+        }()
+
         // When deferSelfSizing is active (user scrolling), skip the full layout
         // invalidation — it causes contentSize changes that push the streaming
         // cell into other cells during deceleration. The height change will be
@@ -7226,6 +7260,9 @@ final class SelectableMarkdownTextView: UITextView, UIGestureRecognizerDelegate 
             if cellHasGrowableMediaAttachment && isLargeGrowth {
                 cellSizeLogger.info("[AttachHang][CellSize] ALLOW through defer — media attachment placeholder→loaded growth prev=\(String(format: "%.1f", previousHeight))→new=\(String(format: "%.1f", newHeight)) delta=\(String(format: "%+.1f", delta))")
                 // Fall through to the normal invalidate path below.
+            } else if ios15DeferredEscape {
+                cellSizeLogger.info("[ios15-defer-escape] ALLOW through defer — stable final text, finger off scroll view delta=\(String(format: "%+.1f", delta))")
+                // Fall through to the normal invalidate path below.
             } else {
                 // [T-ios-lastcell-clip-defer-lost] Return WITHOUT touching the
                 // fingerprint / lastComputedHeight / coord cache — the
@@ -7249,6 +7286,9 @@ final class SelectableMarkdownTextView: UITextView, UIGestureRecognizerDelegate 
                 // async-rendering content.
                 let wasPending = deferredCorrectionPending
                 cellSizeLogger.info("[DeferDebt] OWED delta=\(String(format: "%+.1f", delta)) attached=\(self.window != nil) reOwed=\(wasPending)")
+                debtStorageLen = textStorage.length
+                debtWidth = measureWidth
+                debtTableGenSum = tableGenSum
                 deferredCorrectionPending = true
                 armDeferredRemeasureBackstop()
                 return
@@ -7273,6 +7313,7 @@ final class SelectableMarkdownTextView: UITextView, UIGestureRecognizerDelegate 
         // fingerprint early-exit for subsequent calls (no permanent extra cost).
         if deferredCorrectionPending {
             deferredCorrectionPending = false
+            debtStorageLen = -1
             cellSizeLogger.info("[invalidateCell] DEFERRED CORRECTION CONSUMED newH=\(String(format: "%.1f", newHeight)) delta=\(String(format: "%+.1f", delta))")
         }
         if let coord = self.delegate as? SelectableMarkdownView.Coordinator {
