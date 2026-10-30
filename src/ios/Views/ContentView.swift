@@ -2207,22 +2207,37 @@ struct ContentView: View {
             }
         } else {
             NavigationView {
-                sessionList(useNavigationLinks: true)
-                    .background(
-                        NavigationLink(
-                            destination: Group {
-                                if let id = navigationPath.last {
-                                    stackDestination(id)
-                                } else {
-                                    EmptyView()
+                // [T-ios154-navlink-reentry] Same trap class as chatLayer:
+                // UIKitNavigationBridge pops during a graph update and calls
+                // this isActive setter synchronously; the immediate
+                // removeLast() @State write trips EXC_BREAKPOINT (build113
+                // launch crash 2026-10-30, symbolicated to this setter).
+                // Mirror the chatLayer fix: the hidden link leaves
+                // .background for a ZStack sibling and the pop write defers
+                // to the next main-runloop turn, guarded against an
+                // already-empty path.
+                ZStack {
+                    sessionList(useNavigationLinks: true)
+                    NavigationLink(
+                        destination: Group {
+                            if let id = navigationPath.last {
+                                stackDestination(id)
+                            } else {
+                                EmptyView()
+                            }
+                        },
+                        isActive: Binding(
+                            get: { !navigationPath.isEmpty },
+                            set: { active in
+                                if !active, !navigationPath.isEmpty {
+                                    DispatchQueue.main.async {
+                                        if !navigationPath.isEmpty { navigationPath.removeLast() }
+                                    }
                                 }
-                            },
-                            isActive: Binding(
-                                get: { !navigationPath.isEmpty },
-                                set: { if !$0 { navigationPath.removeLast() } }
-                            )
-                        ) { EmptyView() }
-                    )
+                            }
+                        )
+                    ) { EmptyView() }
+                }
             }
             .navigationViewStyle(.stack)
         }
@@ -7579,19 +7594,28 @@ private struct SettingsSheet: View {
                 }
             } else {
                 NavigationView {
-                    settingsList
-                        .background(
-                            NavigationLink(
-                                destination: Group {
-                                    if let dest = navPath.last { settingsDestination(dest) }
-                                    else { EmptyView() }
-                                },
-                                isActive: Binding(
-                                    get: { !navPath.isEmpty },
-                                    set: { if !$0 { navPath.removeLast() } }
-                                )
-                            ) { EmptyView() }
-                        )
+                    // [T-ios154-navlink-reentry] Identical construct to the
+                    // stackLayout link above (build113 launch crash): hidden
+                    // link out of .background, pop write deferred and guarded.
+                    ZStack {
+                        settingsList
+                        NavigationLink(
+                            destination: Group {
+                                if let dest = navPath.last { settingsDestination(dest) }
+                                else { EmptyView() }
+                            },
+                            isActive: Binding(
+                                get: { !navPath.isEmpty },
+                                set: { active in
+                                    if !active, !navPath.isEmpty {
+                                        DispatchQueue.main.async {
+                                            if !navPath.isEmpty { navPath.removeLast() }
+                                        }
+                                    }
+                                }
+                            )
+                        ) { EmptyView() }
+                    }
                 }
                 .navigationViewStyle(.stack)
             }

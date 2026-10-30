@@ -220,7 +220,14 @@ struct ProviderInstancesView: View {
         .background {
             NavigationLink(isActive: Binding(
                 get: { editingInstanceId != nil },
-                set: { if !$0 { editingInstanceId = nil } }
+                // [T-ios154-navlink-reentry] Same trap class as ModelGroupsView's
+                // link: the bridge can call this setter synchronously during a
+                // pop inside a graph update; defer the clear one runloop turn.
+                set: { active in
+                    if !active {
+                        DispatchQueue.main.async { editingInstanceId = nil }
+                    }
+                }
             )) {
                 // Resolved at push time: if the provider was deleted while this
                 // was open, show nothing rather than a detail screen bound to a

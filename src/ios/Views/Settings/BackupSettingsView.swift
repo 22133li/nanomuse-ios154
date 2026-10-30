@@ -486,7 +486,14 @@ struct BackupSettingsView: View {
         .background {
             NavigationLink(isActive: Binding(
                 get: { openedRemoteName != nil },
-                set: { if !$0 { openedRemoteName = nil } }
+                // [T-ios154-navlink-reentry] Defer the clear one runloop turn:
+                // a synchronous @State write from the bridge's pop setter,
+                // called inside a graph update, trips EXC_BREAKPOINT.
+                set: { active in
+                    if !active {
+                        DispatchQueue.main.async { openedRemoteName = nil }
+                    }
+                }
             )) {
                 // Resolved on push. If the remote vanished (removed by a swipe
                 // while this was open) show nothing rather than a stale
@@ -502,7 +509,12 @@ struct BackupSettingsView: View {
 
             NavigationLink(isActive: Binding(
                 get: { openedFolderId != nil },
-                set: { if !$0 { openedFolderId = nil } }
+                // [T-ios154-navlink-reentry] Same deferred clear as above.
+                set: { active in
+                    if !active {
+                        DispatchQueue.main.async { openedFolderId = nil }
+                    }
+                }
             )) {
                 if let id = openedFolderId,
                    let folder = BackupDestinations.eligibleFolders.first(where: { $0.id == id }) {
