@@ -27,7 +27,7 @@ struct NanoMuseDevicesSection: View {
             Button {
                 editingName = true
             } label: {
-                NanoMuseLabeledContent(AppLocalized("This iPhone's name"), value: name)
+                LabeledContent(AppLocalized("This iPhone's name"), value: name)
             }
             .tint(.primary)
         } header: {
@@ -91,7 +91,7 @@ struct NanoMuseDevicesSection: View {
             Button {
                 UIPasteboard.general.string = hub.webConsoleURL
             } label: {
-                NanoMuseLabeledContent {
+                LabeledContent {
                     Text(AppLocalized("Copy link")).foregroundStyle(.tint)
                 } label: {
                     Label(AppLocalized("Web console"), systemImage: "globe")

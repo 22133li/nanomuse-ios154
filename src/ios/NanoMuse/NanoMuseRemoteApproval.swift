@@ -375,7 +375,7 @@ struct NanoMuseRemoteApprovalSheet: View {
     private var waiting: Int { max(0, approvals.queue.count - 1) }
 
     var body: some View {
-        NanoMuseCompatNavigationStack {
+        NavigationStack {
             Form {
                 Section {
                     Text(lead)
@@ -418,7 +418,7 @@ struct NanoMuseRemoteApprovalSheet: View {
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
         }
-        .nanoMuseSheetSize(.mediumOrLarge)
+        .presentationDetents([.medium, .large])
         .interactiveDismissDisabled()
     }
 

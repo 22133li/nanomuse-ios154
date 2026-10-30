@@ -122,7 +122,7 @@ struct BrowserHistoryView: View {
     @State private var showClearConfirm = false
 
     var body: some View {
-        NanoMuseCompatNavigationStack {
+        NavigationStack {
             Group {
                 if historyStore.entries.isEmpty {
                     emptyState
@@ -133,14 +133,14 @@ struct BrowserHistoryView: View {
             .navigationTitle("History")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: NanoMuseToolbarPlacement.leading) {
+                ToolbarItem(placement: .topBarLeading) {
                     if !historyStore.entries.isEmpty {
                         Button("Clear", role: .destructive) {
                             showClearConfirm = true
                         }
                     }
                 }
-                ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
                 }
             }

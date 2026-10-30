@@ -30,7 +30,7 @@ struct BackupDestinationPicker: View {
     @State private var errorText: String?
 
     var body: some View {
-        NanoMuseCompatNavigationStack {
+        NavigationStack {
             Form {
                 if !remotes.isEmpty || !folders.isEmpty {
                     savedSection

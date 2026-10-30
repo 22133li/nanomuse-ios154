@@ -65,7 +65,7 @@ struct EnvironmentVariablesView: View {
         .navigationTitle("Environment Variables")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
+            ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     showingAddSheet = true
                 } label: {
@@ -228,7 +228,7 @@ private struct EnvVarFormSheet: View {
     }
 
     var body: some View {
-        NanoMuseCompatNavigationStack {
+        NavigationStack {
             Form {
                 Section {
                     TextField("NAME", text: Binding(
@@ -237,7 +237,7 @@ private struct EnvVarFormSheet: View {
                     ))
                     .font(.system(.body, design: .monospaced))
                     .textInputAutocapitalization(.characters)
-                    .disableAutocorrection(true)
+                    .autocorrectionDisabled()
                     .focused($focusedField, equals: .key)
                     .submitLabel(.next)
                     .onSubmit { focusedField = .value }
@@ -253,7 +253,7 @@ private struct EnvVarFormSheet: View {
                 Section("Value") {
                     TextField("Value", text: $value)
                         .font(.system(.body, design: .monospaced))
-                        .disableAutocorrection(true)
+                        .autocorrectionDisabled()
                         .focused($focusedField, equals: .value)
                         .submitLabel(.next)
                         .onSubmit { focusedField = .note }
@@ -271,7 +271,7 @@ private struct EnvVarFormSheet: View {
                         TextEditor(text: $note)
                             .frame(minHeight: 80)
                             .focused($focusedField, equals: .note)
-                            .nanoMuseHideScrollBackground()
+                            .scrollContentBackground(.hidden)
                     }
                 }
 
@@ -308,7 +308,7 @@ private struct EnvVarFormSheet: View {
                 }
             }
         }
-        .nanoMuseSheetSize(.mediumOrLarge)
+        .presentationDetents([.medium, .large])
         .alert(
             AppLocalized("Delete this variable?"),
             isPresented: $showingDeleteConfirm

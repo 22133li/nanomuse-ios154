@@ -91,12 +91,9 @@ struct BackupRestoreView: View {
         }
         .modifier(StandaloneTitle(title: AppLocalized("Restore"),
                                  active: !embedded))
-        // [T-ios154-fileimporter] asCopy: true — false never calls back
-        // on 15.4; load() tolerates non-scoped URLs and copies out at once.
-        .nmFileImporter(isPresented: $showPicker,
+        .fileImporter(isPresented: $showPicker,
                       allowedContentTypes: [BackupDelivery.contentType, .data],
-                      allowsMultipleSelection: false,
-                      asCopy: true) { result in
+                      allowsMultipleSelection: false) { result in
             switch result {
             case .success(let urls):
                 if let url = urls.first { load(url) }
@@ -305,31 +302,31 @@ struct BackupRestoreView: View {
                 }
             }
 
-            NanoMuseLabeledContent("Created",
+            LabeledContent("Created",
                            value: m.createdAt.formatted(date: .abbreviated, time: .shortened))
             // The data cut-off, when the package records one. Distinct from
             // "Created": anything changed after this instant is deliberately
             // not in the package, and the user should see that before
             // deciding this is the backup they want.
             if let snapshotAt = m.snapshotAt, snapshotAt != m.createdAt {
-                NanoMuseLabeledContent("Data as of",
+                LabeledContent("Data as of",
                                value: snapshotAt.formatted(date: .abbreviated, time: .shortened))
             }
-            NanoMuseLabeledContent("From", value: "\(m.deviceName) · \(m.app.platform) \(m.app.version)")
+            LabeledContent("From", value: "\(m.deviceName) · \(m.app.platform) \(m.app.version)")
             if m.encryption != nil {
-                NanoMuseLabeledContent("Encrypted", value: AppLocalized("Yes"))
+                LabeledContent("Encrypted", value: AppLocalized("Yes"))
             }
             if let limits = m.limits.maxFileBytes, limits == 0 {
                 // The package was made with file contents switched off, so it
                 // can restore conversations but none of their attachments.
                 // Saying "size limit" here would be misleading — nothing was
                 // too big, the user chose to leave files out.
-                NanoMuseLabeledContent("File contents",
+                LabeledContent("File contents",
                                value: "Not included (\(m.limits.skippedFiles) file(s) listed)")
             } else if let limits = m.limits.maxFileBytes, limits > 0 {
                 // §3.4 — the package is known-incomplete, and the user should
                 // learn that here rather than after restoring.
-                NanoMuseLabeledContent("Excluded (size limit)",
+                LabeledContent("Excluded (size limit)",
                                value: "\(m.limits.skippedFiles) file(s)")
             }
 
@@ -503,17 +500,17 @@ struct BackupRestoreView: View {
 
     private func reportSection(_ r: BackupImporter.Report) -> some View {
         Section {
-            NanoMuseLabeledContent("Restored", value: "\(r.totalImported)")
-            if r.totalUpdated > 0 { NanoMuseLabeledContent("Updated", value: "\(r.totalUpdated)") }
+            LabeledContent("Restored", value: "\(r.totalImported)")
+            if r.totalUpdated > 0 { LabeledContent("Updated", value: "\(r.totalUpdated)") }
             // "Skipped" is the expected outcome for anything already present,
             // so it is labelled as such rather than looking like a failure.
-            NanoMuseLabeledContent("Already up to date", value: "\(r.totalSkipped)")
+            LabeledContent("Already up to date", value: "\(r.totalSkipped)")
             if r.totalUnreadable > 0 {
-                NanoMuseLabeledContent("Unreadable", value: "\(r.totalUnreadable)")
+                LabeledContent("Unreadable", value: "\(r.totalUnreadable)")
             }
             let credsRestored = r.categories.reduce(0) { $0 + $1.credentialsRestored }
             if credsRestored > 0 {
-                NanoMuseLabeledContent("API keys restored", value: "\(credsRestored)")
+                LabeledContent("API keys restored", value: "\(credsRestored)")
             }
             ForEach(r.categories, id: \.category) { c in
                 if let failed = c.failed {
@@ -924,7 +921,7 @@ struct ServerRestorePickerSheet: View {
     @State private var showAddServer = false
 
     var body: some View {
-        NanoMuseCompatNavigationStack {
+        NavigationStack {
             Form {
                 if !remotes.isEmpty {
                     Section {
@@ -1315,7 +1312,7 @@ struct ServerPackageListView: View {
             .disabled(cancelFlag.value)
         }
         .padding(24)
-        .nanoMuseSheetSize(.height(240))
+        .presentationDetents([.height(240)])
         // No swipe-to-dismiss: leaving the sheet would hide a transfer that is
         // still running, which is how the concurrency problem started.
         .interactiveDismissDisabled(true)

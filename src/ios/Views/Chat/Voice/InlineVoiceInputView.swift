@@ -571,7 +571,7 @@ struct InlineVoiceInputView: View {
             viewModel.refreshInputProvider()
         }
         .sheet(isPresented: $showModelSelector) {
-            NanoMuseCompatNavigationStack {
+            NavigationStack {
                 UnifiedModelPicker(config: .voiceInput())
             }
         }
@@ -766,10 +766,10 @@ struct InlineVoiceInputView: View {
             // half back into view" freeze. The text view scrolls itself here,
             // which also restores native caret-tracking that the wrapped form
             // lost.
-            NanoMuseMultilineTextField(placeholder: "", text: Binding(
+            TextField("", text: Binding(
                 get: { viewModel.transcript },
                 set: { viewModel.setTranscript($0); inputText = $0 }
-            ))
+            ), axis: .vertical)
                 .focused($editFocused)
                 .font(.body)
                 .multilineTextAlignment(.center)

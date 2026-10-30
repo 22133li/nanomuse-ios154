@@ -166,212 +166,6 @@ class SystemResourceMonitor: ObservableObject {
 
 // MARK: - Main View
 
-private extension AIChatView {
-    /// Delayed auto-focus after a reply finishes. Extracted from the
-    /// `.onChange(of: vm.isProcessing)` handler so the compiler can
-    /// type-check that handler in reasonable time; behaviour unchanged.
-    func scheduleAutoFocusAfterReply() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            guard !hasOverlayPresented, isChatViewVisible else { return }
-            guard !vm.isProcessing, vm.promptQueue.isEmpty else { return }
-            // Re-check: a retry started during the 1.5s window would
-            // otherwise be focused by this older timer.
-            guard !vm.turnStartedByRetry else { return }
-            let lastAssistant = vm.messages.last
-            let lastAssistantLength: Int
-            if let lastAssistant, lastAssistant.role == .assistant {
-                lastAssistantLength = lastAssistant.blocks.reduce(0) { $0 + $1.content.count }
-            } else {
-                lastAssistantLength = 0
-            }
-            if lastAssistantLength < 600 {
-                inputFocused = true
-            }
-        }
-    }
-
-    func handleProcessingChange(_ processing: Bool) {
-        if !processing {
-            // Reply reading is handled INCREMENTALLY during streaming (the
-            // SSE loop splits into sentences/titles + tool announcements and
-            // queues them as they arrive — see speakQueued/extractNewSentences).
-            // No whole-reply speak here; that would double-read everything.
-            // [T-keyboard-auto-pop default flip] Gate behind a Settings
-            // toggle. Default ON — most users want the composer ready
-            // for a follow-up immediately. `object(forKey:)` lets us
-            // distinguish "never toggled" (nil → use new ON default)
-            // from "explicitly set OFF" (NSNumber(false) → respect).
-            // Existing length-based skip is still applied so very long
-            // replies still don't trigger the auto-focus.
-            let autoFocusEnabled = (UserDefaults.standard.object(forKey: "chat.autoFocusAfterReply") as? Bool) ?? true
-            guard autoFocusEnabled else { return }
-            // [T-ios-retry-keyboard] Don't treat the end of a RETRIED turn
-            // as "a reply arrived".
-            //
-            // Trigger chain being cut: the user taps Retry on a failure from
-            // a while back -> retry() sets isProcessing=true -> the re-sent
-            // request fails fast (kernel down, no concurrency slot, or an
-            // immediate provider error) -> isProcessing flips back to false
-            // -> this observer fires. The edge is indistinguishable from a
-            // successful reply, and the delayed block's guards now all pass
-            // (the user IS looking at the chat, nothing is queued, and the
-            // errored message is short so the <600 length check succeeds) —
-            // so the keyboard rises seconds after a tap that only meant
-            // "try that again".
-            //
-            // Scoped to the turn's ORIGIN, not its outcome: auto-focus when
-            // a fresh send fails is existing, accepted behaviour and is
-            // deliberately left alone. Consumed (not just read) so it
-            // governs exactly one turn.
-            let wasRetry = vm.turnStartedByRetry
-            vm.turnStartedByRetry = false
-            guard !wasRetry else { return }
-            if GCKeyboard.coalesced != nil {
-                inputFocused = true
-            } else {
-                scheduleAutoFocusAfterReply()
-            }
-        }
-    }
-
-    func chatTurnEndOutcome() -> ChatTurnOutcome {
-        if vm.userDidCancel { return .stopped }
-        if vm.errorMessage != nil { return .failed }
-        return .finished
-    }
-
-    func handleScenePhaseChange(_ phase: ScenePhase) {
-        if phase == .active {
-            // [T-voice-inputbar-fg-stale-debounce] iOS changes safe area
-            // insets while backgrounded, causing onGeometryChange to fire
-            // with shifted geometry. That measurement spawns a debounce
-            // Task carrying stale height. Cancel it so the stale value
-            // never lands. The post-foreground onGeometryChange re-fires
-            // with the correct geometry and enters a fresh debounce.
-            // NOTE: do NOT reset didSeedInputBarHeight here. The seed path
-            // is synchronous (no debounce) so it would capture a mid-
-            // animation frame if the panel is expanding/collapsing when the
-            // app returns to foreground — the debounce path is the correct
-            // one for an already-visible view.
-            inputBarHeightDebounce?.cancel()
-            inputBarHeightDebounce = nil
-            // [T-voice-inputbar-collapse-selfheal] …EXCEPT when the composer
-            // has stopped reporting geometry altogether, which is the one
-            // state the note above cannot cover.
-            //
-            // Device 2026-08-18 01:29 (iPhone 17 Pro, no lock, no manual app
-            // switch): a transcript landed and collapsed the panel band in a
-            // single frame (transcriptContentHeight 262→42, an intermediate
-            // panel frame reaching y=1119 on an 874pt window). The system
-            // then drove six inactive↔active cycles in 20s on its own
-            // (snapshot / audio-session interruption right after
-            // `end(.capture)`), each logging `hadResponder=true`. After
-            // `inputBarHeight settled=282.0` at 01:29:15.597 the composer's
-            // onGeometryChange NEVER fired again: its SwiftUI host survived
-            // with alpha=1 and zero subviews (confirmed live via
-            // debug.viewTree — FloatingBarHostingView nkids=0), so the whole
-            // bottom of the screen was empty black with no input bar.
-            //
-            // Nothing could wake it: this subtree deliberately ignores the
-            // keyboard safe area while the voice panel is up
-            // ([T-voice-bg-fg-gap], see the .ignoresSafeArea above), so the
-            // inset churn that would normally force a re-layout is filtered
-            // out by design, and onGeometryChange is the ONLY writer of
-            // inputBarHeight. The user's own workaround — leave the session
-            // and re-enter — worked precisely because `.onAppear` re-arms
-            // the seed ([T-inputbar-stale-across-reentry]); this is that
-            // same recovery, applied without making the user find it.
-            //
-            // Re-arm only when the composer is provably not reporting: the
-            // last on-screen sample disagrees with the committed height, or
-            // no sample was ever recorded. In the healthy case both values
-            // match and this is a no-op, so the mid-animation hazard the
-            // note above warns about is not reintroduced — a re-seed can
-            // only happen where the alternative is a permanently wrong (or
-            // missing) bar.
-            let committedH = inputBarHeight
-            let latestH = latestInputBarFrameH
-            let sinceReport = inputBarLastGeometryAt.map { CFAbsoluteTimeGetCurrent() - $0 } ?? -1
-            if didSeedInputBarHeight,
-               latestH <= 0 || abs(latestH - committedH) > 0.5 {
-                didSeedInputBarHeight = false
-                AppLogger(category: "InputBarLayout").info("[voice-bgfg] scene active — composer geometry stale (committed=\(committedH) latest=\(latestH) lastReport=\(String(format: "%.1f", sinceReport))s ago); re-arming seed so the next callback re-measures")
-            }
-
-            // [T-voice-inputbar-collapse-selfheal] Re-arming only makes the
-            // seed ELIGIBLE to fire; it cannot make a host that has stopped
-            // reporting geometry start again. In the observed failure that
-            // host had zero subviews and emitted nothing for minutes, so
-            // verify the wake-up actually happened and say so loudly when it
-            // did not — this is the line that tells the next investigation
-            // "the self-heal ran and was not enough" instead of leaving them
-            // to re-derive it from a silent log.
-            inputBarHealthProbe?.cancel()
-            let probeBaseline = inputBarGeometryTick
-            inputBarHealthProbe = Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 900_000_000)
-                guard !Task.isCancelled else { return }
-                let ticked = inputBarGeometryTick != probeBaseline
-                let age = inputBarLastGeometryAt.map { CFAbsoluteTimeGetCurrent() - $0 } ?? -1
-                if ticked {
-                    AppLogger(category: "InputBarLayout").info("[InputBarHealth] OK after foreground — composer re-reported geometry (h=\(latestInputBarFrameH) committed=\(inputBarHeight))")
-                } else {
-                    AppLogger(category: "InputBarLayout").error("[InputBarHealth] STALLED — no geometry callback 900ms after foreground. committed=\(inputBarHeight) latest=\(latestInputBarFrameH) lastReport=\(String(format: "%.1f", age))s ago voice=\(voiceInputActive) editing=\(voiceVM.isEditingTranscript) seeded=\(didSeedInputBarHeight). The composer host is not laying out; expect a blank bottom area. Leaving and re-entering the session rebuilds it.")
-                    nmComposer.stalled() // nanoMuse: the rebuild upstream only describes — if the host really is gone, NanoMuseComposerWatch re-creates it
-                }
-            }
-            nmComposer.sceneActive() // nanoMuse: and a plain check a beat after every foreground
-            // [T-voice-bg-fg-gap] Foreground reseal: if we return to a
-            // voice-mode-not-editing state, no responder should be armed.
-            // Releasing here is a no-op when nothing is focused and clears
-            // any responder UIKit resurrected during the background pass.
-            if voiceInputActive && !voiceVM.isEditingTranscript {
-                let keyWindow = UIApplication.shared.connectedScenes
-                    .compactMap { $0 as? UIWindowScene }
-                    .flatMap(\.windows)
-                    .first(where: \.isKeyWindow)
-                if let keyWindow, keyWindow.endEditing(true) {
-                    AppLogger(category: "InputBarLayout").info("[voice-bgfg] scene active — released a resurrected responder (voice mode, not editing)")
-                }
-            }
-        }
-        if phase != .active, voiceInputActive, !voiceVM.isEditingTranscript {
-            // [T-voice-bg-fg-gap] Complete any in-flight keyboard dismissal
-            // BEFORE the snapshot/suspend layout pass — but ONLY in the
-            // voice-mode-not-editing state, where no responder is ever
-            // legitimate (text mode keeps its focused composer across app
-            // switches; edit mode keeps its editor keyboard — resigning
-            // those would be a visible regression). If the edit→send
-            // teardown's dismiss animation is still running when the app
-            // backgrounds, iOS can freeze the window mid-dismissal with a
-            // partial keyboard inset that survives into the next foreground.
-            // Synchronous resign + no-animation layout guarantees the window
-            // geometry is final before UIKit snapshots it.
-            let keyWindow = UIApplication.shared.connectedScenes
-                .compactMap { $0 as? UIWindowScene }
-                .flatMap(\.windows)
-                .first(where: \.isKeyWindow)
-            if let keyWindow {
-                let hadResponder = keyWindow.endEditing(true)
-                UIView.performWithoutAnimation { keyWindow.layoutIfNeeded() }
-                AppLogger(category: "InputBarLayout").info("[voice-bgfg] scene \(phase == .inactive ? "inactive" : "background") — forced keyboard-dismiss completion (hadResponder=\(hadResponder)) voice=\(voiceInputActive) editing=\(voiceVM.isEditingTranscript)")
-            }
-        }
-        if phase != .active, speechManager.state == .recording {
-            speechManager.stopRecording()
-        }
-    }
-
-    func handleTerminalDeepLink(_ show: Bool) {
-        if show {
-            terminalInitCommand = deepLink.terminalInitCommand
-            showTerminal = true
-            deepLink.showTerminal = false
-            deepLink.terminalInitCommand = nil
-        }
-    }
-}
-
 struct AIChatView: View {
     var sessionId: String? = nil
     /// The draft ID from the parent (e.g. "__new__<UUID>") for notification correlation.
@@ -597,6 +391,7 @@ struct AIChatView: View {
     @State private var pendingProviderImport: PendingProviderImport?
     @State private var providerImportResult: String?
     @State private var screenshotPreview: ChatScreenshotPreview?
+    @State private var selectedPhotoItems: [PhotosPickerItem] = []
     @State private var attachmentGridHeight: CGFloat = 0
     @State private var transcriptHeight: CGFloat = 0
     /// Tracks how much of recognizedText has already been appended to inputText.
@@ -896,32 +691,12 @@ struct AIChatView: View {
         // .background position — the gate silently never engaged. EquatableView
         // wrapping is the only guaranteed path to ==.
         .background(
-            // iOS 15 backport (T1-1): upstream hides the whole system
-            // navigation bar on the main chat (.toolbar(.hidden, for:
-            // .navigationBar)); the iOS 15 .navigationBarHidden equivalent
-            // cannot suppress the bar while this host keeps registering
-            // toolbar items, so the principal header leaked next to the
-            // shell's own Muse header. On iOS 15 with the shell header in
-            // place (nmTopOverlay > 0) the host is not mounted at all;
-            // side chats and the classic layout keep nmTopOverlay == 0 and
-            // are unchanged, and iOS 16+ always mounts as upstream does.
-            Group {
-                if #available(iOS 16.0, *) {
-                    ChatToolbarHost(key: chatToolbarKey, title: {
-                        chatNavPrincipalContent
-                    }, trailing: {
-                        trailingMenu
-                    })
-                    .equatable()
-                } else if nmTopOverlay == 0 {
-                    ChatToolbarHost(key: chatToolbarKey, title: {
-                        chatNavPrincipalContent
-                    }, trailing: {
-                        trailingMenu
-                    })
-                    .equatable()
-                }
-            }
+            ChatToolbarHost(key: chatToolbarKey, title: {
+                chatNavPrincipalContent
+            }, trailing: {
+                trailingMenu
+            })
+            .equatable()
         )
         .sheet(item: $titlePillEditSession) { session in
             SessionEditSheet(session: session) { newTitle, newCategory in
@@ -974,7 +749,7 @@ struct AIChatView: View {
         }
         .sheet(item: $locateDownloadTarget) { target in
             if let sid = vm.sessionId {
-                NanoMuseCompatNavigationStack {
+                NavigationStack {
                     FileBrowserView(
                         rootPath: AIChatViewModel.minisWorkspacePersistentDir(for: sid),
                         rootLabel: "/var/minis/workspace",
@@ -1108,8 +883,8 @@ struct AIChatView: View {
         }
         .sheet(item: $previewAudioFile) { fileURL in
             MinisAudioPreviewView(fileURL: fileURL)
-                .nanoMuseSheetSize(.large)
-                .nanoMuseSheetDragIndicator(false)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.hidden)
         }
         .sheet(item: $previewTextFile) { fileURL in
             MinisTextPreviewView(fileURL: fileURL)
@@ -1187,7 +962,7 @@ struct AIChatView: View {
             })
         }
         .sheet(isPresented: $showFileBrowser) {
-            NanoMuseCompatNavigationStack {
+            NavigationStack {
                 let base = RootfsManager.shared.dataPath
                 FileBrowserView(rootPath: base, initialPath: base.appendingPathComponent("var/minis"), rootLabel: "/")
             }
@@ -1198,16 +973,16 @@ struct AIChatView: View {
             })
         }
         .sheet(isPresented: $showModelPicker) {
-            NanoMuseCompatNavigationStack {
+            NavigationStack {
                 SessionModelPicker(sessionId: vm.sessionId) {
                     await vm.ensureSessionReturningId()
                 }
             }
-            .nanoMuseSheetSize(.large)
+            .presentationDetents([.large])
         }
         .sheet(isPresented: $showTokenUsage) {
             TokenUsageSheet(vm: cached.vm)
-                .nanoMuseSheetFractionOrLarge(0.8)
+                .presentationDetents([.fraction(0.8), .large])
         }
         .sheet(item: $screenshotPreview) { preview in
             ChatScreenshotPreviewSheet(image: preview.image)
@@ -1288,7 +1063,7 @@ struct AIChatView: View {
         .fullScreenCover(isPresented: $showTerminal) {
             terminalInitCommand = nil
         } content: {
-            NanoMuseCompatNavigationStack {
+            NavigationStack {
                 ISHTerminalView(sessionId: vm.sessionId, showCloseButton: true, initCommand: terminalInitCommand)
                     .onAppear {
                         if let sid = vm.sessionId {
@@ -1332,8 +1107,10 @@ struct AIChatView: View {
                 }
             )
         }
-        .modifier(NanoMusePhotoPicker(isPresented: $showPhotoPicker, maxSelectionCount: 50) { picks in
-            guard !picks.isEmpty else { return }
+        .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhotoItems,
+                      maxSelectionCount: 50, matching: .any(of: [.images, .videos]))
+        .onChange(of: selectedPhotoItems) { items in
+            guard !items.isEmpty else { return }
             // [T-ios-photo-pick-placeholder] 1) Insert a loading placeholder chip
             // for every picked item RIGHT NOW (one main-actor batch update), so the
             // user immediately sees how many they picked instead of watching photos
@@ -1341,36 +1118,41 @@ struct AIChatView: View {
             // TaskGroup. 3) Resolve each placeholder in place as its bytes arrive
             // (success → real thumbnail, failure → error chip). The send button is
             // gated on `hasLoadingAttachments` until every item settles.
-            let kinds = picks.map { pick -> InputAttachment.Kind in
-                pick.isVideo ? .video : .image
+            let kinds = items.map { item -> InputAttachment.Kind in
+                item.supportedContentTypes.contains(where: { $0.conforms(to: .movie) }) ? .video : .image
             }
             let placeholderIDs = vm.addLoadingPlaceholders(kinds: kinds)
 
             // Snapshot per-item metadata synchronously (PHAsset fetch + UTI) so the
             // concurrent loaders don't touch SwiftUI state or PhotosUI mid-flight.
-            struct PickJob { let id: UUID; let pick: NanoMusePick; let isVideo: Bool; let ext: String?; let date: Date? }
-            let jobs: [PickJob] = zip(placeholderIDs, picks).map { pid, pick in
+            struct PickJob { let id: UUID; let item: PhotosPickerItem; let isVideo: Bool; let ext: String?; let date: Date? }
+            let jobs: [PickJob] = zip(placeholderIDs, items).map { pid, item in
+                let isVideo = item.supportedContentTypes.contains(where: { $0.conforms(to: .movie) })
                 var assetDate: Date?
-                if let aid = pick.assetIdentifier,
+                if let aid = item.itemIdentifier,
                    let asset = PHAsset.fetchAssets(withLocalIdentifiers: [aid], options: nil).firstObject {
                     assetDate = asset.creationDate
                 }
-                return PickJob(id: pid, pick: pick, isVideo: pick.isVideo, ext: pick.fileExtension, date: assetDate)
+                let ext = item.supportedContentTypes
+                    .first(where: { $0.conforms(to: .image) })?
+                    .preferredFilenameExtension
+                return PickJob(id: pid, item: item, isVideo: isVideo, ext: ext, date: assetDate)
             }
+            selectedPhotoItems = []
 
             Task {
                 await withTaskGroup(of: Void.self) { group in
                     for job in jobs {
                         group.addTask {
                             if job.isVideo {
-                                if let videoURL = await job.pick.videoFileURL() {
+                                if let videoURL = try? await job.item.loadTransferable(type: VideoFileTransferable.self) {
                                     await MainActor.run {
-                                        vm.finalizeVideoPlaceholder(id: job.id, from: videoURL, originalDate: job.date)
+                                        vm.finalizeVideoPlaceholder(id: job.id, from: videoURL.url, originalDate: job.date)
                                     }
                                 } else {
                                     await MainActor.run { vm.markPlaceholderFailed(id: job.id) }
                                 }
-                            } else if let data = await job.pick.imageData() {
+                            } else if let data = try? await job.item.loadTransferable(type: Data.self) {
                                 // Preserve original encoded bytes (PNG transparency,
                                 // HEIC, animated GIFs, EXIF) — written verbatim.
                                 await MainActor.run {
@@ -1383,12 +1165,11 @@ struct AIChatView: View {
                     }
                 }
             }
-        })
-        .nmFileImporter(
+        }
+        .fileImporter(
             isPresented: $showDocumentPicker,
             allowedContentTypes: [.image, .pdf, .plainText, .json, .sourceCode, .presentation, .spreadsheet, .data],
-            allowsMultipleSelection: true,
-            asCopy: true
+            allowsMultipleSelection: true
         ) { result in
             switch result {
             case .success(let urls):
@@ -1594,16 +1375,201 @@ struct AIChatView: View {
             .keyboard,
             edges: (voiceInputActive && !voiceVM.isEditingTranscript) ? .bottom : []
         )
-        .onChange(of: scenePhase) { phase in handleScenePhaseChange(phase) }
-        .onChange(of: deepLink.showTerminal) { show in handleTerminalDeepLink(show) }
+        .onChange(of: scenePhase) { phase in
+            if phase == .active {
+                // [T-voice-inputbar-fg-stale-debounce] iOS changes safe area
+                // insets while backgrounded, causing onGeometryChange to fire
+                // with shifted geometry. That measurement spawns a debounce
+                // Task carrying stale height. Cancel it so the stale value
+                // never lands. The post-foreground onGeometryChange re-fires
+                // with the correct geometry and enters a fresh debounce.
+                // NOTE: do NOT reset didSeedInputBarHeight here. The seed path
+                // is synchronous (no debounce) so it would capture a mid-
+                // animation frame if the panel is expanding/collapsing when the
+                // app returns to foreground — the debounce path is the correct
+                // one for an already-visible view.
+                inputBarHeightDebounce?.cancel()
+                inputBarHeightDebounce = nil
+                // [T-voice-inputbar-collapse-selfheal] …EXCEPT when the composer
+                // has stopped reporting geometry altogether, which is the one
+                // state the note above cannot cover.
+                //
+                // Device 2026-08-18 01:29 (iPhone 17 Pro, no lock, no manual app
+                // switch): a transcript landed and collapsed the panel band in a
+                // single frame (transcriptContentHeight 262→42, an intermediate
+                // panel frame reaching y=1119 on an 874pt window). The system
+                // then drove six inactive↔active cycles in 20s on its own
+                // (snapshot / audio-session interruption right after
+                // `end(.capture)`), each logging `hadResponder=true`. After
+                // `inputBarHeight settled=282.0` at 01:29:15.597 the composer's
+                // onGeometryChange NEVER fired again: its SwiftUI host survived
+                // with alpha=1 and zero subviews (confirmed live via
+                // debug.viewTree — FloatingBarHostingView nkids=0), so the whole
+                // bottom of the screen was empty black with no input bar.
+                //
+                // Nothing could wake it: this subtree deliberately ignores the
+                // keyboard safe area while the voice panel is up
+                // ([T-voice-bg-fg-gap], see the .ignoresSafeArea above), so the
+                // inset churn that would normally force a re-layout is filtered
+                // out by design, and onGeometryChange is the ONLY writer of
+                // inputBarHeight. The user's own workaround — leave the session
+                // and re-enter — worked precisely because `.onAppear` re-arms
+                // the seed ([T-inputbar-stale-across-reentry]); this is that
+                // same recovery, applied without making the user find it.
+                //
+                // Re-arm only when the composer is provably not reporting: the
+                // last on-screen sample disagrees with the committed height, or
+                // no sample was ever recorded. In the healthy case both values
+                // match and this is a no-op, so the mid-animation hazard the
+                // note above warns about is not reintroduced — a re-seed can
+                // only happen where the alternative is a permanently wrong (or
+                // missing) bar.
+                let committedH = inputBarHeight
+                let latestH = latestInputBarFrameH
+                let sinceReport = inputBarLastGeometryAt.map { CFAbsoluteTimeGetCurrent() - $0 } ?? -1
+                if didSeedInputBarHeight,
+                   latestH <= 0 || abs(latestH - committedH) > 0.5 {
+                    didSeedInputBarHeight = false
+                    AppLogger(category: "InputBarLayout").info("[voice-bgfg] scene active — composer geometry stale (committed=\(committedH) latest=\(latestH) lastReport=\(String(format: "%.1f", sinceReport))s ago); re-arming seed so the next callback re-measures")
+                }
+
+                // [T-voice-inputbar-collapse-selfheal] Re-arming only makes the
+                // seed ELIGIBLE to fire; it cannot make a host that has stopped
+                // reporting geometry start again. In the observed failure that
+                // host had zero subviews and emitted nothing for minutes, so
+                // verify the wake-up actually happened and say so loudly when it
+                // did not — this is the line that tells the next investigation
+                // "the self-heal ran and was not enough" instead of leaving them
+                // to re-derive it from a silent log.
+                inputBarHealthProbe?.cancel()
+                let probeBaseline = inputBarGeometryTick
+                inputBarHealthProbe = Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(900))
+                    guard !Task.isCancelled else { return }
+                    let ticked = inputBarGeometryTick != probeBaseline
+                    let age = inputBarLastGeometryAt.map { CFAbsoluteTimeGetCurrent() - $0 } ?? -1
+                    if ticked {
+                        AppLogger(category: "InputBarLayout").info("[InputBarHealth] OK after foreground — composer re-reported geometry (h=\(latestInputBarFrameH) committed=\(inputBarHeight))")
+                    } else {
+                        AppLogger(category: "InputBarLayout").error("[InputBarHealth] STALLED — no geometry callback 900ms after foreground. committed=\(inputBarHeight) latest=\(latestInputBarFrameH) lastReport=\(String(format: "%.1f", age))s ago voice=\(voiceInputActive) editing=\(voiceVM.isEditingTranscript) seeded=\(didSeedInputBarHeight). The composer host is not laying out; expect a blank bottom area. Leaving and re-entering the session rebuilds it.")
+                        nmComposer.stalled() // nanoMuse: the rebuild upstream only describes — if the host really is gone, NanoMuseComposerWatch re-creates it
+                    }
+                }
+                nmComposer.sceneActive() // nanoMuse: and a plain check a beat after every foreground
+                // [T-voice-bg-fg-gap] Foreground reseal: if we return to a
+                // voice-mode-not-editing state, no responder should be armed.
+                // Releasing here is a no-op when nothing is focused and clears
+                // any responder UIKit resurrected during the background pass.
+                if voiceInputActive && !voiceVM.isEditingTranscript {
+                    let keyWindow = UIApplication.shared.connectedScenes
+                        .compactMap { $0 as? UIWindowScene }
+                        .flatMap(\.windows)
+                        .first(where: \.isKeyWindow)
+                    if let keyWindow, keyWindow.endEditing(true) {
+                        AppLogger(category: "InputBarLayout").info("[voice-bgfg] scene active — released a resurrected responder (voice mode, not editing)")
+                    }
+                }
+            }
+            if phase != .active, voiceInputActive, !voiceVM.isEditingTranscript {
+                // [T-voice-bg-fg-gap] Complete any in-flight keyboard dismissal
+                // BEFORE the snapshot/suspend layout pass — but ONLY in the
+                // voice-mode-not-editing state, where no responder is ever
+                // legitimate (text mode keeps its focused composer across app
+                // switches; edit mode keeps its editor keyboard — resigning
+                // those would be a visible regression). If the edit→send
+                // teardown's dismiss animation is still running when the app
+                // backgrounds, iOS can freeze the window mid-dismissal with a
+                // partial keyboard inset that survives into the next foreground.
+                // Synchronous resign + no-animation layout guarantees the window
+                // geometry is final before UIKit snapshots it.
+                let keyWindow = UIApplication.shared.connectedScenes
+                    .compactMap { $0 as? UIWindowScene }
+                    .flatMap(\.windows)
+                    .first(where: \.isKeyWindow)
+                if let keyWindow {
+                    let hadResponder = keyWindow.endEditing(true)
+                    UIView.performWithoutAnimation { keyWindow.layoutIfNeeded() }
+                    AppLogger(category: "InputBarLayout").info("[voice-bgfg] scene \(phase == .inactive ? "inactive" : "background") — forced keyboard-dismiss completion (hadResponder=\(hadResponder)) voice=\(voiceInputActive) editing=\(voiceVM.isEditingTranscript)")
+                }
+            }
+            if phase != .active, speechManager.state == .recording {
+                speechManager.stopRecording()
+            }
+        }
+        .onChange(of: deepLink.showTerminal) { show in
+            if show {
+                terminalInitCommand = deepLink.terminalInitCommand
+                showTerminal = true
+                deepLink.showTerminal = false
+                deepLink.terminalInitCommand = nil
+            }
+        }
         // [T-ios-voiceover-announce] Announce the end of a turn to VoiceOver.
         // Deliberately a SEPARATE observer from the auto-focus handler below:
         // that one returns early when the auto-focus setting is off, and a
         // blind user must still hear that the reply ended regardless of an
         // unrelated keyboard preference. The outcome closure is evaluated at
         // the end edge so it sees the final cancel/error state.
-        .announceChatTurnEnd(isProcessing: vm.isProcessing) { chatTurnEndOutcome() }
-        .onChange(of: vm.isProcessing) { processing in handleProcessingChange(processing) }
+        .announceChatTurnEnd(isProcessing: vm.isProcessing) {
+            if vm.userDidCancel { return .stopped }
+            if vm.errorMessage != nil { return .failed }
+            return .finished
+        }
+        .onChange(of: vm.isProcessing) { processing in
+            if !processing {
+                // Reply reading is handled INCREMENTALLY during streaming (the
+                // SSE loop splits into sentences/titles + tool announcements and
+                // queues them as they arrive — see speakQueued/extractNewSentences).
+                // No whole-reply speak here; that would double-read everything.
+                // [T-keyboard-auto-pop default flip] Gate behind a Settings
+                // toggle. Default ON — most users want the composer ready
+                // for a follow-up immediately. `object(forKey:)` lets us
+                // distinguish "never toggled" (nil → use new ON default)
+                // from "explicitly set OFF" (NSNumber(false) → respect).
+                // Existing length-based skip is still applied so very long
+                // replies still don't trigger the auto-focus.
+                let autoFocusEnabled = (UserDefaults.standard.object(forKey: "chat.autoFocusAfterReply") as? Bool) ?? true
+                guard autoFocusEnabled else { return }
+                // [T-ios-retry-keyboard] Don't treat the end of a RETRIED turn
+                // as "a reply arrived".
+                //
+                // Trigger chain being cut: the user taps Retry on a failure from
+                // a while back -> retry() sets isProcessing=true -> the re-sent
+                // request fails fast (kernel down, no concurrency slot, or an
+                // immediate provider error) -> isProcessing flips back to false
+                // -> this observer fires. The edge is indistinguishable from a
+                // successful reply, and the delayed block's guards now all pass
+                // (the user IS looking at the chat, nothing is queued, and the
+                // errored message is short so the <600 length check succeeds) —
+                // so the keyboard rises seconds after a tap that only meant
+                // "try that again".
+                //
+                // Scoped to the turn's ORIGIN, not its outcome: auto-focus when
+                // a fresh send fails is existing, accepted behaviour and is
+                // deliberately left alone. Consumed (not just read) so it
+                // governs exactly one turn.
+                let wasRetry = vm.turnStartedByRetry
+                vm.turnStartedByRetry = false
+                guard !wasRetry else { return }
+                if GCKeyboard.coalesced != nil {
+                    inputFocused = true
+                } else {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                        guard !hasOverlayPresented, isChatViewVisible else { return }
+                        guard !vm.isProcessing, vm.promptQueue.isEmpty else { return }
+                        // Re-check: a retry started during the 1.5s window would
+                        // otherwise be focused by this older timer.
+                        guard !vm.turnStartedByRetry else { return }
+                        let lastAssistantLength = vm.messages.last.flatMap {
+                            $0.role == .assistant ? $0.blocks.reduce(0) { $0 + $1.content.count } : nil
+                        } ?? 0
+                        if lastAssistantLength < 600 {
+                            inputFocused = true
+                        }
+                    }
+                }
+            }
+        }
         // [T-ios-retry-hide-when-processing] Inject the view model so deep
         // descendants (e.g. ToolCapsuleView's long-press menu) can react to
         // `vm.isProcessing` without threading the vm through every level.
@@ -2492,7 +2458,7 @@ struct AIChatView: View {
                     showThinkingLevelSheet = false
                 }
             )
-            .nanoMuseSheetSize(.medium)
+            .presentationDetents([.medium])
         }
     }
 
@@ -2854,7 +2820,7 @@ struct AIChatView: View {
                 // layout and trips a precondition on the iOS 18 async renderer
                 // (ViewGraphGeometryObservers.needsUpdate SIGTRAP). The action
                 // also fires with the initial value, covering the old onAppear.
-                .onGeometryChangeBackport(for: CGFloat.self, tag: GeometryChangeFloatingBarTag.self) { proxy in
+                .onGeometryChange(for: CGFloat.self) { proxy in
                     proxy.size.height
                 } action: { newH in
                     floatingBarHeight = newH
@@ -3910,7 +3876,7 @@ struct AIChatView: View {
             // floating-bar site). Fires with the initial value too, so the
             // old onAppear seeding AND its diagnostic log are preserved as
             // a single unified line.
-            .onGeometryChangeBackport(for: CGRect.self, tag: GeometryChangeComposerFrameTag.self) { proxy in
+            .onGeometryChange(for: CGRect.self) { proxy in
                 proxy.frame(in: .global)
             } action: { frame in
                 let newH = frame.size.height
@@ -3992,7 +3958,7 @@ struct AIChatView: View {
                     // is taken; we only re-read what onGeometryChange reported.
                     let voiceAtSeed = voiceInputActive
                     inputBarHeightDebounce = Task { @MainActor in
-                        try? await Task.sleep(nanoseconds: 380 * 1_000_000)
+                        try? await Task.sleep(for: .milliseconds(380))
                         guard !Task.isCancelled, voiceAtSeed == voiceInputActive else { return }
                         let settled = latestInputBarFrameH
                         if settled > 0, abs(settled - newH) > 0.5 {
@@ -4023,7 +3989,7 @@ struct AIChatView: View {
                     // 200ms, which is stale), so the timer routinely expired
                     // while the panel was still moving and SwiftUI's final
                     // geometry callback had not landed yet.
-                    try? await Task.sleep(nanoseconds: 380 * 1_000_000)
+                    try? await Task.sleep(for: .milliseconds(380))
                     guard !Task.isCancelled else { return }
                     // [T-voice-inputbar-branch-swap] During rapid streaming
                     // re-renders, voiceInputActive can glitch for one frame,
@@ -4050,7 +4016,7 @@ struct AIChatView: View {
                     // height, which is the bottom-gap symptom. No new
                     // measurement is taken: we only re-read what
                     // onGeometryChange already reported.
-                    try? await Task.sleep(nanoseconds: 320 * 1_000_000)
+                    try? await Task.sleep(for: .milliseconds(320))
                     guard !Task.isCancelled else { return }
                     guard voiceAtCapture == voiceInputActive else { return }
                     let settled = latestInputBarFrameH
@@ -4392,7 +4358,7 @@ struct AIChatView: View {
                     }
                 }
             }
-            .nmScrollIndicatorsVisible()
+            .scrollIndicators(.visible)
             .frame(height: Self.slashPickerFixedHeight)
         }
     }
@@ -4462,7 +4428,7 @@ struct AIChatView: View {
                         // [T-slash-picker-fixed-height] Match slash popup:
                         // exactly 4 rows tall, scrolls on overflow with the
                         // visible indicator above.
-                        .nmScrollIndicatorsVisible()
+                        .scrollIndicators(.visible)
                         .frame(height: Self.slashPickerFixedHeight)
                         .onChange(of: vm.mentionSelectedIndex) { newIndex in
                             guard newIndex >= 0, newIndex < rows.count else { return }
@@ -4863,7 +4829,7 @@ private struct ComposerSurface: ViewModifier {
                 .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 2) // nanoMuse: soft shadow matching Android
         } else if #available(iOS 26.0, *) {
             content
-                .nanoMuseRegularGlass(in: shape)
+                .glassEffect(.regular, in: shape)
                 .clipShape(shape)
         } else {
             content
@@ -4987,8 +4953,8 @@ private struct ProviderImportSheet: View {
             }
         }
         .padding(24)
-        .nanoMuseSheetHeightOrMedium(360)
-        .nanoMuseSheetDragIndicator(true)
+        .presentationDetents([.height(360), .medium])
+        .presentationDragIndicator(.visible)
         // Swipe-to-dismiss without tapping a button still needs cleanup.
         .onDisappear { if !chose { onCancel() } }
     }
@@ -5070,8 +5036,8 @@ private struct NavBarStyleModifier: ViewModifier {
                 // somewhere to fade; the bar is UIKit's, so the list's `.automatic` adjustment
                 // keeps the first row below it, as there.
                 .ignoresSafeArea(.container, edges: systemBarScrim ? Edge.Set.top : []) // nanoMuse:
-                .nmToolbarBackgroundHidden(systemBarScrim) // nanoMuse:
-                .nanoMuseToolbarBackground(ChatColors.background)
+                .toolbarBackground(systemBarScrim ? Visibility.hidden : Visibility.visible, for: .navigationBar) // nanoMuse:
+                .toolbarBackground(ChatColors.background, for: .navigationBar)
                 .safeAreaInset(edge: .top, spacing: 0) { // nanoMuse:
                     if systemBarScrim {
                         Color.clear.frame(height: 0)
@@ -5086,7 +5052,7 @@ private struct NavBarStyleModifier: ViewModifier {
                     // stay outside it exactly as before, and the action's
                     // initial fire covers the old onAppear seed.
                     Color.clear
-                        .onGeometryChangeBackport(for: CGFloat.self, tag: GeometryChangeTopSafeAreaTag.self) { proxy in
+                        .onGeometryChange(for: CGFloat.self) { proxy in
                             proxy.safeAreaInsets.top
                         } action: { topSafeAreaInset = $0 }
                         .ignoresSafeArea()
@@ -5276,7 +5242,7 @@ private struct ChatToolbarHost<Title: View, Trailing: View>: View, Equatable {
             .allowsHitTesting(false)
             .toolbar {
                 ToolbarItem(placement: .principal) { title() }
-                ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) { trailing() }
+                ToolbarItem(placement: .topBarTrailing) { trailing() }
             }
     }
 }
@@ -5569,9 +5535,6 @@ private struct ChatTrailingMenuButton: UIViewRepresentable {
     /// icon-sized footprint and the system wraps it in the same round glass
     /// as a plain toolbar icon (a representable otherwise accepts the full
     /// proposed width -> stretched capsule, the 2026-07-17 regression).
-    // UIViewRepresentable.sizeThatFits is iOS 16+. On iOS 15 UIButton's
-    // intrinsicContentSize drives the size, which is what this returns anyway.
-    @available(iOS 16, *)
     func sizeThatFits(_ proposal: ProposedViewSize, uiView: UIButton, context: Context) -> CGSize? {
         uiView.intrinsicContentSize
     }
@@ -5721,7 +5684,7 @@ private struct MoveToSessionSheet: View {
     }
 
     var body: some View {
-        NanoMuseCompatNavigationStack {
+        NavigationStack {
             List {
                 if !isSearching {
                     Button {
@@ -6124,14 +6087,14 @@ private struct SpeechLanguagePickerSheet: View {
 
     /// Indices where the preferred/non-preferred boundary lies for section headers.
     private var preferredCodes: Set<String> {
-        Set(Locale.preferredLanguages.map { Locale(identifier: $0).languageCode ?? "" })
+        Set(Locale.preferredLanguages.map { Locale(identifier: $0).language.languageCode?.identifier ?? "" })
     }
 
     var body: some View {
-        NanoMuseCompatNavigationStack {
+        NavigationStack {
             List {
-                let preferred = filteredLocales.filter { preferredCodes.contains($0.languageCode ?? "") }
-                let others = filteredLocales.filter { !preferredCodes.contains($0.languageCode ?? "") }
+                let preferred = filteredLocales.filter { preferredCodes.contains($0.language.languageCode?.identifier ?? "") }
+                let others = filteredLocales.filter { !preferredCodes.contains($0.language.languageCode?.identifier ?? "") }
 
                 if !preferred.isEmpty {
                     Section(AppLocalized("Preferred", comment: "Section header for preferred speech languages")) {
@@ -6160,7 +6123,7 @@ private struct SpeechLanguagePickerSheet: View {
                 }
             }
         }
-        .nanoMuseSheetSize(.mediumOrLarge)
+        .presentationDetents([.medium, .large])
     }
 
     private func languageRow(_ loc: Locale) -> some View {
@@ -6178,15 +6141,9 @@ private struct SpeechLanguagePickerSheet: View {
                 }
                 Spacer()
                 if loc.identifier == speechManager.locale.identifier {
-                    if #available(iOS 16, *) {
-                        Image(systemName: "checkmark")
-                            .foregroundStyle(Color.accentColor)
-                            .fontWeight(.semibold)
-                    } else {
-                        Image(systemName: "checkmark")
-                            .font(.body.weight(.semibold))
-                            .foregroundStyle(Color.accentColor)
-                    }
+                    Image(systemName: "checkmark")
+                        .foregroundStyle(Color.accentColor)
+                        .fontWeight(.semibold)
                 }
             }
         }
@@ -6206,7 +6163,7 @@ struct CompactSummarySheet: View {
     @State private var showRevertConfirm = false
 
     var body: some View {
-        NanoMuseCompatNavigationStack {
+        NavigationStack {
             VStack(spacing: 0) {
                 SelectableTextView(text: summary)
                     .padding(.horizontal, 16)
@@ -6231,13 +6188,13 @@ struct CompactSummarySheet: View {
             .navigationTitle("Compact Summary")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button { dismiss() } label: {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundStyle(.secondary)
                     }
                 }
-                ToolbarItem(placement: NanoMuseToolbarPlacement.leading) {
+                ToolbarItem(placement: .topBarLeading) {
                     Button {
                         UIPasteboard.general.string = summary
                         copied = true
@@ -6259,7 +6216,7 @@ struct CompactSummarySheet: View {
                 Text("The summary will be discarded and the messages it covered will become active again. This may push the conversation past the model's context window — if that happens, long-press a message to re-compact from that point.")
             }
         }
-        .nanoMuseSheetSize(.large)
+        .presentationDetents([.large])
     }
 }
 
@@ -6295,7 +6252,7 @@ private struct TokenUsageSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NanoMuseCompatNavigationStack {
+        NavigationStack {
             List {
                 let s = vm.sessionTokenStats
 
@@ -6351,7 +6308,7 @@ private struct TokenUsageSheet: View {
             .navigationTitle("Session Token Usage")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
                 }
             }

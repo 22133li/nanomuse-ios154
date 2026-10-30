@@ -44,7 +44,7 @@ struct ModelQuickTestSheet: View {
     }
 
     var body: some View {
-        NanoMuseCompatNavigationStack {
+        NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     header
@@ -58,10 +58,10 @@ struct ModelQuickTestSheet: View {
             .navigationTitle("Quick Test")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: NanoMuseToolbarPlacement.leading) {
+                ToolbarItem(placement: .topBarLeading) {
                     Button("Done") { dismiss() }
                 }
-                ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         model.runAll()
                     } label: {

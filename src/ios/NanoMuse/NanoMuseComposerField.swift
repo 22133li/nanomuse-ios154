@@ -76,12 +76,12 @@ struct NanoMuseComposerField: View {
 
     @ViewBuilder
     private var field: some View {
-        let base = NanoMuseMultilineTextField(placeholder: placeholder, text: returnAwareText)
+        let base = TextField(placeholder, text: returnAwareText, axis: .vertical)
             .font(font)
             .foregroundStyle(ChatColors.primaryText)
             .textFieldStyle(.plain)
             .submitLabel(UserDefaults.standard.integer(forKey: "returnKeyBehavior") == 1 ? .send : .return)
-            .nmLineLimit(1...lineCap)
+            .lineLimit(1...lineCap)
         if let fixedHeight {
             base.frame(height: fixedHeight, alignment: .top)
         } else {

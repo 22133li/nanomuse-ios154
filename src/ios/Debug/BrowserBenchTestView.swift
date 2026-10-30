@@ -118,7 +118,7 @@ struct BrowserBenchTestView: View {
     }()
 
     var body: some View {
-        NanoMuseCompatNavigationStack {
+        NavigationStack {
             ScrollViewReader { proxy in
                 List {
                     ForEach(vm.logs) { entry in
@@ -156,10 +156,10 @@ struct BrowserBenchTestView: View {
             .navigationTitle("Browser Bench Test")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: NanoMuseToolbarPlacement.leading) {
+                ToolbarItem(placement: .topBarLeading) {
                     Button("Done") { dismiss() }
                 }
-                ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button(vm.isRunning ? "Stop" : "Start") {
                         if vm.isRunning {
                             vm.stop()

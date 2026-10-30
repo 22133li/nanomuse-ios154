@@ -219,7 +219,7 @@ struct FileBrowserView: View {
         .sheet(item: $moveOrCopyItem) { item in
             let minisPath = viewModel.rootPath.appendingPathComponent("var/minis")
             let initial = FileManager.default.fileExists(atPath: minisPath.path) ? minisPath : nil
-            NanoMuseCompatNavigationStack {
+            NavigationStack {
                 DirectoryPickerView(
                     rootPath: viewModel.rootPath,
                     rootLabel: viewModel.rootLabel,
@@ -416,12 +416,12 @@ private struct FilePreviewSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NanoMuseCompatNavigationStack {
+        NavigationStack {
             content
                 .navigationTitle(item.name)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
-                    ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
+                    ToolbarItem(placement: .topBarTrailing) {
                         Button("Done") { dismiss() }
                     }
                 }
@@ -488,10 +488,8 @@ private struct MarkdownFilePreview: View {
             }
         }
         .toolbar {
-            ToolbarItem(placement: NanoMuseToolbarPlacement.leading) {
-                // NOTE (iOS 15 backport): `if` at toolbar level is iOS 16+;
-                // the condition lives inside the item (a ViewBuilder) instead.
-                if case .loaded = loadState {
+            if case .loaded = loadState {
+                ToolbarItem(placement: .topBarLeading) {
                     // Single toggle button, NOT a segmented Picker.
                     //
                     // A `.segmented` Picker asks for the width of all its
@@ -1745,7 +1743,7 @@ private struct DirectoryPickerView: View {
 }
 
 #Preview {
-    NanoMuseCompatNavigationStack {
+    NavigationStack {
         FileBrowserView()
     }
 }

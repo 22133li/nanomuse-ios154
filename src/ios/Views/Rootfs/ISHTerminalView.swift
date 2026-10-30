@@ -96,12 +96,8 @@ struct ISHTerminalView: View {
         .navigationTitle("nanoMuse Shell")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
-                // NOTE (iOS 15 backport): `if` at toolbar level uses
-                // ToolbarContentBuilder.buildIf (iOS 16+). The condition
-                // lives inside the item (a ViewBuilder) instead; a false
-                // condition renders an empty item.
-                if showCloseButton {
+            if showCloseButton {
+                ToolbarItem(placement: .navigationBarLeading) {
                     Button { dismiss() } label: {
                         Image(systemName: "xmark")
                     }
@@ -152,12 +148,12 @@ struct ISHTerminalView: View {
             }
         }
         .sheet(isPresented: $showFileBrowser) {
-            NanoMuseCompatNavigationStack {
+            NavigationStack {
                 FileBrowserView()
             }
         }
         .sheet(isPresented: $showRootfsManagement) {
-            NanoMuseCompatNavigationStack {
+            NavigationStack {
                 RootfsManagementView()
             }
         }
@@ -504,7 +500,7 @@ struct QuickCommandButton: View {
 }
 
 #Preview {
-    NanoMuseCompatNavigationStack {
+    NavigationStack {
         ISHTerminalView()
     }
 }

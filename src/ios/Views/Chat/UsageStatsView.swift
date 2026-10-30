@@ -224,17 +224,17 @@ struct UsageStatsView: View {
                 // Grand totals
                 Section("Total Usage") {
                     let grandTotalAllInput = vm.grandTotalInput + vm.grandTotalCacheRead + vm.grandTotalCacheCreation
-                    NanoMuseLabeledContent("Total Input (incl. Cache)", value: formatCount(grandTotalAllInput))
-                    NanoMuseLabeledContent("Output Tokens", value: formatCount(vm.grandTotalOutput))
+                    LabeledContent("Total Input (incl. Cache)", value: formatCount(grandTotalAllInput))
+                    LabeledContent("Output Tokens", value: formatCount(vm.grandTotalOutput))
                     if vm.grandTotalCacheRead > 0 {
-                        NanoMuseLabeledContent("Cache Read", value: formatCount(vm.grandTotalCacheRead))
+                        LabeledContent("Cache Read", value: formatCount(vm.grandTotalCacheRead))
                     }
                     if vm.grandTotalCacheCreation > 0 {
-                        NanoMuseLabeledContent("Cache Creation", value: formatCount(vm.grandTotalCacheCreation))
+                        LabeledContent("Cache Creation", value: formatCount(vm.grandTotalCacheCreation))
                     }
                     if grandTotalAllInput > 0 && vm.grandTotalCacheRead > 0 {
                         let grandHitRate = Double(vm.grandTotalCacheRead) / Double(grandTotalAllInput) * 100
-                        NanoMuseLabeledContent("Cache Hit Rate", value: String(format: "%.1f%%", grandHitRate))
+                        LabeledContent("Cache Hit Rate", value: String(format: "%.1f%%", grandHitRate))
                     }
                 }
 
@@ -281,23 +281,23 @@ struct UsageStatsView: View {
     @ViewBuilder
     private func modelDetailRows(_ model: UsageStatsViewModel.ModelStats) -> some View {
         Group {
-            NanoMuseLabeledContent("Input", value: formatCount(model.inputTokens))
-            NanoMuseLabeledContent("Output", value: formatCount(model.outputTokens))
+            LabeledContent("Input", value: formatCount(model.inputTokens))
+            LabeledContent("Output", value: formatCount(model.outputTokens))
             if model.cacheReadTokens > 0 {
-                NanoMuseLabeledContent("Cache Read", value: formatCount(model.cacheReadTokens))
+                LabeledContent("Cache Read", value: formatCount(model.cacheReadTokens))
             }
             if model.cacheCreationTokens > 0 {
-                NanoMuseLabeledContent("Cache Creation", value: formatCount(model.cacheCreationTokens))
+                LabeledContent("Cache Creation", value: formatCount(model.cacheCreationTokens))
             }
             let totalInputForRate = model.inputTokens + model.cacheReadTokens + model.cacheCreationTokens
             if totalInputForRate > 0 && model.cacheReadTokens > 0 {
                 let hitRate = Double(model.cacheReadTokens) / Double(totalInputForRate) * 100
-                NanoMuseLabeledContent("Cache Hit Rate", value: String(format: "%.1f%%", hitRate))
+                LabeledContent("Cache Hit Rate", value: String(format: "%.1f%%", hitRate))
             }
-            NanoMuseLabeledContent("Daily Avg", value: formatCount(model.dailyAvgTokens))
-            NanoMuseLabeledContent("Per-Session Avg", value: formatCount(model.sessionAvgTokens))
-            NanoMuseLabeledContent("Sessions", value: "\(model.distinctSessions.count)")
-            NanoMuseLabeledContent("Active Days", value: "\(model.distinctDays.count)")
+            LabeledContent("Daily Avg", value: formatCount(model.dailyAvgTokens))
+            LabeledContent("Per-Session Avg", value: formatCount(model.sessionAvgTokens))
+            LabeledContent("Sessions", value: "\(model.distinctSessions.count)")
+            LabeledContent("Active Days", value: "\(model.distinctDays.count)")
         }
         .font(.subheadline)
     }

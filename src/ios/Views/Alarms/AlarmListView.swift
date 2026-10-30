@@ -227,7 +227,7 @@ struct AlarmListView: View {
     @State private var showClearConfirm = false
 
     var body: some View {
-        NanoMuseCompatNavigationStack {
+        NavigationStack {
             Group {
                 if vm.alarms.isEmpty && !vm.isLoading {
                     VStack(spacing: 12) {
@@ -262,10 +262,10 @@ struct AlarmListView: View {
             .navigationTitle("Alarms")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
-                ToolbarItem(placement: NanoMuseToolbarPlacement.leading) {
+                ToolbarItem(placement: .topBarLeading) {
                     Button("Done") { dismiss() }
                 }
-                ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button(role: .destructive) {
                         showClearConfirm = true
                     } label: {

@@ -218,7 +218,7 @@ struct NanoMuseSystemFilesView: View {
         .navigationTitle(AppLocalized("System files"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
+            ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     byRecent.toggle()
                 } label: {
@@ -273,7 +273,7 @@ struct NanoMuseSystemFileView: View {
         .navigationTitle(file.fileName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItemGroup(placement: NanoMuseToolbarPlacement.trailing) {
+            ToolbarItemGroup(placement: .topBarTrailing) {
                 if editing {
                     Button(AppLocalized("Save")) {
                         file.write(draft)

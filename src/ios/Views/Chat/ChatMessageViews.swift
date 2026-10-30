@@ -99,7 +99,7 @@ private struct ContextMenuPreviewSurface: ViewModifier {
             content
                 // Opaque floor first — see the note above.
                 .background(shape.fill(ChatColors.background))
-                .nanoMuseRegularGlass(in: shape)
+                .glassEffect(.regular, in: shape)
         } else {
             content.background(ChatColors.background)
         }
@@ -150,7 +150,7 @@ private struct UserBubbleSurface: ViewModifier {
         } else if NanoMuseShellPrefs.shell { // nanoMuse: Muse's user pill: the ink colour, black in light and white in dark, 18 pt, no glass (Android: ChatColors.userBubble)
             content.background(shape.fill(NanoMuseTones.ink)) // nanoMuse:
         } else if #available(iOS 26.0, *) {
-            content.nanoMuseRegularGlass(in: shape)
+            content.glassEffect(.regular, in: shape)
         } else {
             content.background(shape.fill(ChatColors.userBubble))
         }
@@ -415,7 +415,7 @@ struct ChatMessageRow: View {
             // is RoundedRectangle(cornerRadius: 18). iOS 16+ lets us specify the
             // preview clip shape independently from the interaction shape.
             .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: 18))
-            .nmContextMenu {
+            .contextMenu {
                 Button {
                     UIPasteboard.general.string = message.content
                 } label: {
@@ -586,15 +586,15 @@ struct ChatMessageRow: View {
         // (ViewGraphGeometryObservers.needsUpdate SIGTRAP). onGeometryChange
         // measures the same row bounds the background GeometryReader did,
         // and its initial fire covers the old onAppear seed.
-        .onGeometryChangeBackport(for: CGRect.self, tag: GeometryChangeMessageRowTag.self) { proxy in
+        .onGeometryChange(for: CGRect.self) { proxy in
             proxy.frame(in: .global)
-        } action: { if rowFrameInWindow != $0 { rowFrameInWindow = $0 } }
+        } action: { rowFrameInWindow = $0 }
         .background {
             // Context menu on the background layer so it only fires on
             // blank areas — UITextView link taps in the foreground take priority.
             Color.clear
                 .contentShape(Rectangle())
-                .nmContextMenu {
+                .contextMenu {
                     // [T-ios-msg-contextmenu-recursion-crash] Gate the eager menu
                     // tree behind an Equatable key so the cell body churn during
                     // `gh`/shell streaming output doesn't rebuild + re-diff the

@@ -16,6 +16,7 @@ struct SoulSettingsView: View {
     @State private var showEmojiPrompt = false
     @State private var emojiDraft = ""
     @State private var showPhotoPicker = false
+    @State private var photoItem: PhotosPickerItem? = nil
     @State private var iconError: String? = nil
     @State private var style: String = SoulMetadata.default.style
     @State private var lang: String = SoulMetadata.default.lang
@@ -45,13 +46,13 @@ struct SoulSettingsView: View {
             }
 
             Section(AppLocalized("Identity")) {
-                NanoMuseLabeledContent(AppLocalized("Name")) {
+                LabeledContent(AppLocalized("Name")) {
                     TextField("nanoMuse", text: $name)
                         .multilineTextAlignment(.trailing)
                         .textInputAutocapitalization(.words)
                         .submitLabel(.done)
                 }
-                NanoMuseLabeledContent(AppLocalized("Style")) {
+                LabeledContent(AppLocalized("Style")) {
                     TextField(AppLocalized("e.g. Warm, direct, opinionated"), text: $style)
                         .multilineTextAlignment(.trailing)
                 }
@@ -110,7 +111,7 @@ struct SoulSettingsView: View {
         .navigationTitle(AppLocalized("Soul"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
+            ToolbarItem(placement: .topBarTrailing) {
                 Button(AppLocalized("Save")) { save() }
                     .disabled(!isDirty || isBodyOverLimit)
             }
@@ -134,6 +135,7 @@ struct SoulSettingsView: View {
             showEmojiPrompt: $showEmojiPrompt,
             emojiDraft: $emojiDraft,
             showPhotoPicker: $showPhotoPicker,
+            photoItem: $photoItem,
             iconError: $iconError
         ))
         .overlay(alignment: .bottom) {
@@ -238,7 +240,7 @@ struct SoulSettingsView: View {
             TextEditor(text: $bodyText)
                 .frame(minHeight: 220)
                 .font(.system(.body, design: .monospaced))
-                .nanoMuseHideScrollBackground()
+                .scrollContentBackground(.hidden)
             // SwiftUI's TextEditor has no native placeholder. We render
             // a greyed hint on top when the body is empty + not being
             // typed into. allowsHitTesting(false) so taps fall through
@@ -416,7 +418,7 @@ private struct SoulEmojiPickerSheet: View {
     ]
 
     var body: some View {
-        NanoMuseCompatNavigationStack {
+        NavigationStack {
             VStack(spacing: 20) {
                 // Live preview at the size the chat header actually uses, so
                 // the user judges the glyph at its real scale rather than at
@@ -475,10 +477,10 @@ private struct SoulEmojiPickerSheet: View {
             .navigationTitle(AppLocalized("Choose Emoji"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: NanoMuseToolbarPlacement.leading) {
+                ToolbarItem(placement: .topBarLeading) {
                     Button(AppLocalized("Cancel")) { dismiss() }
                 }
-                ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button(AppLocalized("Set")) {
                         onPick(draft)
                         dismiss()
@@ -487,7 +489,7 @@ private struct SoulEmojiPickerSheet: View {
                 }
             }
         }
-        .nanoMuseSheetSize(.height(380))
+        .presentationDetents([.height(380)])
     }
 
     /// Keep at most one emoji, preferring whatever the user just added.
@@ -516,6 +518,7 @@ private struct SoulIconEditing: ViewModifier {
     @Binding var showEmojiPrompt: Bool
     @Binding var emojiDraft: String
     @Binding var showPhotoPicker: Bool
+    @Binding var photoItem: PhotosPickerItem?
     @Binding var iconError: String?
 
     func body(content: Content) -> some View {
@@ -527,11 +530,14 @@ private struct SoulIconEditing: ViewModifier {
                     icon = chosen
                 }
             }
-            // iOS 16+ runs the official PhotosPicker; iOS 15 the photo picker.
-            .modifier(NanoMuseSinglePhotoPicker(isPresented: $showPhotoPicker) { picked in
-                guard let picked else { return }
-                Task { await applyPickedImage(picked) }
-            })
+            .photosPicker(isPresented: $showPhotoPicker, selection: $photoItem,
+                          matching: .images, photoLibrary: .shared())
+            // Single-parameter form: the two-parameter `onChange` is iOS 17+,
+            // and this target still deploys lower.
+            .onChange(of: photoItem) { newItem in
+                guard let newItem else { return }
+                Task { await applyPickedImage(newItem) }
+            }
             .alert(AppLocalized("Can't use that image"),
                    isPresented: Binding(get: { iconError != nil },
                                         set: { if !$0 { iconError = nil } })) {
@@ -558,8 +564,9 @@ private struct SoulIconEditing: ViewModifier {
     }
 
     /// Load, validate and normalize a picked photo into the stored form.
-    private func applyPickedImage(_ pick: NanoMusePick) async {
-        guard let data = await pick.imageData(),
+    private func applyPickedImage(_ item: PhotosPickerItem) async {
+        defer { photoItem = nil }
+        guard let data = try? await item.loadTransferable(type: Data.self),
               let image = UIImage(data: data) else {
             await MainActor.run { iconError = AppLocalized("That image couldn't be read.") }
             return

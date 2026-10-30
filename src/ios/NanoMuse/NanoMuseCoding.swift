@@ -265,7 +265,7 @@ struct NanoMuseCodingView: View {
         .navigationTitle(AppLocalized("Coding agents"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
+            ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     load()
                 } label: {
@@ -280,7 +280,7 @@ struct NanoMuseCodingView: View {
         }
         .sheet(item: $open, onDismiss: { load() }) { s in
             if let computer {
-                NanoMuseCompatNavigationStack {
+                NavigationStack {
                     NanoMuseCodingSessionView(computer: computer, session: s, agentName: agents.first { $0.id == s.agent }?.name ?? s.agent)
                         .toolbar {
                             ToolbarItem(placement: .cancellationAction) { Button(AppLocalized("Done")) { open = nil } }
@@ -293,7 +293,7 @@ struct NanoMuseCodingView: View {
                 newWith = nil
                 open = NanoMuseCodingBridge.Session(agent: a.id, id: "", title: "", workspace: workspace, updatedAt: nil, messages: 0, status: "idle", lastUser: "", lastAssistant: "", resumable: true)
             }
-            .nanoMuseSheetSize(.medium)
+            .presentationDetents([.medium])
         }
     }
 
@@ -363,12 +363,12 @@ struct NanoMuseCodingNewSheet: View {
     @State private var workspace = ""
 
     var body: some View {
-        NanoMuseCompatNavigationStack {
+        NavigationStack {
             Form {
                 Section {
                     TextField(AppLocalized("Project folder on the computer"), text: $workspace)
                         .textInputAutocapitalization(.never)
-                        .disableAutocorrection(true)
+                        .autocorrectionDisabled()
                     if !workspaces.isEmpty {
                         ForEach(workspaces, id: \.self) { w in
                             Button(w) { workspace = w }.font(.footnote).lineLimit(1)
@@ -442,8 +442,8 @@ struct NanoMuseCodingSessionView: View {
             }
             Divider()
             HStack(alignment: .bottom, spacing: 8) {
-                NanoMuseMultilineTextField(placeholder: continuesAsNew ? AppLocalized("Made in the IDE: continues as a new chat in the same workspace…") : String(format: AppLocalized("Message %@…"), agentName), text: $draft)
-                    .nmLineLimit(1...5)
+                TextField(continuesAsNew ? AppLocalized("Made in the IDE: continues as a new chat in the same workspace…") : String(format: AppLocalized("Message %@…"), agentName), text: $draft, axis: .vertical)
+                    .lineLimit(1...5)
                     .textFieldStyle(.roundedBorder)
                 if live?.status == "running" {
                     Button {
@@ -468,7 +468,7 @@ struct NanoMuseCodingSessionView: View {
         .navigationTitle(session.title.isEmpty ? String(format: AppLocalized("New conversation with %@"), agentName) : session.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
+            ToolbarItem(placement: .topBarTrailing) {
                 Button { reload() } label: { Image(systemName: "arrow.clockwise") }
                     .disabled(loading)
                     .accessibilityLabel(AppLocalized("Refresh"))

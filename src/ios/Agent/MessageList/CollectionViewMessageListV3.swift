@@ -358,7 +358,7 @@ private struct BridgedAssistantBlockV3: View {
         // (same pattern as BridgedAssistantFooterV3).
         .overlay {
             Color.clear.frame(width: 0, height: 0)
-                .nmContextMenu {
+                .contextMenu {
                     Button {
                         let text = message.blocks
                             .filter { if case .text = $0.kind { return true }; return false }
@@ -516,7 +516,7 @@ private struct BridgedAssistantFooterV3: View {
         // report inflated heights to systemLayoutSizeFitting, causing height oscillation.
         .overlay {
             Color.clear.frame(width: 0, height: 0)
-                .nmContextMenu {
+                .contextMenu {
                     Button {
                         let text = message.blocks
                             .filter { if case .text = $0.kind { return true }; return false }
@@ -1197,7 +1197,8 @@ extension CollectionViewMessageListV3 {
                 let message = messages[msgIdx]
                 let bridge = getOrCreateBridge(for: message, in: messages)
                 cell.backgroundColor = .clear
-                let hostedContent = BridgedWholeMessageV3(
+                let config = UIHostingConfiguration {
+                    BridgedWholeMessageV3(
                         message: message,
                         bridge: bridge,
                         maxWidth: width
@@ -1221,29 +1222,20 @@ extension CollectionViewMessageListV3 {
                     // explicitly on every hosting config.
                     // [T-ios-tool-capsule-vm-envobject-crash]
                     .environmentObject(vm)
-                // [round18] Content fingerprint for the HostingCellContentView dedup (see MessageListInfrastructure.swift).
-                let fingerprint = "w:\(message.id.uuidString):\(ObjectIdentifier(message)):\(message.content.count):\(message.attachments.count):\(Int(width.rounded()))"
-                if #available(iOS 16, *) {
-                    cell.applyContentConfiguration(UIHostingConfiguration { hostedContent }.minSize(width: 0, height: 0).margins(.all, 0))
-                } else {
-                    cell.applyContentConfiguration(HostingCellConfiguration(rootView: AnyView(hostedContent), contentKey: fingerprint, hostParent: viewController))
-                }
+                }.minSize(width: 0, height: 0).margins(.all, 0)
+                cell.applyContentConfiguration(config)
 
             case .assistantHeader(let msgId):
                 guard let msgIdx = messageIndex[msgId], msgIdx < messages.count else { return }
                 let message = messages[msgIdx]
                 cell.backgroundColor = .clear
-                let hostedContent = BridgedAssistantHeaderV3(message: message, maxWidth: width,
+                let config = UIHostingConfiguration {
+                    BridgedAssistantHeaderV3(message: message, maxWidth: width,
                                             onOpenSoulSettings: onOpenSoulSettings)
                         .transaction { $0.disablesAnimations = true }
                         .environmentObject(vm)
-                // [round18] Content fingerprint for the HostingCellContentView dedup (see MessageListInfrastructure.swift).
-                let fingerprint = "h:\(message.id.uuidString):\(ObjectIdentifier(message)):\(Int(width.rounded()))"
-                if #available(iOS 16, *) {
-                    cell.applyContentConfiguration(UIHostingConfiguration { hostedContent }.minSize(width: 0, height: 0).margins(.all, 0))
-                } else {
-                    cell.applyContentConfiguration(HostingCellConfiguration(rootView: AnyView(hostedContent), contentKey: fingerprint, hostParent: viewController))
-                }
+                }.minSize(width: 0, height: 0).margins(.all, 0)
+                cell.applyContentConfiguration(config)
 
             case .assistantBlock(let msgId, let blockId):
                 guard let msgIdx = messageIndex[msgId], msgIdx < messages.count else {
@@ -1257,7 +1249,8 @@ extension CollectionViewMessageListV3 {
                 }
                 let bridge = getOrCreateBridge(for: message, in: messages)
                 cell.backgroundColor = .clear
-                let hostedContent = BridgedAssistantBlockV3(
+                let config = UIHostingConfiguration {
+                    BridgedAssistantBlockV3(
                         block: block,
                         message: message,
                         bridge: bridge,
@@ -1265,33 +1258,24 @@ extension CollectionViewMessageListV3 {
                     )
                     .transaction { $0.disablesAnimations = true }
                     .environmentObject(vm)
-                // [round18] Content fingerprint for the HostingCellContentView dedup (see MessageListInfrastructure.swift).
-                let fingerprint = "b:\(message.id.uuidString):\(block.id.uuidString):\(ObjectIdentifier(block)):\(block.content.count):\(Int(width.rounded()))"
-                if #available(iOS 16, *) {
-                    cell.applyContentConfiguration(UIHostingConfiguration { hostedContent }.minSize(width: 0, height: 0).margins(.all, 0))
-                } else {
-                    cell.applyContentConfiguration(HostingCellConfiguration(rootView: AnyView(hostedContent), contentKey: fingerprint, hostParent: viewController))
-                }
+                }.minSize(width: 0, height: 0).margins(.all, 0)
+                cell.applyContentConfiguration(config)
 
             case .assistantFooter(let msgId):
                 guard let msgIdx = messageIndex[msgId], msgIdx < messages.count else { return }
                 let message = messages[msgIdx]
                 let bridge = getOrCreateBridge(for: message, in: messages)
                 cell.backgroundColor = .clear
-                let hostedContent = BridgedAssistantFooterV3(
+                let config = UIHostingConfiguration {
+                    BridgedAssistantFooterV3(
                         message: message,
                         bridge: bridge,
                         maxWidth: width
                     )
                     .transaction { $0.disablesAnimations = true }
                     .environmentObject(vm)
-                // [round18] Content fingerprint for the HostingCellContentView dedup (see MessageListInfrastructure.swift).
-                let fingerprint = "f:\(message.id.uuidString):\(ObjectIdentifier(message)):\(Int(width.rounded()))"
-                if #available(iOS 16, *) {
-                    cell.applyContentConfiguration(UIHostingConfiguration { hostedContent }.minSize(width: 0, height: 0).margins(.all, 0))
-                } else {
-                    cell.applyContentConfiguration(HostingCellConfiguration(rootView: AnyView(hostedContent), contentKey: fingerprint, hostParent: viewController))
-                }
+                }.minSize(width: 0, height: 0).margins(.all, 0)
+                cell.applyContentConfiguration(config)
             }
 
             // [T-ios-scroll-decel-height-drift] Seed this cell with the real

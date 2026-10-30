@@ -81,7 +81,7 @@ struct ModelGroupDetailView: View {
         .navigationTitle(group?.name ?? "Group")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: nmSecondaryActionPlacement) {
+            ToolbarItem(placement: .secondaryAction) {
                 if let group {
                     Button {
                         UIPasteboard.general.string = "group:\(group.id)"
@@ -349,10 +349,10 @@ struct ModelGroupDetailView: View {
                 }
             }
         }
-        .nmScrollDismissesKeyboardInteractively()
+        .scrollDismissesKeyboard(.interactively)
         .environment(\.editMode, $editMode)
         .sheet(isPresented: $showAddModels) {
-            NanoMuseCompatNavigationStack {
+            NavigationStack {
                 UnifiedModelPicker(config: addModelsConfig())
             }
         }

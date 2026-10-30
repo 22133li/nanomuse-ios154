@@ -245,7 +245,7 @@ struct NanoMuseCloudView: View {
                 .keyboardType(.emailAddress)
                 .textContentType(.username)
                 .textInputAutocapitalization(.never)
-                .disableAutocorrection(true)
+                .autocorrectionDisabled()
                 .disabled(busy || codeSent)
             if !codeSent, NanoMuseCloud.needsEmailInstead(identifier: identifier) {
                 Text(NanoMuseCloud.phoneRegionSentence)
@@ -264,7 +264,7 @@ struct NanoMuseCloudView: View {
                 if inviteOpen {
                     TextField(AppLocalized("Invite code (optional)"), text: $invite)
                         .textInputAutocapitalization(.characters)
-                        .disableAutocorrection(true)
+                        .autocorrectionDisabled()
                         .disabled(busy)
                 } else {
                     Button(AppLocalized("Have an invite code?")) { inviteOpen = true }

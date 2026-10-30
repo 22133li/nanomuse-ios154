@@ -89,7 +89,7 @@ struct SessionSkillsView: View {
         // Reference the version counter so SwiftUI refreshes on override changes.
         let _ = store.sessionOverrideVersion
 
-        NanoMuseCompatNavigationStack {
+        NavigationStack {
             List {
                 if store.skills.isEmpty {
                     Section {
@@ -137,7 +137,7 @@ struct SessionSkillsView: View {
                         prompt: Text(AppLocalized("Search skills")))
             .onAppear { store.reload() }
             .toolbar {
-                ToolbarItem(placement: NanoMuseToolbarPlacement.leading) {
+                ToolbarItem(placement: .topBarLeading) {
                     if !filteredSkills.isEmpty {
                         let scope = filteredSkills
                         let allEnabled = scope.allSatisfy { isEnabled($0) }
@@ -148,7 +148,7 @@ struct SessionSkillsView: View {
                         .font(.subheadline)
                     }
                 }
-                ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
                 }
             }

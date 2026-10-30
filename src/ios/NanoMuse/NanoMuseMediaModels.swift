@@ -337,7 +337,7 @@ struct NanoMuseMediaModelsView: View {
                 )
                 TextField(AppLocalized("Other model name"), text: $imageModel, prompt: Text("qwen-image-3.0 · …"))
                     .textInputAutocapitalization(.never)
-                    .disableAutocorrection(true)
+                    .autocorrectionDisabled()
                     .onSubmit { NanoMuseImageGen.save(instanceId: inst.id, model: imageModel) }
             }
             if imageInstances.isEmpty && !relayImageAvailable {
@@ -399,7 +399,7 @@ struct NanoMuseMediaModelsView: View {
                 )
                 TextField(AppLocalized("Other model name"), text: $videoModel, prompt: Text(NanoMuseMediaModels.defaultVideoModel))
                     .textInputAutocapitalization(.never)
-                    .disableAutocorrection(true)
+                    .autocorrectionDisabled()
                     .onSubmit { NanoMuseMediaModels.saveVideo(instanceId: inst.id, model: videoModel) }
                 Toggle(isOn: $animate) {
                     VStack(alignment: .leading, spacing: 2) {

@@ -106,7 +106,7 @@ struct SkillsManagementView: View {
                     prompt: Text(AppLocalized("Search skills")))
         .onAppear { store.reload() }
         .toolbar {
-            ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
+            ToolbarItem(placement: .topBarTrailing) {
                 // Sort menu — same structure as the file browser's (sort-key
                 // picker + direction toggle), persisted via AppStorage.
                 Menu {
@@ -129,7 +129,7 @@ struct SkillsManagementView: View {
                     Image(systemName: "arrow.up.arrow.down")
                 }
             }
-            ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
+            ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Button {
                         showImportSheet = true
@@ -229,7 +229,7 @@ private struct ImportSkillSheet: View {
     }
 
     var body: some View {
-        NanoMuseCompatNavigationStack {
+        NavigationStack {
             Form {
                 Picker("Import Method", selection: $importMode) {
                     ForEach(ImportMode.allCases, id: \.self) { mode in
@@ -246,7 +246,7 @@ private struct ImportSkillSheet: View {
                     Section("GitHub URL") {
                         TextField("", text: $urlText, prompt: Text("github.com/user/repo/blob/main/SKILL.md").foregroundColor(.secondary))
                             .textInputAutocapitalization(.never)
-                            .disableAutocorrection(true)
+                            .autocorrectionDisabled()
                             .keyboardType(.URL)
                             .tint(.primary)
                     }
@@ -277,10 +277,10 @@ private struct ImportSkillSheet: View {
             .navigationTitle(AppLocalized("Import Skill"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: NanoMuseToolbarPlacement.leading) {
+                ToolbarItem(placement: .topBarLeading) {
                     Button(AppLocalized("Cancel")) { dismiss() }
                 }
-                ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
+                ToolbarItem(placement: .topBarTrailing) {
                     if importMode != .file {
                         Button(AppLocalized("Import")) { performImport() }
                             .disabled(isImporting || (importMode == .url ? urlText.isEmpty : pastedContent.isEmpty))
@@ -353,18 +353,7 @@ private struct SkillFileDocumentPicker: UIViewControllerRepresentable {
         if let skillType = UTType(filenameExtension: "skill", conformingTo: .zip) {
             types.append(skillType)
         }
-        // [T-ios154-skillpicker] iOS 15.4: forOpeningContentTypes without
-        // asCopy never fires the delegate callback (same pit as the chat
-        // picker; device-verified on the Minis line as [T-skill-pick-96]).
-        // iOS 16+ keeps the upstream initializer untouched; only the iOS 15
-        // branch passes asCopy: true (the system then hands back a regular
-        // temp URL; the coordinator below tolerates non-scoped URLs).
-        let picker: UIDocumentPickerViewController
-        if #available(iOS 16, *) {
-            picker = UIDocumentPickerViewController(forOpeningContentTypes: types)
-        } else {
-            picker = UIDocumentPickerViewController(forOpeningContentTypes: types, asCopy: true)
-        }
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: types)
         picker.delegate = context.coordinator
         return picker
     }
@@ -518,14 +507,14 @@ private struct SkillDetailView: View {
                             .buttonStyle(.plain)
                         }
                     }
-                    NanoMuseLabeledContent("Version", value: skill.version)
+                    LabeledContent("Version", value: skill.version)
                     if let modDate = latestFileModDate {
-                        NanoMuseLabeledContent("Last Modified") {
+                        LabeledContent("Last Modified") {
                             Text(Self.relativeTime(modDate))
                                 .foregroundStyle(.secondary)
                         }
                     }
-                    NanoMuseLabeledContent("Source") {
+                    LabeledContent("Source") {
                         switch skill.importSource {
                         case .url(let url):
                             Text(url)
@@ -540,7 +529,7 @@ private struct SkillDetailView: View {
                             Text(AppLocalized("Session created")).foregroundStyle(.secondary)
                         }
                     }
-                    NanoMuseLabeledContent(AppLocalized("Usage")) {
+                    LabeledContent(AppLocalized("Usage")) {
                         let freq = store.usageFrequency(for: skill.id)
                         Text(usageFrequencyLabel(freq))
                             .foregroundStyle(usageFrequencyColor(freq))
@@ -670,7 +659,7 @@ private struct SkillDetailView: View {
         .navigationTitle(skill?.name ?? "Skill")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
+            ToolbarItem(placement: .topBarTrailing) {
                 Button { shareSkill() } label: {
                     Image(systemName: "square.and.arrow.up")
                 }
@@ -892,10 +881,8 @@ private struct SkillFileDetailView: View {
             .navigationTitle(fileName)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
-                    // NOTE (iOS 15 backport): `if` at toolbar level is iOS 16+;
-                    // the condition lives inside the item (a ViewBuilder) instead.
-                    if hasChanges {
+                if hasChanges {
+                    ToolbarItem(placement: .topBarTrailing) {
                         Button(AppLocalized("Save")) { save() }
                     }
                 }
@@ -925,7 +912,7 @@ struct MinisSkillsBrowserView: View {
     @StateObject private var coordinator = SkillBrowserCoordinator()
 
     var body: some View {
-        NanoMuseCompatNavigationStack {
+        NavigationStack {
             ZStack {
                 SkillBrowserWebView(coordinator: coordinator)
                     .ignoresSafeArea(edges: .bottom)
@@ -944,10 +931,10 @@ struct MinisSkillsBrowserView: View {
             .navigationTitle("nanoMuse Skills")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: NanoMuseToolbarPlacement.leading) {
+                ToolbarItem(placement: .topBarLeading) {
                     Button(AppLocalized("Done")) { dismiss() }
                 }
-                ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button(AppLocalized("Import This")) {
                         coordinator.importCurrentSkill()
                     }

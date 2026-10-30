@@ -138,7 +138,7 @@ enum NanoMuseChatLookup {
         guard let liveId else { return nil }
         for _ in 0..<20 {
             if let found = ViewModelCache.shared.get(for: liveId) { return found }
-            try? await Task.sleep(nanoseconds: 150 * 1_000_000)
+            try? await Task.sleep(for: .milliseconds(150))
             if Task.isCancelled { return nil }
         }
         return nil

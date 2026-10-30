@@ -213,7 +213,7 @@ struct NanoMuseVendorSheet: View {
     private var auth: String? { signIn ?? vendor.signIn }
 
     var body: some View {
-        NanoMuseCompatNavigationStack {
+        NavigationStack {
             Group {
                 if let saved {
                     NanoMuseUseItForView(instance: saved) {
@@ -274,7 +274,7 @@ struct NanoMuseVendorSheet: View {
                 Section {
                     TextField(AppLocalized("Address"), text: $address)
                         .textInputAutocapitalization(.never)
-                        .disableAutocorrection(true)
+                        .autocorrectionDisabled()
                         .keyboardType(.URL)
                         .disabled(busy)
                     Button {
@@ -301,7 +301,7 @@ struct NanoMuseVendorSheet: View {
                 Section {
                     SecureField(vendor.keyHint.map { String(format: AppLocalized("Paste the API key (%@)"), $0) } ?? AppLocalized("Paste the API key"), text: $key)
                         .textInputAutocapitalization(.never)
-                        .disableAutocorrection(true)
+                        .autocorrectionDisabled()
                         .disabled(busy)
                     Button {
                         Task { await save() }

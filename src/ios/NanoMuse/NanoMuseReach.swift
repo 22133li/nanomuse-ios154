@@ -61,7 +61,7 @@ private struct NanoMuseReachSheet: View {
     @State private var screenshot: UIImage?
 
     var body: some View {
-        NanoMuseCompatNavigationStack {
+        NavigationStack {
             Form {
                 // C7: the task goes to that device's Muse; the composer opens with "@<name> " in it.
                 Section {
@@ -80,7 +80,7 @@ private struct NanoMuseReachSheet: View {
                     TextField("https://…", text: $link)
                         .keyboardType(.URL)
                         .textInputAutocapitalization(.never)
-                        .disableAutocorrection(true)
+                        .autocorrectionDisabled()
                     Button(AppLocalized("Open it there")) {
                         run("open", ["url": link.trimmingCharacters(in: .whitespaces)]) { body in
                             AppLocalized("Opened.")
@@ -92,8 +92,8 @@ private struct NanoMuseReachSheet: View {
                 }
 
                 Section {
-                    NanoMuseMultilineTextField(placeholder: AppLocalized("A short note"), text: $note)
-                        .nmLineLimit(1...4)
+                    TextField(AppLocalized("A short note"), text: $note, axis: .vertical)
+                        .lineLimit(1...4)
                     Button(AppLocalized("Send the note")) {
                         run("notify", ["text": note.trimmingCharacters(in: .whitespacesAndNewlines), "title": "nanoMuse"]) { _ in
                             AppLocalized("Sent.")
@@ -106,11 +106,11 @@ private struct NanoMuseReachSheet: View {
 
                 if device.isComputer {
                     Section {
-                        NanoMuseMultilineTextField(placeholder: AppLocalized("A shell command"), text: $command)
+                        TextField(AppLocalized("A shell command"), text: $command, axis: .vertical)
                             .font(.system(.body, design: .monospaced))
                             .textInputAutocapitalization(.never)
-                            .disableAutocorrection(true)
-                            .nmLineLimit(1...4)
+                            .autocorrectionDisabled()
+                            .lineLimit(1...4)
                         Button(AppLocalized("Run it there")) {
                             run("shell", ["command": command, "timeout": 120]) { body in
                                 let out = (body["stdout"] as? String ?? "") + (body["stderr"] as? String ?? "")
@@ -164,7 +164,7 @@ private struct NanoMuseReachSheet: View {
             .navigationTitle(device.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button(AppLocalized("Done")) { dismiss() }
                 }
             }

@@ -70,7 +70,7 @@ struct NanoMuseWaysList: View {
                     title: String(format: AppLocalized("Invite a friend: +¥%@ for you and +¥%@ for them, once a new person who signed up with your link makes their first request."), NanoMuseAllowance.money(bonus), NanoMuseAllowance.money(inviteeBonusCny ?? bonus)),
                     text: inviteBelow ? AppLocalized("Your code and link are just below.") : (inviteURL.isEmpty ? AppLocalized("Your code and link are under Settings → nanoMuse Cloud.") : AppLocalized("Your link is ready to share.")))
                 if !inviteBelow, !inviteURL.isEmpty, let url = URL(string: inviteURL) {
-                    NanoMuseShareLink(item: url) { Label(AppLocalized("Share the link"), systemImage: "square.and.arrow.up").font(.footnote) }
+                    ShareLink(item: url) { Label(AppLocalized("Share the link"), systemImage: "square.and.arrow.up").font(.footnote) }
                         .buttonStyle(.plain).foregroundStyle(NanoMuseTones.action)
                 }
             }

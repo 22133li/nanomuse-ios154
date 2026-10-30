@@ -469,7 +469,7 @@ enum NanoMuseHeadless {
             try? await Task.sleep(nanoseconds: 500_000_000)
             finished = !vm.isProcessing
         }
-        let text = ResponseTextExtraction.extractResponseText(from: vm)
+        let text = SendPromptIntent.extractResponseText(from: vm)
         let failed = vm.errorMessage != nil || vm.messages.last?.error != nil || !finished
         return Outcome(ok: !failed, sessionId: sid ?? vm.sessionId, text: text, note: failed ? (vm.errorMessage ?? (finished ? nil : AppLocalized("Took too long"))) : nil)
     }

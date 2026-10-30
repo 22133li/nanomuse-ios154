@@ -658,7 +658,7 @@ struct NanoMusePostDetail: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NanoMuseCompatNavigationStack {
+        NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     HStack(spacing: 8) {
@@ -668,26 +668,13 @@ struct NanoMusePostDetail: View {
                     NanoMuseInlineMarkdown(text: post.body).font(.body)
                     Divider()
                     // A grid sizes the label column to the longest label ("Geschrieben", "Написано") instead of a fixed 72 pt.
-                    // iOS 15 backport: Grid/GridRow are iOS 16+. On 15 the rows
-                    // fall back to plain HStacks (label column not auto-sized
-                    // to the longest label, but all content stays visible).
-                    if #available(iOS 16, *) {
-                        Grid(alignment: .topLeading, horizontalSpacing: 12, verticalSpacing: 8) {
-                            row(AppLocalized("Type"), NanoMusePost.typeLabel(post.type))
-                            row(AppLocalized("Written"), post.createdAt.formatted(date: .abbreviated, time: .shortened))
-                            if !post.source.isEmpty { row(AppLocalized("From"), post.source.joined(separator: " · ")) }
-                            row(AppLocalized("File"), "nanomuse/feed/\(post.id).md")
-                        }
-                        .font(.footnote)
-                    } else {
-                        VStack(alignment: .leading, spacing: 8) {
-                            row15(AppLocalized("Type"), NanoMusePost.typeLabel(post.type))
-                            row15(AppLocalized("Written"), post.createdAt.formatted(date: .abbreviated, time: .shortened))
-                            if !post.source.isEmpty { row15(AppLocalized("From"), post.source.joined(separator: " · ")) }
-                            row15(AppLocalized("File"), "nanomuse/feed/\(post.id).md")
-                        }
-                        .font(.footnote)
+                    Grid(alignment: .topLeading, horizontalSpacing: 12, verticalSpacing: 8) {
+                        row(AppLocalized("Type"), NanoMusePost.typeLabel(post.type))
+                        row(AppLocalized("Written"), post.createdAt.formatted(date: .abbreviated, time: .shortened))
+                        if !post.source.isEmpty { row(AppLocalized("From"), post.source.joined(separator: " · ")) }
+                        row(AppLocalized("File"), "nanomuse/feed/\(post.id).md")
                     }
+                    .font(.footnote)
                     Button(action: onDiscuss) {
                         Label(AppLocalized("Discuss"), systemImage: "bubble.left").frame(maxWidth: .infinity).padding(.vertical, 8)
                     }
@@ -701,19 +688,9 @@ struct NanoMusePostDetail: View {
         }
     }
 
-    // GridRow is iOS 16+; the only caller is the iOS 16 branch above.
-    @available(iOS 16, *)
     private func row(_ label: String, _ value: String) -> some View {
         GridRow {
             Text(label).foregroundStyle(.secondary)
-            Text(value).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
-    // iOS 15 fallback for row(_:_:) above.
-    private func row15(_ label: String, _ value: String) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            Text(label).foregroundStyle(.secondary).frame(minWidth: 72, alignment: .leading)
             Text(value).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
         }
     }
@@ -731,7 +708,7 @@ struct NanoMuseFeedSettingsSheet: View {
     private var routine: NanoMuseRoutine? { NanoMuseFeedFlow.routine }
 
     var body: some View {
-        NanoMuseCompatNavigationStack {
+        NavigationStack {
             Form {
                 Section {
                     TextEditor(text: $text).frame(minHeight: 90)

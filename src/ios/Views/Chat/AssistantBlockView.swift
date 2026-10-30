@@ -1071,7 +1071,7 @@ struct ThinkingLevelSheetView: View {
     let onSelect: (ThinkingLevel) -> Void
 
     var body: some View {
-        NanoMuseCompatNavigationStack {
+        NavigationStack {
             List {
                 thinkingRow(level: .off, isSelected: !currentLevel.isEnabled)
                 Section {
@@ -1099,8 +1099,8 @@ struct ThinkingLevelSheetView: View {
                 Spacer()
                 if isSelected {
                     Image(systemName: "checkmark")
-                        .font(.body.weight(.semibold))
                         .foregroundStyle(.blue)
+                        .fontWeight(.semibold)
                 }
             }
         }

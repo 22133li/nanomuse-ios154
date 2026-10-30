@@ -37,7 +37,7 @@ struct ConfigConfirmSheet: View {
 
     @ViewBuilder
     private func sheetBody(change: PendingConfigChange) -> some View {
-        NanoMuseCompatNavigationStack {
+        NavigationStack {
             VStack(spacing: 0) {
                 if let caption = change.caption, !caption.isEmpty {
                     Text(caption)
@@ -59,23 +59,22 @@ struct ConfigConfirmSheet: View {
                              : "Confirm change")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: NanoMuseToolbarPlacement.leading) {
+                ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel", role: .cancel) {
                         gate.userReject()
                     }
                 }
-                ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
-                    Button {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(approvedCount == 0 ? "Reject All" : "Apply") {
                         confirmSheetLogger.info("tap primary pending=\(change.id) items=\(workingItems.count) approved=\(approvedCount)")
                         gate.userApprove(items: workingItems)
-                    } label: {
-                        Text(approvedCount == 0 ? "Reject All" : "Apply").bold()
                     }
+                    .bold()
                     .disabled(workingItems.isEmpty)
                 }
             }
         }
-        .nanoMuseSheetSize(.fraction(0.75))
+        .presentationDetents([.fraction(0.75)])
         .interactiveDismissDisabled()    // force explicit Apply / Cancel
     }
 
@@ -121,10 +120,10 @@ private struct ConfigConfirmRow: View {
                     Text(item.newDisplay)
                         .lineLimit(2)
                         .truncationMode(.middle)
-                        .font(.system(.footnote, design: .monospaced).weight(.medium))
                         .foregroundStyle(item.risk == .destructive ? .red
                                          : item.risk == .sensitive ? .orange
                                          : .primary)
+                        .fontWeight(.medium)
                 }
             }
             .font(.system(.footnote, design: .monospaced))

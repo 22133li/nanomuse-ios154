@@ -83,7 +83,7 @@ struct MCPIntegrationsView: View {
             }
         }
         .toolbar {
-            ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
+            ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Button {
                         showAddForm = true
@@ -174,7 +174,7 @@ struct MCPToolsSheet: View {
     @State private var errorText: String?
 
     var body: some View {
-        NanoMuseCompatNavigationStack {
+        NavigationStack {
             List {
                 if isLoading {
                     HStack(spacing: 10) {
@@ -215,7 +215,7 @@ struct MCPToolsSheet: View {
             .navigationTitle(Text(verbatim: serverName))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: NanoMuseToolbarPlacement.leading) {
+                ToolbarItem(placement: .topBarLeading) {
                     Button {
                         Task { await refresh() }
                     } label: {
@@ -224,7 +224,7 @@ struct MCPToolsSheet: View {
                     .disabled(isLoading)
                     .accessibilityLabel(Text("Refresh tools"))
                 }
-                ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button(AppLocalized("Done")) { dismiss() }
                 }
             }

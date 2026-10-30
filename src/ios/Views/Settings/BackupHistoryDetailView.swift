@@ -36,10 +36,8 @@ struct BackupHistoryDetailView: View {
             // Hidden while the run is live: a delete that dropped the record
             // while the upload kept running would strand a job with nothing
             // tracking it. Stop it first — this button is then right here.
-            ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
-                // NOTE (iOS 15 backport): `if` at toolbar level is iOS 16+;
-                // the condition lives inside the item (a ViewBuilder) instead.
-                if !isLive {
+            if !isLive {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button(role: .destructive) {
                         showDeleteConfirm = true
                     } label: {
@@ -122,7 +120,7 @@ struct BackupHistoryDetailView: View {
 
     private var summarySection: some View {
         Section {
-            NanoMuseLabeledContent("Status") {
+            LabeledContent("Status") {
                 // An HStack, NOT a Label. `Label` reserves an icon column and
                 // sizes it from the environment; dropped into LabeledContent's
                 // value slot that column stretched, making this one row 245pt
@@ -135,20 +133,20 @@ struct BackupHistoryDetailView: View {
                 }
                 .foregroundStyle(BackupHistoryRow.statusColour(record.status))
             }
-            NanoMuseLabeledContent("Started",
+            LabeledContent("Started",
                            value: record.startedAt.formatted(date: .abbreviated, time: .shortened))
             if let d = record.duration {
-                NanoMuseLabeledContent("Duration", value: durationText(d))
+                LabeledContent("Duration", value: durationText(d))
             }
             if record.totalBytes > 0 {
-                NanoMuseLabeledContent("Size", value: ByteCountFormatter.string(
+                LabeledContent("Size", value: ByteCountFormatter.string(
                     fromByteCount: record.totalBytes, countStyle: .file))
             }
             // `value:` takes a plain String, which does NOT route through the
             // string catalog the way a bare `Text("…")` literal does — so the
             // Yes/No here has to be localized explicitly or it stays English
             // in every locale.
-            NanoMuseLabeledContent("Encrypted",
+            LabeledContent("Encrypted",
                            value: record.encrypted ? AppLocalized("Yes") : AppLocalized("No"))
             if let name = record.packageName {
                 // A hand-built HStack, NOT `LabeledContent`.
@@ -193,12 +191,12 @@ struct BackupHistoryDetailView: View {
                 // "how many" but never "which ones", which is the actual
                 // question. Older records predate the list and stay plain.
                 if record.skippedEntries.isEmpty {
-                    NanoMuseLabeledContent("Files excluded", value: "\(record.skippedFiles) file(s)")
+                    LabeledContent("Files excluded", value: "\(record.skippedFiles) file(s)")
                 } else {
                     NavigationLink {
                         BackupSkippedFilesView(record: record)
                     } label: {
-                        NanoMuseLabeledContent("Files excluded",
+                        LabeledContent("Files excluded",
                                        value: "\(record.skippedFiles) file(s)")
                     }
                 }

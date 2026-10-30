@@ -17,7 +17,7 @@ struct NanoMuseSignOutSheet: View {
     @State private var keep = false
 
     var body: some View {
-        NanoMuseCompatNavigationStack {
+        NavigationStack {
             Form {
                 Section {
                     Text(message)
@@ -46,6 +46,6 @@ struct NanoMuseSignOutSheet: View {
                 }
             }
         }
-        .nanoMuseSheetSize(.mediumOrLarge)
+        .presentationDetents([.medium, .large])
     }
 }

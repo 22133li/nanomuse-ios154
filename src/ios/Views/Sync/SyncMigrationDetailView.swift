@@ -121,7 +121,7 @@ struct SyncMigrationDetailView: View {
             let vm = vm ?? .empty
             // Top status — always visible while v2 is enabled.
             Section("Status") {
-                NanoMuseLabeledContent("iCloud Sync") {
+                LabeledContent("iCloud Sync") {
                     Text(vm.v2Enabled ? "On" : "Off")
                         .foregroundStyle(vm.v2Enabled ? .green : .secondary)
                 }
@@ -171,45 +171,45 @@ struct SyncMigrationDetailView: View {
                         }
                     }
                     if !vm.transportName.isEmpty {
-                        NanoMuseLabeledContent("Transport", value: vm.transportName)
+                        LabeledContent("Transport", value: vm.transportName)
                     }
                     if !vm.network.isEmpty {
-                        NanoMuseLabeledContent(AppLocalized("Network"), value: vm.network)
+                        LabeledContent(AppLocalized("Network"), value: vm.network)
                     }
                     if !vm.throttleLabel.isEmpty {
-                        NanoMuseLabeledContent(AppLocalized("Throttle"), value: vm.throttleLabel)
+                        LabeledContent(AppLocalized("Throttle"), value: vm.throttleLabel)
                     }
-                    NanoMuseLabeledContent(AppLocalized("Rate (last 1 min)"), value: formatRate(vm.ratePerSecond))
+                    LabeledContent(AppLocalized("Rate (last 1 min)"), value: formatRate(vm.ratePerSecond))
                 }
             }
 
             if vm.v2Enabled {
                 Section {
                     if vm.pendingPush > 0 {
-                        NanoMuseLabeledContent(AppLocalized("Pending push"), value: "\(vm.pendingPush)")
+                        LabeledContent(AppLocalized("Pending push"), value: "\(vm.pendingPush)")
                         if vm.pendingPushNew > 0 {
-                            NanoMuseLabeledContent {
+                            LabeledContent {
                                 Text("\(vm.pendingPushNew)").foregroundStyle(.secondary)
                             } label: {
                                 Text("· New writes").foregroundStyle(.secondary).font(.callout)
                             }
                         }
                         if vm.pendingPushMigration > 0 {
-                            NanoMuseLabeledContent {
+                            LabeledContent {
                                 Text("\(vm.pendingPushMigration)").foregroundStyle(.secondary)
                             } label: {
                                 Text("· Migration backlog").foregroundStyle(.secondary).font(.callout)
                             }
                         }
                     } else {
-                        NanoMuseLabeledContent(AppLocalized("Pending push")) {
+                        LabeledContent(AppLocalized("Pending push")) {
                             Text("Up to date").foregroundStyle(.secondary)
                         }
                     }
-                    NanoMuseLabeledContent(AppLocalized("Sent this session"), value: "\(vm.totalSent)")
-                    NanoMuseLabeledContent(AppLocalized("Received this session"), value: "\(vm.totalReceived)")
-                    NanoMuseLabeledContent(AppLocalized("Last send"), value: relative(vm.lastSendAt))
-                    NanoMuseLabeledContent(AppLocalized("Last fetch"), value: relative(vm.lastFetchAt))
+                    LabeledContent(AppLocalized("Sent this session"), value: "\(vm.totalSent)")
+                    LabeledContent(AppLocalized("Received this session"), value: "\(vm.totalReceived)")
+                    LabeledContent(AppLocalized("Last send"), value: relative(vm.lastSendAt))
+                    LabeledContent(AppLocalized("Last fetch"), value: relative(vm.lastFetchAt))
                 } header: {
                     Text("Sync Activity")
                 }
@@ -230,7 +230,7 @@ struct SyncMigrationDetailView: View {
                vm.lastFailureMessage == nil, !vm.isCanceledByUser,
                vm.unmigratedHistoryCount > 0 {
                 Section {
-                    NanoMuseLabeledContent {
+                    LabeledContent {
                         Text("\(vm.unmigratedHistoryCount)")
                             .foregroundStyle(.secondary)
                     } label: {
@@ -284,8 +284,8 @@ struct SyncMigrationDetailView: View {
 
             if let m = vm.migration {
                 Section {
-                    NanoMuseLabeledContent("Phase", value: m.phase)
-                    NanoMuseLabeledContent("Status", value: m.status)
+                    LabeledContent("Phase", value: m.phase)
+                    LabeledContent("Status", value: m.status)
                     progressRow(
                         title: AppLocalized("Records pushed"),
                         done: m.pushDone, total: m.pushTotal
@@ -305,7 +305,7 @@ struct SyncMigrationDetailView: View {
                                 .foregroundStyle(.secondary)
                         }
                     } else {
-                        NanoMuseLabeledContent(AppLocalized("Estimated time"), value: estimateETA(remaining: max(0, m.pushTotal - m.pushDone), rps: vm.ratePerSecond))
+                        LabeledContent(AppLocalized("Estimated time"), value: estimateETA(remaining: max(0, m.pushTotal - m.pushDone), rps: vm.ratePerSecond))
                     }
                     Button(role: .destructive) {
                         showCancelMigrationConfirm = true
@@ -332,8 +332,8 @@ struct SyncMigrationDetailView: View {
                 }
 
                 Section {
-                    NanoMuseLabeledContent(AppLocalized("Reclaimed (v1 records deleted)"), value: "\(m.v1Deleted)")
-                    NanoMuseLabeledContent(AppLocalized("Pending delete"), value: "\(m.v1DeletePending)")
+                    LabeledContent(AppLocalized("Reclaimed (v1 records deleted)"), value: "\(m.v1Deleted)")
+                    LabeledContent(AppLocalized("Pending delete"), value: "\(m.v1DeletePending)")
                     if v1ZoneForceDeletedAtTs > 0 {
                         // Permanent confirmation row — once the user has
                         // force-deleted, the destructive action is no
@@ -1040,7 +1040,7 @@ private struct PauseSyncSheet: View {
     private let hoursOptions = [1, 3, 6, 12, 24]
 
     var body: some View {
-        NanoMuseCompatNavigationStack {
+        NavigationStack {
             List {
                 Section {
                     ForEach(hoursOptions, id: \.self) { hours in
@@ -1071,7 +1071,7 @@ private struct PauseSyncSheet: View {
                 }
             }
         }
-        .nanoMuseSheetSize(.medium)
-        .nanoMuseSheetDragIndicator(true)
+        .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
     }
 }

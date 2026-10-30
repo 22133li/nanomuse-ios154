@@ -11,7 +11,6 @@ import Foundation
 import WeatherKit
 import CoreLocation
 
-@available(iOS 16, *)
 @objc public class WeatherOffloadBridge: NSObject {
 
     @objc public static func fetchWeather(

@@ -743,7 +743,7 @@ private struct NanoMuseConnectorSheet: View {
     private var state: NanoMuseConnectors.State { NanoMuseConnectors.state(connector, servers: mcp.servers) }
 
     var body: some View {
-        NanoMuseCompatNavigationStack {
+        NavigationStack {
             Form {
                 Section {
                     HStack(spacing: 14) {
@@ -782,7 +782,7 @@ private struct NanoMuseConnectorSheet: View {
                         }
                         SecureField(AppLocalized("Paste the key"), text: $key)
                             .textInputAutocapitalization(.never)
-                            .disableAutocorrection(true)
+                            .autocorrectionDisabled()
                         Button(AppLocalized("Connect")) {
                             run { await NanoMuseConnectors.connect(connector, key: key) }
                         }
@@ -813,7 +813,7 @@ private struct NanoMuseConnectorSheet: View {
                         }
                         TextField(AppLocalized("OAuth client ID"), text: $clientId)
                             .textInputAutocapitalization(.never)
-                            .disableAutocorrection(true)
+                            .autocorrectionDisabled()
                         SecureField(AppLocalized("OAuth client secret (if any)"), text: $clientSecret)
                         Button(AppLocalized("Sign in")) {
                             run { await NanoMuseConnectors.connect(connector, clientId: clientId, clientSecret: clientSecret) }
@@ -857,7 +857,7 @@ private struct NanoMuseConnectorSheet: View {
             .navigationTitle(connector.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button(AppLocalized("Done")) { dismiss() }
                 }
             }

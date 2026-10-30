@@ -5,9 +5,8 @@ import UserNotifications
 
 /// Sends a prompt to the Minis AI agent and returns immediately with structured session info.
 /// The agent continues running in the background — use Get Session Status to poll for completion.
-@available(iOS 16, *)
 struct SendPromptIntent: AppIntent {
-    static var title: Foundation.LocalizedStringResource = "Send Prompt"
+    static var title: LocalizedStringResource = "Send Prompt"
     static var description = IntentDescription("Sends a prompt to the nanoMuse AI agent. Returns session info immediately while the task runs in the background.")
     static var openAppWhenRun = false
 
@@ -295,7 +294,17 @@ struct SendPromptIntent: AppIntent {
     /// Extracts the full response text from the last assistant message in the VM.
     @MainActor
     static func extractResponseText(from vm: AIChatViewModel) -> String {
-        ResponseTextExtraction.extractResponseText(from: vm)
+        // [T-bgnotif-internal-text-leak] Skip internal bridge turns — they are
+        // instructions addressed to the model, not a response, and returning one
+        // to a Shortcut (or any intent caller) leaks prompt text verbatim.
+        guard let lastAssistant = vm.messages.last(where: { $0.role == .assistant && !$0.isInternalBridge }) else {
+            return "No response."
+        }
+        let textBlocks = lastAssistant.blocks
+            .filter { $0.kind == .text }
+            .map { $0.content }
+        let text = textBlocks.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        return text.isEmpty ? "Task completed." : text
     }
 }
 
@@ -452,27 +461,5 @@ final class ShortcutNotificationDelegate: NSObject, UNUserNotificationCenterDele
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
         completionHandler([.banner, .sound])
-    }
-}
-
-/// Ungated home for the response-text extraction logic. SendPromptIntent
-/// itself is iOS 16+ (AppIntents), but the scheduler runs on iOS 15 too, so
-/// the pure logic lives here and the intent delegates to it. Behaviour is
-/// identical on all versions.
-enum ResponseTextExtraction {
-    // @MainActor like the original: AIChatViewModel is main-actor-isolated.
-    @MainActor
-    static func extractResponseText(from vm: AIChatViewModel) -> String {
-        // [T-bgnotif-internal-text-leak] Skip internal bridge turns — they are
-        // instructions addressed to the model, not a response, and returning one
-        // to a Shortcut (or any intent caller) leaks prompt text verbatim.
-        guard let lastAssistant = vm.messages.last(where: { $0.role == .assistant && !$0.isInternalBridge }) else {
-            return "No response."
-        }
-        let textBlocks = lastAssistant.blocks
-            .filter { $0.kind == .text }
-            .map { $0.content }
-        let text = textBlocks.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
-        return text.isEmpty ? "Task completed." : text
     }
 }

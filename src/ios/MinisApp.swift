@@ -261,7 +261,7 @@ struct MinisApp: App {
                     get: { sessionLockStore.appIsLocked ? nil : openRouter.pendingPackage },
                     set: { openRouter.pendingPackage = $0 }
                 )) { pending in
-                    NanoMuseCompatNavigationStack {
+                    NavigationStack {
                         // Opens on the RESTORE tab with the package already
                         // loaded. Someone who just tapped a .minisbak is mid
                         // device-migration — landing them on the backup form
@@ -400,15 +400,10 @@ struct MinisApp: App {
                     BackgroundKeepAliveManager.shared.setup()
                     // Monitor network changes to keep iSH DNS up to date
                     NetworkMonitor.shared.start()
-                    // Register FileProvider domain for shared files (iOS 16+)
-                    if #available(iOS 16.0, *) {
-                        Self.registerFileProviderDomain()
-                    }
-                    // Migrate legacy shared dir to App Group container (iOS 16+ only;
-                    // App Group containerURL is nil on iOS 15.4 sideloads — force-unwrap would crash)
-                    if #available(iOS 16.0, *) {
-                        Self.migrateSharedDirToAppGroup()
-                    }
+                    // Register FileProvider domain for shared files
+                    Self.registerFileProviderDomain()
+                    // Migrate legacy shared dir to App Group container
+                    Self.migrateSharedDirToAppGroup()
                     // Trace the resolved AppGroup paths so we can confirm the
                     // main app, FileProvider extension, and iSH bind mount all
                     // agree on which directory holds the user's shared files.
@@ -533,11 +528,7 @@ struct MinisApp: App {
                 debugServer.restartIfDead(port: 8321)
                 #endif
 
-                if #available(iOS 16, *) {
-                    try? await UNUserNotificationCenter.current().setBadgeCount(0)
-                } else {
-                    await MainActor.run { UIApplication.shared.applicationIconBadgeNumber = 0 }
-                }
+                try? await UNUserNotificationCenter.current().setBadgeCount(0)
                 BackgroundInterruptionTracker.shared.checkOnForeground()
                 // [T-shortcuts-diag-and-pending] Scan for AppIntent runs that
                 // were marked pending but never cleared (i.e. the process was
@@ -561,9 +552,7 @@ struct MinisApp: App {
                     SkillFilesystemNotifier.shared.drainIfDirtyAsync(reason: "scenePhase active")
                 }
 
-                if #available(iOS 16.0, *) {
-                    Self.signalFileProvider()
-                }
+                Self.signalFileProvider()
                 MountedFoldersManager.shared.refreshAllWritability()
 
                 // Credential-presence diagnostic (Keychain reads off-main)
@@ -674,7 +663,6 @@ struct MinisApp: App {
 
     // MARK: - FileProvider
 
-    @available(iOS 16, *)
     private static let fileProviderDomain = NSFileProviderDomain(
         identifier: NSFileProviderDomainIdentifier("io.github.nanomuse.app.files"),
         displayName: "nanoMuse"
@@ -738,7 +726,6 @@ struct MinisApp: App {
         lifecycleLog.info("[FPSyncTrace] app-updated old=\(previous ?? "none") new=\(current) mac=\(onMac)")
     }
 
-    @available(iOS 16, *)
     private static func registerFileProviderDomain() {
         logAppUpdateMarkerForFPTrace()
         let root = AIChatViewModel.minisAppGroupRoot
@@ -908,7 +895,6 @@ struct MinisApp: App {
         }
     }
 
-    @available(iOS 16, *)
     private static func signalFileProvider() {
         NSFileProviderManager(for: fileProviderDomain)?.signalEnumerator(for: .rootContainer) { error in
             if let error {
@@ -1064,7 +1050,6 @@ struct MinisApp: App {
     /// 2. Library/MinisChat/memory/ → App Group MinisFileProvider/memory/
     /// 3. Library/MinisChat/skills/ → App Group MinisFileProvider/skills/
     /// 4. Old App Group MinisShared/ → App Group MinisFileProvider/shared/
-    @available(iOS 16, *)
     private static func migrateSharedDirToAppGroup() {
         let fm = FileManager.default
         let library = fm.urls(for: .libraryDirectory, in: .userDomainMask).first!

@@ -73,7 +73,7 @@ struct BackupDestinationDetailView: View {
         .alert("Rename Destination", isPresented: $showRename) {
             TextField("Name", text: $draftName)
                 .textInputAutocapitalization(.never)
-                .disableAutocorrection(true)
+                .autocorrectionDisabled()
             Button("Cancel", role: .cancel) {}
             Button("Save") { if let r = activeRemote { rename(r) } }
         } message: {
@@ -225,7 +225,7 @@ struct BackupDestinationDetailView: View {
     private func remoteSections(_ r: RcloneRemoteStore.Remote) -> some View {
         let current = edited ?? r
         Section {
-            NanoMuseLabeledContent("Type",
+            LabeledContent("Type",
                            value: RcloneBackendCatalog.backend(for: current.backend)?.title
                            ?? current.backend.uppercased())
             // Name and folder are the two things a user actually revises
@@ -238,7 +238,7 @@ struct BackupDestinationDetailView: View {
                 draftName = current.name
                 showRename = true
             } label: {
-                NanoMuseLabeledContent("Name") {
+                LabeledContent("Name") {
                     HStack(spacing: 6) {
                         Text(current.name).foregroundStyle(.secondary)
                         Image(systemName: "chevron.right")
@@ -251,7 +251,7 @@ struct BackupDestinationDetailView: View {
             Button {
                 showFolderBrowser = true
             } label: {
-                NanoMuseLabeledContent("Backup folder") {
+                LabeledContent("Backup folder") {
                     HStack(spacing: 6) {
                         Text(current.path.isEmpty ? "/" : "/\(current.path)")
                             .foregroundStyle(.secondary)
@@ -272,9 +272,9 @@ struct BackupDestinationDetailView: View {
             ForEach(current.params.sorted(by: { $0.key < $1.key })
                         .filter { isShownField($0.key, backend: current.backend) },
                     id: \.key) { k, v in
-                NanoMuseLabeledContent(fieldLabel(k, backend: current.backend), value: v)
+                LabeledContent(fieldLabel(k, backend: current.backend), value: v)
             }
-            NanoMuseLabeledContent("Added", value: current.createdAt.formatted(date: .abbreviated,
+            LabeledContent("Added", value: current.createdAt.formatted(date: .abbreviated,
                                                                        time: .shortened))
 
             // Address and credentials change in the real world — a NAS
@@ -435,11 +435,11 @@ struct BackupDestinationDetailView: View {
     @ViewBuilder
     private func folderSections(_ f: MountedFolderEntry) -> some View {
         Section {
-            NanoMuseLabeledContent("Source", value: f.sourceDisplayName)
-            NanoMuseLabeledContent("Can save backups",
+            LabeledContent("Source", value: f.sourceDisplayName)
+            LabeledContent("Can save backups",
                            value: f.effectiveWritable ? AppLocalized("Yes")
                                                       : AppLocalized("No"))
-            NanoMuseLabeledContent("Added", value: f.createdAt.formatted(date: .abbreviated,
+            LabeledContent("Added", value: f.createdAt.formatted(date: .abbreviated,
                                                                  time: .shortened))
         } header: {
             Text("Configuration")
@@ -584,7 +584,7 @@ struct RcloneFolderBrowser: View {
     }
 
     var body: some View {
-        NanoMuseCompatNavigationStack {
+        NavigationStack {
             Form {
                 Section {
                     if !currentDir.isEmpty {
@@ -661,7 +661,7 @@ struct RcloneFolderBrowser: View {
             .alert("New Folder", isPresented: $showNewFolder) {
                 TextField("Folder name", text: $newFolderName)
                     .textInputAutocapitalization(.never)
-                    .disableAutocorrection(true)
+                    .autocorrectionDisabled()
                 Button("Cancel", role: .cancel) { newFolderName = "" }
                 Button("Create") { Task { await createFolder() } }
             } message: {
@@ -763,7 +763,7 @@ struct RcloneConnectionEditor: View {
     }
 
     var body: some View {
-        NanoMuseCompatNavigationStack {
+        NavigationStack {
             Form {
                 if let b = backend {
                     Section {
@@ -781,7 +781,7 @@ struct RcloneConnectionEditor: View {
                                 }
                                 TextField(f.placeholder.isEmpty ? f.label : f.placeholder,
                                           text: binding(for: f.key))
-                                    .disableAutocorrection(true)
+                                    .autocorrectionDisabled()
                                     .textInputAutocapitalization(.never)
                                     .keyboardType(keyboardType(f.keyboard))
                                 if !f.hint.isEmpty {
