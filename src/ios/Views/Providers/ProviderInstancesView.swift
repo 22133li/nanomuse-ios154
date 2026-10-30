@@ -20,6 +20,102 @@ struct ProviderInstancesView: View {
     /// it must never be a one-swipe irreversible act.
     @State private var pendingDeleteInstance: ProviderInstance?
 
+    // Extracted from the swipe-actions closure: the nested if + Buttons made
+    // the compiler time out type-checking the row expression.
+    @ViewBuilder
+    private func instanceTrailingSwipeActions(for instance: ProviderInstance) -> some View {
+        // Destructive first = rightmost, the platform's position for Delete.
+        // `allowsFullSwipe: false` so a long swipe cannot delete a provider
+        // (and its keys) without the confirmation below.
+        // nanoMuse: not on the Cloud instance; it is the account (see ProviderInstanceDetailView).
+        if instance.id != NanoMuseCloud.instance?.id {
+            Button(role: .destructive) {
+                pendingDeleteInstance = instance
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
+        Button {
+            editingInstanceId = instance.id
+        } label: {
+            Label("Edit", systemImage: "pencil")
+        }
+        .tint(.blue)
+    }
+
+    @ViewBuilder
+    private func instanceRows(for type: ProviderType, instances: [ProviderInstance]) -> some View {
+        ForEach(instances) { instance in
+            NavigationLink {
+                ProviderInstanceDetailView(instanceId: instance.id)
+            } label: {
+                InstanceRow(instance: instance)
+            }
+            // [T-provider-group-swipe-actions] Swipe actions and
+            // `.onMove` coexist without extra work: UIKit routes a
+            // horizontal drag to the row's swipe actions and a
+            // vertical one to the reorder engine, and in edit mode
+            // the drag handles take over entirely. No custom
+            // gesture is introduced here precisely so that
+            // arbitration stays UIKit's.
+            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                instanceTrailingSwipeActions(for: instance)
+            }
+        }
+        .onMove { source, destination in
+            moveInstances(in: type, from: source, to: destination)
+        }
+    }
+
+    @ViewBuilder
+    private func providerTypeSections() -> some View {
+        // [T-mimo-shadow-voice] EVERY instance appears under its providerType
+        // section now (no voice-only exclusion) — a mixed vendor like MiMo
+        // shows its text models here AND a shadow voice row below ("dual
+        // visibility"). Pure-voice vendors (ElevenLabs etc.) still appear here
+        // too; they just have no usable text models, which is expected.
+        ForEach(ProviderType.allCases, id: \.self) { type in
+            let instancesOfType = store.instances.filter { $0.providerType == type }
+            if !instancesOfType.isEmpty {
+                Section(type.displayName) {
+                    instanceRows(for: type, instances: instancesOfType)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func shadowVoiceSection() -> some View {
+        // [T-mimo-shadow-voice] Voice Services = a read-only SHADOW view of any
+        // instance that has audio-modality models, FOLDED by base URL so two
+        // instances on the same host show one row (shares that instance's
+        // credential/endpoint). Tapping opens the shadow detail (voice models
+        // + a "disable this voice row" toggle).
+        let shadows = store.shadowVoiceProviders()
+        if !shadows.isEmpty {
+            Section("Voice Services") {
+                if store.hasFoldedShadowDuplicates() {
+                    // Non-destructive hint: same MiMo service configured twice.
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "info.circle")
+                            .foregroundStyle(.secondary)
+                        Text("A voice service is configured more than once. Voice is merged into a single row here; you can delete the extra provider above if you want.",
+                             comment: "Duplicate voice provider hint")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                ForEach(shadows) { shadow in
+                    NavigationLink {
+                        ShadowVoiceProviderDetailView(instanceId: shadow.instanceId)
+                    } label: {
+                        ShadowVoiceRow(shadow: shadow)
+                    }
+                }
+            }
+        }
+    }
+
     var body: some View {
         List {
             // nanoMuse: the relay first — a phone number or an e-mail address, no key needed.
@@ -30,83 +126,8 @@ struct ProviderInstancesView: View {
                     NanoMuseCloudRow()
                 }
             }
-            // [T-mimo-shadow-voice] EVERY instance appears under its providerType
-            // section now (no voice-only exclusion) — a mixed vendor like MiMo
-            // shows its text models here AND a shadow voice row below ("dual
-            // visibility"). Pure-voice vendors (ElevenLabs etc.) still appear here
-            // too; they just have no usable text models, which is expected.
-            ForEach(ProviderType.allCases, id: \.self) { type in
-                let instancesOfType = store.instances.filter { $0.providerType == type }
-                if !instancesOfType.isEmpty {
-                    Section(type.displayName) {
-                        ForEach(instancesOfType) { instance in
-                            NavigationLink {
-                                ProviderInstanceDetailView(instanceId: instance.id)
-                            } label: {
-                                InstanceRow(instance: instance)
-                            }
-                            // [T-provider-group-swipe-actions] Swipe actions and
-                            // `.onMove` coexist without extra work: UIKit routes a
-                            // horizontal drag to the row's swipe actions and a
-                            // vertical one to the reorder engine, and in edit mode
-                            // the drag handles take over entirely. No custom
-                            // gesture is introduced here precisely so that
-                            // arbitration stays UIKit's.
-                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                // Destructive first = rightmost, the platform's
-                                // position for Delete. `allowsFullSwipe: false`
-                                // so a long swipe cannot delete a provider (and
-                                // its keys) without the confirmation below.
-                                // nanoMuse: not on the Cloud instance; it is the account (see ProviderInstanceDetailView).
-                                if instance.id != NanoMuseCloud.instance?.id {
-                                    Button(role: .destructive) {
-                                        pendingDeleteInstance = instance
-                                    } label: {
-                                        Label("Delete", systemImage: "trash")
-                                    }
-                                }
-                                Button {
-                                    editingInstanceId = instance.id
-                                } label: {
-                                    Label("Edit", systemImage: "pencil")
-                                }
-                                .tint(.blue)
-                            }
-                        }
-                        .onMove { source, destination in
-                            moveInstances(in: type, from: source, to: destination)
-                        }
-                    }
-                }
-            }
-            // [T-mimo-shadow-voice] Voice Services = a read-only SHADOW view of any
-            // instance that has audio-modality models, FOLDED by base URL so two
-            // instances on the same host show one row (shares that instance's
-            // credential/endpoint). Tapping opens the shadow detail (voice models
-            // + a "disable this voice row" toggle).
-            let shadows = store.shadowVoiceProviders()
-            if !shadows.isEmpty {
-                Section("Voice Services") {
-                    if store.hasFoldedShadowDuplicates() {
-                        // Non-destructive hint: same MiMo service configured twice.
-                        HStack(alignment: .top, spacing: 8) {
-                            Image(systemName: "info.circle")
-                                .foregroundStyle(.secondary)
-                            Text("A voice service is configured more than once. Voice is merged into a single row here; you can delete the extra provider above if you want.",
-                                 comment: "Duplicate voice provider hint")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    ForEach(shadows) { shadow in
-                        NavigationLink {
-                            ShadowVoiceProviderDetailView(instanceId: shadow.instanceId)
-                        } label: {
-                            ShadowVoiceRow(shadow: shadow)
-                        }
-                    }
-                }
-            }
+            providerTypeSections()
+            shadowVoiceSection()
 
             if store.instances.isEmpty {
                 Section {
@@ -129,12 +150,12 @@ struct ProviderInstancesView: View {
         .navigationTitle("Providers")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if !store.instances.isEmpty {
-                ToolbarItem(placement: .topBarLeading) {
+            ToolbarItem(placement: NanoMuseToolbarPlacement.leading) {
+                if !store.instances.isEmpty {
                     EditButton()
                 }
             }
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
                 Menu {
                     Button {
                         showAddProvider = true
@@ -161,19 +182,18 @@ struct ProviderInstancesView: View {
             }
         }
         .sheet(isPresented: $showAddProvider) {
-            NavigationStack {
+            NanoMuseCompatNavigationStack {
                 AddProviderView()
             }
         }
-        .fileImporter(isPresented: $showImportFile, allowedContentTypes: [.json]) { result in
+        .nmFileImporter(isPresented: $showImportFile, allowedContentTypes: [.json], asCopy: true) { result in
             switch result {
             case .success(let url):
-                guard url.startAccessingSecurityScopedResource() else {
-                    importMessage = AppLocalized("Cannot access the selected file.")
-                    showImportResult = true
-                    return
-                }
-                defer { url.stopAccessingSecurityScopedResource() }
+                // [T-ios154-fileimporter] iOS 15 picks return an asCopy temp
+                // URL (in-place picks never call back on 15.4), which is not
+                // security-scoped — tolerate it; the read below validates.
+                let accessed = url.startAccessingSecurityScopedResource()
+                defer { if accessed { url.stopAccessingSecurityScopedResource() } }
                 guard let data = try? Data(contentsOf: url),
                       let json = String(data: data, encoding: .utf8) else {
                     importMessage = AppLocalized("Failed to read file.")

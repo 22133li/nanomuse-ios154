@@ -333,7 +333,7 @@ private struct AddMountSheet: View {
     let onConfirm: () -> Void
 
     var body: some View {
-        NavigationStack {
+        NanoMuseCompatNavigationStack {
             Form {
                 if let url = sourceURL {
                     Section {
@@ -357,7 +357,7 @@ private struct AddMountSheet: View {
                 Section(header: Text("Mount name")) {
                     TextField("name", text: $name)
                         .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
+                        .disableAutocorrection(true)
                     Text("This will be the folder name under /var/minis/mounts/")
                         .font(.caption)
                         .foregroundStyle(.secondary)

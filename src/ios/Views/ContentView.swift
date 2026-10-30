@@ -219,7 +219,7 @@ private struct SearchBarSurface: ViewModifier {
         if #available(iOS 26.0, *) {
             // No .clipShape needed — glassEffect(in:) already clips to the
             // capsule, and no .shadow: the material carries its own.
-            content.glassEffect(.regular, in: .capsule)
+            content.nanoMuseRegularGlass(in: Capsule())
         } else {
             content
                 .background(Color(UIColor.secondarySystemBackground))
@@ -244,7 +244,7 @@ private struct FABGlassMorphID: ViewModifier {
 
     func body(content: Content) -> some View {
         if #available(iOS 26.0, *) {
-            content.glassEffectID("fabSearch", in: namespace)
+            content.nanoMuseGlassID("fabSearch", in: namespace)
         } else {
             content
         }
@@ -286,7 +286,11 @@ private struct FolderSurface: ViewModifier {
             : UIColor(red: 252/255.0, green: 252/255.0, blue: 252/255.0, alpha: 1)
     })
 
-    private var shape: AnyShape {
+    /// [audit-tier1] Upstream shape on iOS 16+: AnyShape forwards the
+    /// wrapped shape's animatableData (BackportAnyShape cannot). Only
+    /// referenced from the #available branch of cardBackground below.
+    @available(iOS 16.0, *)
+    private var upstreamShape: AnyShape {
         switch kind {
         case .lone:
             return AnyShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -298,6 +302,32 @@ private struct FolderSurface: ViewModifier {
             return AnyShape(Rectangle())
         case .bottom:
             return AnyShape(UnevenRoundedRectangle(
+                topLeadingRadius: 0, bottomLeadingRadius: 16,
+                bottomTrailingRadius: 16, topTrailingRadius: 0, style: .continuous))
+        }
+    }
+
+    @ViewBuilder
+    private func cardBackground<Style: ShapeStyle>(_ content: Content, _ style: Style) -> some View {
+        if #available(iOS 16.0, *) {
+            content.background(upstreamShape.fill(style))
+        } else {
+            content.background(shape.fill(style))
+        }
+    }
+
+    private var shape: BackportAnyShape {
+        switch kind {
+        case .lone:
+            return BackportAnyShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        case .top:
+            return BackportAnyShape(BackportUnevenRoundedRectangle(
+                topLeadingRadius: 16, bottomLeadingRadius: 0,
+                bottomTrailingRadius: 0, topTrailingRadius: 16, style: .continuous))
+        case .middle:
+            return BackportAnyShape(Rectangle())
+        case .bottom:
+            return BackportAnyShape(BackportUnevenRoundedRectangle(
                 topLeadingRadius: 0, bottomLeadingRadius: 16,
                 bottomTrailingRadius: 16, topTrailingRadius: 0, style: .continuous))
         }
@@ -319,15 +349,15 @@ private struct FolderSurface: ViewModifier {
             //   tier; ultraThin ran too dark here before).
             if kind == .lone {
                 if #available(iOS 26.0, *) {
-                    content.background(shape.fill(Self.sampledGlassColor))
+                    cardBackground(content, Self.sampledGlassColor)
                 } else {
-                    content.background(shape.fill(Color(UIColor.secondarySystemBackground)))
+                    cardBackground(content, Color(UIColor.secondarySystemBackground))
                 }
             } else {
                 if #available(iOS 26.0, *) {
-                    content.background(shape.fill(.regularMaterial))
+                    cardBackground(content, .regularMaterial)
                 } else {
-                    content.background(shape.fill(Color(UIColor.secondarySystemBackground)))
+                    cardBackground(content, Color(UIColor.secondarySystemBackground))
                 }
             }
         }
@@ -366,7 +396,9 @@ private struct FolderCardBackground: ViewModifier {
     let isDropTarget: Bool
     let isExpanded: Bool
 
-    private var dropShape: AnyShape {
+    /// [audit-tier1] Upstream shape on iOS 16+ (see FolderSurface).
+    @available(iOS 16.0, *)
+    private var upstreamDropShape: AnyShape {
         isExpanded
             ? AnyShape(UnevenRoundedRectangle(
                 topLeadingRadius: 16, bottomLeadingRadius: 0,
@@ -374,14 +406,29 @@ private struct FolderCardBackground: ViewModifier {
             : AnyShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
+    private var dropShape: BackportAnyShape {
+        isExpanded
+            ? BackportAnyShape(BackportUnevenRoundedRectangle(
+                topLeadingRadius: 16, bottomLeadingRadius: 0,
+                bottomTrailingRadius: 0, topTrailingRadius: 16, style: .continuous))
+            : BackportAnyShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
     func body(content: Content) -> some View {
         content
             .modifier(FolderSurface(kind: isExpanded ? .top : .lone))
             .overlay {
                 if isDropTarget {
-                    ZStack {
-                        dropShape.fill(Color.accentColor.opacity(0.15))
-                        dropShape.stroke(Color.accentColor, lineWidth: 1.5)
+                    if #available(iOS 16.0, *) {
+                        ZStack {
+                            upstreamDropShape.fill(Color.accentColor.opacity(0.15))
+                            upstreamDropShape.stroke(Color.accentColor, lineWidth: 1.5)
+                        }
+                    } else {
+                        ZStack {
+                            dropShape.fill(Color.accentColor.opacity(0.15))
+                            dropShape.stroke(Color.accentColor, lineWidth: 1.5)
+                        }
                     }
                 }
             }
@@ -561,7 +608,7 @@ private struct FolderPickerSheet: View {
     private var sessionCount: Int { sessionIds.count }
 
     var body: some View {
-        NavigationStack {
+        NanoMuseCompatNavigationStack {
             List {
                 Section {
                     HStack {
@@ -574,8 +621,8 @@ private struct FolderPickerSheet: View {
                     // One-sentence auto-grouping context (≤100 chars). Typed
                     // here or prefilled by AI Suggest; never shown in the
                     // list, editable later from Rename Group.
-                    TextField("Description (optional, guides auto-grouping)", text: $newFolderDesc, axis: .vertical)
-                        .lineLimit(1...2)
+                    NanoMuseMultilineTextField(placeholder: "Description (optional, guides auto-grouping)", text: $newFolderDesc)
+                        .nmLineLimit(1...2)
                         .font(.subheadline)
                         .onChange(of: newFolderDesc) { v in
                             if v.count > 100 { newFolderDesc = String(v.prefix(100)) }
@@ -606,9 +653,10 @@ private struct FolderPickerSheet: View {
                         .buttonStyle(.borderless)
                         .disabled(suggesting)
                         Spacer()
-                        Button("Create", action: createIfNamed)
+                        Button(action: createIfNamed) {
+                            Text("Create").fontWeight(.semibold)
+                        }
                             .buttonStyle(.borderless)
-                            .fontWeight(.semibold)
                             .disabled(trimmedName.isEmpty || duplicateFolder != nil)
                     }
                     // [T-folder-duplicate-name] Name already taken. Says so, and
@@ -746,7 +794,7 @@ private struct FolderPickerSheet: View {
                              : LocalizedStringKey("Move \(sessionCount) to Group"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
                     Button("Cancel") { dismiss() }
                 }
             }
@@ -1075,8 +1123,6 @@ struct ContentView: View {
     @State private var sessionRefreshPending = false
     /// Whether the initial session load has completed (prevents showing the list before we decide to auto-navigate).
     @State private var didInitialLoad = false
-    /// Controls sidebar visibility on iPad (automatic handles iPhone collapse).
-    @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
 
     /// Launch screen preference: 0=Auto, 1=Last Session, 2=New Chat.
     @AppStorage("launchScreen") private var launchScreen: Int = 0
@@ -1149,7 +1195,7 @@ struct ContentView: View {
     /// Whether the current window is wide enough for two-column layout.
     @State private var isWideLayout = false
     /// Navigation path for stack (compact) layout.
-    @State private var navigationPath = NavigationPath()
+    @State private var navigationPath: [String] = []
     /// Tracks the session ID currently visible on the compact navigation stack.
     @State private var currentStackSessionId: String?
     /// [T-ios-stacknav-transition-attributegraph-race] Compact-layout analogue
@@ -1230,7 +1276,7 @@ struct ContentView: View {
     ///
     /// Carries the deferral instant so a stale request can be dropped rather
     /// than flushed — see `pendingBackgroundNavigationTTL`.
-    @State private var pendingBackgroundNavigation: (path: NavigationPath, deferredAt: Date)?
+    @State private var pendingBackgroundNavigation: (path: [String], deferredAt: Date)?
 
     /// [T-ios-bg-nav-push-watchdog] How long a deferred push stays valid.
     ///
@@ -1436,7 +1482,7 @@ struct ContentView: View {
             }
         }
         .fullScreenCover(isPresented: $showTerminal) {
-            NavigationStack {
+            NanoMuseCompatNavigationStack {
                 ISHTerminalView(showCloseButton: true)
             }
         }
@@ -1448,10 +1494,10 @@ struct ContentView: View {
             case .settings:
                 SettingsSheet(showTerminal: $showTerminal)
             case .rootfsManagement:
-                NavigationStack {
+                NanoMuseCompatNavigationStack {
                     RootfsManagementView()
                         .toolbar {
-                            ToolbarItem(placement: .topBarTrailing) {
+                            ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
                                 Button("Done") { activeToolSheet = nil }
                             }
                         }
@@ -1459,14 +1505,14 @@ struct ContentView: View {
             case .browser:
                 BrowserSheetView(pool: browserPool)
             case .browserManagement:
-                NavigationStack {
+                NanoMuseCompatNavigationStack {
                     BrowserManagementView(pool: browserPool)
                 }
             case .syncMigrationDetail:
-                NavigationStack {
+                NanoMuseCompatNavigationStack {
                     SyncMigrationDetailView()
                         .toolbar {
-                            ToolbarItem(placement: .topBarTrailing) {
+                            ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
                                 Button("Done") { activeToolSheet = nil }
                             }
                         }
@@ -1492,7 +1538,7 @@ struct ContentView: View {
             .onAppear {
                 print("[DELETE] Sheet appeared. singleDeleteInfo is \(singleDeleteInfo == nil ? "nil" : "non-nil, sessionCount=\(singleDeleteInfo!.sessionCount)")")
             }
-            .presentationDetents([.medium])
+            .nanoMuseSheetSize(.medium)
         }
         .sheet(item: $sessionToEdit) { session in
             SessionEditSheet(session: session) { newTitle, newCategory in
@@ -1504,7 +1550,7 @@ struct ContentView: View {
                 }
                 sessionToEdit = nil
             }
-            .presentationDetents([.medium])
+            .nanoMuseSheetSize(.medium)
         }
         .sheet(isPresented: $showDeleteConfirm, onDismiss: {
             if deleteInfo == nil {
@@ -1521,7 +1567,7 @@ struct ContentView: View {
                 deleteSelectedSessions()
                 showDeleteConfirm = false
             }
-            .presentationDetents([.medium])
+            .nanoMuseSheetSize(.medium)
         }
         .sheet(isPresented: $showExportPreview) {
             ExportPreviewSheet(fileURL: exportFileURL, previewURL: exportPreviewURL, summary: exportSummary)
@@ -1556,7 +1602,7 @@ struct ContentView: View {
                 if req.fromMultiSelect { folderMoveApplied = true }
                 folderPickerRequest = nil
             }
-            .presentationDetents([.medium, .large])
+            .nanoMuseSheetSize(.mediumOrLarge)
         }
         .modifier(FolderAlertsModifier(
             folderToRename: $folderToRename,
@@ -2059,6 +2105,24 @@ struct ContentView: View {
 
     // MARK: - Split Layout (iPad / wide window)
 
+    /// iOS 16-only split container: owns the NavigationSplitViewVisibility
+    /// state (an iOS 16+ type) so ContentView itself stays compilable on
+    /// iOS 15. On 16+ the split layout below renders exactly as before.
+    @available(iOS 16, *)
+    private struct ContentSplitLayout16<Sidebar: View, Detail: View>: View {
+        @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
+        let sidebar: Sidebar
+        let detail: Detail
+        var body: some View {
+            NavigationSplitView(columnVisibility: $columnVisibility) {
+                sidebar
+            } detail: {
+                detail
+            }
+        }
+    }
+
+    @ViewBuilder
     private var splitLayout: some View {
         // [T-ios-gh29-font-scale-split-column] App-base font scale for the iPad
         // split view. `appFontScale()` is environment-based (`.dynamicTypeSize`),
@@ -2071,21 +2135,34 @@ struct ContentView: View {
         // session-switch / tap lag is a separate issue (ChatSession Array `==`
         // in SwiftUI's transaction flush; an A/B test confirmed the font
         // injection is not its cause), so per-column injection is safe here.
-        NavigationSplitView(columnVisibility: $columnVisibility) {
-            sessionList(useNavigationLinks: false)
-                .appFontScale()
-        } detail: {
-            detailView
-                .appFontScale()
+        // iOS 15 backport: NavigationSplitView is iOS 16+. On 15 the split
+        // layout is an HStack (main line's proven shape) with the sidebar at
+        // the branch's ideal column width.
+        if #available(iOS 16, *) {
+            ContentSplitLayout16(
+                sidebar: sessionList(useNavigationLinks: false).appFontScale(),
+                detail: detailView.appFontScale()
+            )
+        } else {
+            HStack(spacing: 0) {
+                sessionList(useNavigationLinks: false)
+                    .appFontScale()
+                    .frame(width: 380)
+                Divider()
+                detailView
+                    .appFontScale()
+            }
         }
     }
 
     // MARK: - Stack Layout (iPhone / narrow window)
 
+    @ViewBuilder
     private var stackLayout: some View {
-        NavigationStack(path: $navigationPath) {
-            sessionList(useNavigationLinks: true)
-                .navigationDestination(for: String.self) { id in
+        if #available(iOS 16.0, *) {
+            NavigationStack(path: $navigationPath) {
+                sessionList(useNavigationLinks: true)
+                    .navigationDestination(for: String.self) { id in
                     // `.id(id)` mirrors detailView (iPad): navigationDestination
                     // views are identified by stack depth, not path value, so
                     // replacing the top element in place (menu "New Chat" swaps
@@ -2127,6 +2204,50 @@ struct ContentView: View {
                             .onDisappear { shareLog.info("🔄SESSION stackNav DISAPPEAR id=\(id)") }
                     }
                 }
+            }
+        } else {
+            NavigationView {
+                sessionList(useNavigationLinks: true)
+                    .background(
+                        NavigationLink(
+                            destination: Group {
+                                if let id = navigationPath.last {
+                                    stackDestination(id)
+                                } else {
+                                    EmptyView()
+                                }
+                            },
+                            isActive: Binding(
+                                get: { !navigationPath.isEmpty },
+                                set: { if !$0 { navigationPath.removeLast() } }
+                            )
+                        ) { EmptyView() }
+                    )
+            }
+            .navigationViewStyle(.stack)
+        }
+    }
+
+    @ViewBuilder
+    private func stackDestination(_ id: String) -> some View {
+        if id.hasPrefix("remote:") {
+            let parts = id.split(separator: ":", maxSplits: 2)
+            if parts.count == 3 {
+                AIChatView(sessionId: String(parts[2]), remoteDeviceId: String(parts[1]))
+                    .id(id)
+            }
+        } else {
+            AIChatView(sessionId: Self.isNewSessionId(id) ? nil : id, draftId: Self.isNewSessionId(id) ? id : nil, initialGroupId: Self.extractGroupId(from: id))
+                .id(id)
+                .onAppear {
+                    if currentStackSessionId != id {
+                        currentStackSessionId = id
+                        previousStackSessionId = id
+                    }
+                    SessionBadgeStore.shared.remove(.unread, for: id)
+                    shareLog.info("🔄SESSION stackNav APPEAR id=\(id)")
+                }
+                .onDisappear { shareLog.info("🔄SESSION stackNav DISAPPEAR id=\(id)") }
         }
     }
 
@@ -2823,7 +2944,7 @@ struct ContentView: View {
                                 // with a hand-rolled gesture sequence — the
                                 // gesture layer is where system gestures are
                                 // beaten (see the WebView sheet-dismiss fix).
-                                .draggable(session.id)
+                                .nmDraggable(session.id)
                                 .overlay {
                                     if regeneratingTitleSessionId == session.id {
                                         ZStack {
@@ -2833,9 +2954,20 @@ struct ContentView: View {
                                     }
                                 }
                                 .background(
-                                    NavigationLink(value: session.id) { EmptyView() }
-                                        .opacity(0)
+                                    Group {
+                                        if #available(iOS 16, *) {
+                                            NavigationLink(value: session.id) { EmptyView() }
+                                                .opacity(0)
+                                        } else {
+                                            EmptyView()
+                                        }
+                                    }
                                 )
+                                // iOS 15 backport: no value links; the row tap
+                                // navigates directly (wide: detail selection,
+                                // narrow: navigationPath push, same as
+                                // switchToSession's existing behaviour).
+                                .nmOnTapGesture15 { switchToSession(session.id) }
                             .listRowInsets(EdgeInsets())
                             .listRowSeparator(.hidden)
                             .listRowBackground(Group {
@@ -2959,7 +3091,7 @@ struct ContentView: View {
                                 // with a hand-rolled gesture sequence — the
                                 // gesture layer is where system gestures are
                                 // beaten (see the WebView sheet-dismiss fix).
-                                .draggable(session.id)
+                                .nmDraggable(session.id)
                                 .overlay {
                                     if regeneratingTitleSessionId == session.id {
                                         ZStack {
@@ -3020,7 +3152,7 @@ struct ContentView: View {
                                             // container's bottom radii so it stays
                                             // wrapped by the corners.
                                             if isSessionHighlighted(session.id) {
-                                                UnevenRoundedRectangle(
+                                                BackportUnevenRoundedRectangle(
                                                     topLeadingRadius: 0,
                                                     bottomLeadingRadius: isLast ? 16 : 0,
                                                     bottomTrailingRadius: isLast ? 16 : 0,
@@ -3062,7 +3194,7 @@ struct ContentView: View {
 
         }
         .listStyle(.plain)
-        .navigationSplitViewColumnWidth(min: 340, ideal: 380, max: 500)
+        .nmNavigationSplitViewColumnWidth(min: 340, ideal: 380, max: 500)
         .opacity(didInitialLoad ? 1 : 0)
         .overlay { if didInitialLoad, displaySessions.isEmpty, !isSearching { emptyState } }
         .overlay(alignment: .top) { folderMiniBarOverlay(scrollProxy) }
@@ -3342,7 +3474,7 @@ struct ContentView: View {
                 }
             }
         }
-        ToolbarItem(placement: .topBarLeading) {
+        ToolbarItem(placement: NanoMuseToolbarPlacement.leading) {
             if isSelecting {
                 Button("Cancel") {
                     isSelecting = false
@@ -3356,7 +3488,7 @@ struct ContentView: View {
                 }
             }
         }
-        ToolbarItem(placement: .topBarTrailing) {
+        ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
             if isSelecting {
                 Button(selectedIds.count == sessions.count ? "Deselect All" : "Select All") {
                     if selectedIds.count == sessions.count {
@@ -3374,7 +3506,7 @@ struct ContentView: View {
                 }
             }
         }
-        ToolbarItem(placement: .topBarTrailing) {
+        ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
             if !isSelecting {
                 Menu {
                     Button {
@@ -3491,7 +3623,7 @@ struct ContentView: View {
         if isWideLayout {
             openSession(newId)
         } else {
-            commitNavigationPath(NavigationPath([newId]))
+            commitNavigationPath([newId])
             currentStackSessionId = newId
         }
     }
@@ -3525,7 +3657,7 @@ struct ContentView: View {
             if isWideLayout {
                 selectedSessionId = nil
             } else {
-                navigationPath = NavigationPath()
+                navigationPath = []
                 currentStackSessionId = nil
             }
         }
@@ -3544,7 +3676,7 @@ struct ContentView: View {
         if isWideLayout {
             openSession(newId)
         } else {
-            commitNavigationPath(NavigationPath([newId]))
+            commitNavigationPath([newId])
             currentStackSessionId = newId
         }
         QuickActionWorkflow.shared.attachTargetSession(newId)
@@ -3577,7 +3709,7 @@ struct ContentView: View {
     /// `previousStackSessionId` stays in lockstep because it is maintained by
     /// the `onChange(of: navigationPath)` observer, which simply runs later —
     /// when the deferred path is actually committed.
-    private func commitNavigationPath(_ newPath: NavigationPath) {
+    private func commitNavigationPath(_ newPath: [String]) {
         // [T-share-first-tap-no-response] `.inactive` is NOT the state this
         // gate was built for. The watchdog kills it prevents come from a push
         // running AIChatView's whole first layout while the app is genuinely
@@ -3646,7 +3778,7 @@ struct ContentView: View {
             return
         }
         searchFocused = false
-        commitNavigationPath(NavigationPath([id]))
+        commitNavigationPath([id])
         currentStackSessionId = id
     }
 
@@ -3814,8 +3946,16 @@ struct ContentView: View {
             Section {
                 ForEach(entry.ids, id: \.self) { sessionId in
                     if let session = byId["\(entry.deviceId):\(sessionId)"] {
-                        NavigationLink(value: "remote:\(entry.deviceId):\(session.id)") {
-                            RemoteSessionRow(session: session)
+                        Group {
+                            if #available(iOS 16, *) {
+                                NavigationLink(value: "remote:\(entry.deviceId):\(session.id)") {
+                                    RemoteSessionRow(session: session)
+                                }
+                            } else {
+                                NavigationLink(destination: AIChatView(sessionId: session.id, remoteDeviceId: entry.deviceId)) {
+                                    RemoteSessionRow(session: session)
+                                }
+                            }
                         }
                         .listRowInsets(EdgeInsets())
                         .listRowSeparator(.hidden)
@@ -3987,12 +4127,12 @@ struct ContentView: View {
         .frame(maxHeight: .infinity)
         .padding(.horizontal, 32)
         .sheet(isPresented: $showAddProvider) {
-            NavigationStack {
+            NanoMuseCompatNavigationStack {
                 AddProviderView()
             }
         }
         .sheet(isPresented: $showSelectModels) {
-            NavigationStack {
+            NanoMuseCompatNavigationStack {
                 OnboardingModelSelectionView()
             }
         }
@@ -4301,10 +4441,7 @@ struct ContentView: View {
         if #available(iOS 26.0, *) {
             icon()
                 .frame(width: 56, height: 56)
-                .glassEffect(
-                    tint.map { Glass.regular.tint($0) } ?? Glass.regular,
-                    in: .circle
-                )
+                .nanoMuseTintedGlass(tint)
                 // [T-fab-glass-contextmenu-regression] Without this the long-press
                 // menu on the new-chat FAB stops opening.
                 //
@@ -4429,7 +4566,7 @@ struct ContentView: View {
                                 .foregroundStyle(.secondary)
                             TextField("Search chats...", text: $searchText)
                                 .textFieldStyle(.plain)
-                                .autocorrectionDisabled()
+                                .disableAutocorrection(true)
                                 .focused($searchFocused)
                                 .onChange(of: searchText) { _ in scheduleSearch() }
                             searchClearButton
@@ -4582,7 +4719,7 @@ struct ContentView: View {
             // Dropping on a date-bucket header moves the sessions OUT of any
             // folder — the drag gesture works both directions, otherwise
             // moving out would still require a trip through the menu.
-            .dropDestination(for: String.self) { sessionIds, _ in
+            .nmDropDestination(for: String.self) { sessionIds, _ in
                 Task { @MainActor in
                     await ChatStore.shared.setFolder(nil, forSessions: sessionIds)
                     refreshSessionList()
@@ -4789,7 +4926,7 @@ struct ContentView: View {
         // ScrollViewReader anchor for the mini-bar's "back to header" jump.
         .id("folderHeader-\(group.folderId ?? "")")
         .listRowInsets(EdgeInsets())
-        .dropDestination(for: String.self) { sessionIds, _ in
+        .nmDropDestination(for: String.self) { sessionIds, _ in
             guard let fid = group.folderId else { return false }
             Task { @MainActor in
                 await ChatStore.shared.setFolder(fid, forSessions: sessionIds)
@@ -5620,7 +5757,7 @@ private struct DeleteConfirmSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack {
+        NanoMuseCompatNavigationStack {
             VStack(spacing: 0) {
                 if isLoading || info == nil {
                     Spacer()
@@ -5742,7 +5879,7 @@ private struct ExportPreviewSheet: View {
     private let previewLimit = 10000
 
     var body: some View {
-        NavigationStack {
+        NanoMuseCompatNavigationStack {
             VStack(spacing: 0) {
                 // Preview — summary for multi-select, full content for single.
                 if let summary {
@@ -5803,7 +5940,7 @@ private struct ExportPreviewSheet: View {
             .navigationTitle(AppLocalized("Export Preview"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
                     Button(AppLocalized("Done")) { dismiss() }
                 }
             }
@@ -6801,7 +6938,7 @@ struct SessionEditSheet: View {
     ]
 
     var body: some View {
-        NavigationStack {
+        NanoMuseCompatNavigationStack {
             List {
                 Section("Title") {
                     TextField("Session title", text: $editTitle)
@@ -6858,12 +6995,13 @@ struct SessionEditSheet: View {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
+                    Button {
                         let title = editTitle.trimmingCharacters(in: .whitespacesAndNewlines)
                         guard !title.isEmpty else { return }
                         onSave(title, editCategory.isEmpty ? nil : editCategory)
+                    } label: {
+                        Text("Save").bold()
                     }
-                    .bold()
                     .disabled(editTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
@@ -7328,9 +7466,15 @@ private struct AppearanceSettingsView: View {
                                 .foregroundStyle(.primary)
                             Spacer()
                             if appLanguage == lang.id {
-                                Image(systemName: "checkmark")
-                                    .foregroundStyle(.blue)
-                                    .fontWeight(.semibold)
+                                if #available(iOS 16, *) {
+                                    Image(systemName: "checkmark")
+                                        .foregroundStyle(.blue)
+                                        .fontWeight(.semibold)
+                                } else {
+                                    Image(systemName: "checkmark")
+                                        .font(.body.weight(.semibold))
+                                        .foregroundStyle(.blue)
+                                }
                             }
                         }
                     }
@@ -7421,12 +7565,68 @@ private struct SettingsSheet: View {
     @AppStorage("appearanceMode") private var appearanceMode: Int = 0
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var deepLink = DeepLinkCoordinator.shared
-    @State private var navPath = NavigationPath()
+    @State private var navPath: [SettingsDestination] = []
     @State private var showFeedbackDialog = false
 
     var body: some View {
-        NavigationStack(path: $navPath) {
-            List {
+        Group {
+            if #available(iOS 16.0, *) {
+                NavigationStack(path: $navPath) {
+                    settingsList
+                        .navigationDestination(for: SettingsDestination.self) { dest in
+                            settingsDestination(dest)
+                        }
+                }
+            } else {
+                NavigationView {
+                    settingsList
+                        .background(
+                            NavigationLink(
+                                destination: Group {
+                                    if let dest = navPath.last { settingsDestination(dest) }
+                                    else { EmptyView() }
+                                },
+                                isActive: Binding(
+                                    get: { !navPath.isEmpty },
+                                    set: { if !$0 { navPath.removeLast() } }
+                                )
+                            ) { EmptyView() }
+                        )
+                }
+                .navigationViewStyle(.stack)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func settingsDestination(_ dest: SettingsDestination) -> some View {
+        switch dest {
+        case .providers: ProviderInstancesView()
+        case .providerDetail(let id): ProviderInstanceDetailView(instanceId: id)
+        case .modelGroups: ModelGroupsView()
+        case .modelGroupDetail(let id): ModelGroupDetailView(groupId: id)
+        case .usage: UsageStatsView()
+        case .skills: SkillsManagementView()
+        case .soul: SoulSettingsView()
+        case .memory: MemoryManagementView()
+        case .storage: StorageManagementView()
+        case .mountedFolders: MountedFoldersSettingsView()
+        case .sharedFolders: SharedFoldersSettingsView()
+        case .logs:
+            LogManagementView(initialTab: deepLink.pendingLogsTab ?? "logs")
+                .onAppear { deepLink.pendingLogsTab = nil }
+        case .appearance: AppearanceSettingsView()
+        case .background: EnhancedBackgroundSettingsView()
+        case .about: AboutView()
+        case .permissions: OffloadPermissionSettingsView()
+        case .environments: EnvironmentVariablesView()
+        case .mcpIntegrations: MCPIntegrationsView()
+        case .mcpServerDetail(let serverId): MCPIntegrationsView(initialEditServerId: serverId)
+        }
+    }
+
+    private var settingsList: some View {
+        List {
                 // nanoMuse: the Muse settings — the model, the agent, the phone, the app, about — as cards.
                 // With the shell on, Settings opens them directly and this list is "All settings" under
                 // them, so the row would only lead back; it stays for the classic layout.
@@ -7736,58 +7936,8 @@ private struct SettingsSheet: View {
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
                     Button("Done") { dismiss() }
-                }
-            }
-            .navigationDestination(for: SettingsDestination.self) { dest in
-                switch dest {
-                case .providers:
-                    ProviderInstancesView()
-                case .providerDetail(let id):
-                    ProviderInstanceDetailView(instanceId: id)
-                case .modelGroups:
-                    ModelGroupsView()
-                case .modelGroupDetail(let id):
-                    ModelGroupDetailView(groupId: id)
-                case .usage:
-                    UsageStatsView()
-                case .skills:
-                    SkillsManagementView()
-                case .soul:
-                    SoulSettingsView()
-                case .memory:
-                    MemoryManagementView()
-                case .storage:
-                    StorageManagementView()
-                case .mountedFolders:
-                    MountedFoldersSettingsView()
-                case .sharedFolders:
-                    SharedFoldersSettingsView()
-                case .logs:
-                    // Pull a one-shot tab hint from the deep link router
-                    // (e.g. `?tab=config-audit`). LogManagementView clears
-                    // its local state independently; the published value
-                    // here is consumed once and reset to nil.
-                    LogManagementView(initialTab: deepLink.pendingLogsTab ?? "logs")
-                        .onAppear { deepLink.pendingLogsTab = nil }
-                case .appearance:
-                    AppearanceSettingsView()
-                case .background:
-                    EnhancedBackgroundSettingsView()
-                case .about:
-                    AboutView()
-                case .environments:
-                    EnvironmentVariablesView()
-                case .permissions:
-                    OffloadPermissionSettingsView()
-                // [T-mcp-oauth-deeplink] Detail = the list view told to open
-                // the server's edit sheet on appear; a deleted/unknown server
-                // just lands on the list (no crash, sensible fallback).
-                case .mcpIntegrations:
-                    MCPIntegrationsView()
-                case .mcpServerDetail(let serverId):
-                    MCPIntegrationsView(initialEditServerId: serverId)
                 }
             }
             .onAppear {
@@ -7821,7 +7971,6 @@ private struct SettingsSheet: View {
             .onChange(of: deepLink.pendingSettingsTarget) { _ in
                 applyPendingDeepLink()
             }
-        }
         .preferredColorScheme(appearanceMode == 1 ? .light : appearanceMode == 2 ? .dark : nil)
         .appFontScale()
     }
@@ -7839,7 +7988,7 @@ private struct SettingsSheet: View {
         // Reset path so deep links are predictable: a deep link always
         // lands on the requested destination as the only stack entry,
         // not on top of whatever the user was browsing earlier.
-        navPath = NavigationPath()
+        navPath = []
         switch target {
         case .home:
             break // already at Settings root

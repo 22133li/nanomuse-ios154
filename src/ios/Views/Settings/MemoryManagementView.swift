@@ -64,8 +64,10 @@ struct MemoryManagementView: View {
             // iOS 17.5, so `if #available` cannot stand at the toolbar's level on a 16.0 target (Xcode
             // 27.0 refuses the file). The check moved inside the item, a ViewBuilder, where it may stand;
             // `.navigationBarTrailing` is `.topBarTrailing`'s older name and needs none.
-            if iCloudSyncEnabled { // nanoMuse: was `if #available(iOS 17.0, *), iCloudSyncEnabled {`
-                ToolbarItem(placement: .navigationBarTrailing) { // nanoMuse: was `.topBarTrailing` (iOS 17+)
+            ToolbarItem(placement: .navigationBarTrailing) { // nanoMuse: was `.topBarTrailing` (iOS 17+)
+                // NOTE (iOS 15 backport): `if` at toolbar level is iOS 16+;
+                // the condition lives inside the item (a ViewBuilder) instead.
+                if iCloudSyncEnabled { // nanoMuse: was `if #available(iOS 17.0, *), iCloudSyncEnabled {`
                     if #available(iOS 17.0, *) { // nanoMuse: `forceSyncMemory()` is iOS 17+
                     Menu {
                         Button {
@@ -261,7 +263,7 @@ private struct MemoryFileEditView: View {
             // user had to press Return to reveal it. Keeping it always present
             // sidesteps every input-source quirk. `save()` is a harmless
             // no-op rewrite when nothing changed.
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
                 Button("Save") { save() }
             }
         }

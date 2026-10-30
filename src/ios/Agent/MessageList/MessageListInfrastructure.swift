@@ -673,6 +673,214 @@ class SelfSizingCell: UICollectionViewCell {
     }
 }
 
+
+// MARK: - Hosting Cell Content (iOS 15 replacement for UIHostingConfiguration)
+
+/// [ios15-backport] `UIHostingConfiguration` is iOS 16+. This pair provides
+/// the same contract through the iOS 13+ mechanism it replaced: a
+/// `UIContentConfiguration` whose content view hosts a SwiftUI view via a
+/// `UIHostingController` pinned to the content view's edges — equivalent to
+/// upstream's `.minSize(width: 0, height: 0).margins(.all, 0)` (zero margins,
+/// no minimum size; sizing flows through `systemLayoutSizeFitting`, which is
+/// exactly what `SelfSizingCell` measures).
+struct HostingCellConfiguration: UIContentConfiguration {
+    var rootView: AnyView
+    /// [round18] Content fingerprint for equal-value dedup in
+    /// `HostingCellContentView.configuration`'s setter: item identity +
+    /// object identity + content length + host width. See configureCell
+    /// for the per-case construction and what is deliberately NOT in it
+    /// (live @Published state propagates through the observed objects).
+    var contentKey: String
+    /// List view controller the hosting controller is added to as a child,
+    /// so SwiftUI lifecycle callbacks (onAppear/onDisappear) fire as they do
+    /// under UIHostingConfiguration.
+    weak var hostParent: UIViewController?
+
+    func makeContentView() -> UIView & UIContentView {
+        HostingCellContentView(configuration: self)
+    }
+
+    func updated(for state: UIConfigurationState) -> HostingCellConfiguration {
+        self
+    }
+}
+
+final class HostingCellContentView: UIView, UIContentView {
+    private let hostingController: UIHostingController<AnyView>
+    private var currentConfiguration: HostingCellConfiguration
+    /// [round18] Reentrancy guard for systemLayoutSizeFitting (see below).
+    private var isFitting = false
+    /// Last successfully fitted height, returned to reentrant probes.
+    private var lastFittedHeight: CGFloat = 0
+
+    var configuration: UIContentConfiguration {
+        get { currentConfiguration }
+        set {
+            guard let newConfig = newValue as? HostingCellConfiguration else { return }
+            // [round18] Equal-value dedup (crash-loop breaker): when the
+            // fingerprint matches, the hosted view already renders exactly
+            // this content — swapping rootView again would rebuild the whole
+            // SwiftUI graph inside the cell for no change, and that churn,
+            // repeated across all visible cells ~1Hz and spiking to ~12Hz on
+            // session switches (2026-10-29 device log), is what feeds the
+            // ViewGraph geometry recursion. Only re-attach (cheap, guarded)
+            // and return: no rootView swap, no invalidate, no setNeedsLayout.
+            // The stored configuration is deliberately NOT replaced here —
+            // the key match means it is equivalent for rendering purposes.
+            if newConfig.contentKey == currentConfiguration.contentKey {
+                attachIfNeeded(parent: newConfig.hostParent)
+                return
+            }
+            currentConfiguration = newConfig
+            hostingController.rootView = newConfig.rootView
+            attachIfNeeded(parent: newConfig.hostParent)
+            hostingController.view.invalidateIntrinsicContentSize()
+            setNeedsLayout()
+            // [round16] One line per configuration apply (create + reuse).
+            AppLogger(category: "CellPerf").info("[HostedCell] reconfigure parent=\(hostingController.parent != nil) window=\(hostingController.view.window != nil) bounds=\(String(format: "%.0fx%.0f", bounds.width, bounds.height))")
+        }
+    }
+
+    init(configuration: HostingCellConfiguration) {
+        currentConfiguration = configuration
+        hostingController = UIHostingController(rootView: configuration.rootView)
+        super.init(frame: .zero)
+        hostingController.view.backgroundColor = .clear
+        hostingController.view.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(hostingController.view)
+        NSLayoutConstraint.activate([
+            hostingController.view.leadingAnchor.constraint(equalTo: leadingAnchor),
+            hostingController.view.trailingAnchor.constraint(equalTo: trailingAnchor),
+            hostingController.view.topAnchor.constraint(equalTo: topAnchor),
+            hostingController.view.bottomAnchor.constraint(equalTo: bottomAnchor),
+        ])
+        attachIfNeeded(parent: configuration.hostParent)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    /// [ios15-backport] The message list measures every cell through
+    /// `contentView.systemLayoutSizeFitting`. Two failure modes, both seen
+    /// in the on-device log (minis-2026-10-27.log, 366 occurrences):
+    /// UIKit's self-sizing probe passes `layoutFittingExpandedSize`
+    /// (width = greatestFiniteMagnitude) as the target, and any answer
+    /// carrying that sentinel width back is rejected with
+    /// NSInternalInconsistencyException ("Content view returned an invalid
+    /// size"). Upstream's measure wrapper swallows the exception, so the
+    /// cell keeps its estimated height and most cells never get a true
+    /// height — the list renders clipped/blank. A plain UIView's Auto
+    /// Layout answer is ambiguous in width and returns the sentinel; a
+    /// verbatim pass-through of the target does the same.
+    ///
+    /// So: measure through the hosting controller (as UIHostingContentView
+    /// does on iOS 16+) at a finite width — the target width when it is a
+    /// real one, otherwise the width the cell already has — and never
+    /// return a non-finite component.
+    override func systemLayoutSizeFitting(_ targetSize: CGSize,
+                                          withHorizontalFittingPriority horizontalFittingPriority: UILayoutPriority,
+                                          verticalFittingPriority: UILayoutPriority) -> CGSize {
+        let expandedWidth = UIView.layoutFittingExpandedSize.width
+        var measureWidth = targetSize.width
+        if !(measureWidth > 0) || measureWidth >= expandedWidth {
+            measureWidth = bounds.width
+        }
+        guard measureWidth > 0, measureWidth < expandedWidth else {
+            // No real width yet (cell not laid out): return a finite size
+            // rather than the sentinel — UIKit raises on the sentinel.
+            return .zero
+        }
+        // [round18] Reentrancy gate (crash-loop breaker, second half):
+        // this function calls layoutIfNeeded() on the hosting view below,
+        // and a layout pass in flight can re-enter this same function for
+        // the same cell. The nested call must NOT run setNeedsLayout /
+        // layoutIfNeeded again — that synchronous re-entry is the other
+        // half of the geometry recursion. Return the last good height
+        // (sizeThatFits as fallback, then the current bounds height).
+        if isFitting {
+            let fallback = hostingController.sizeThatFits(
+                in: CGSize(width: measureWidth, height: .greatestFiniteMagnitude)).height
+            let h: CGFloat
+            if lastFittedHeight > 0 {
+                h = lastFittedHeight
+            } else if fallback.isFinite && fallback > 0 && fallback < expandedWidth {
+                h = fallback
+            } else if bounds.height.isFinite {
+                h = bounds.height
+            } else {
+                h = 0
+            }
+            return CGSize(width: measureWidth, height: h)
+        }
+        isFitting = true
+        defer { isFitting = false }
+        // [round18] Concrete width proposal (iOS 16 parity, right-edge
+        // truncation fix): pin the hosting view's frame width to this pass's
+        // measureWidth BEFORE layoutIfNeeded, so the SwiftUI graph lays out
+        // at the host cell's real width instead of whatever width the
+        // not-yet-laid-out content view implies (which on a no-proposal
+        // pass could be the full screen width, rendering text wider than
+        // the cell and clipping its right edge). Constraints re-impose the
+        // superview width on the next superview layout; only the measured
+        // height from this pass is kept.
+        hostingController.view.frame.size.width = measureWidth
+        // [T-ios15-hostfit-al] Build112 on-device evidence (minis-2026-10-27,
+        // process 10257): the prime did NOT help. Repeated sizeThatFits calls
+        // on a fresh UIHostingController agree with each other yet stay
+        // collapsed - of the first 300 measures none exceeded 78pt, text
+        // blocks whose layout-held height is 151-199pt measure 32pt, and a
+        // cell only reaches its true height (idx=1600: 32 -> 151) after it
+        // has been displayed and re-measured on a later settle pass. So the
+        // failure is the MEASUREMENT MECHANISM, not the timing:
+        // UIHostingController.sizeThatFits reads the representable-driven
+        // content (markdown text views) before their internal layout exists.
+        // Upstream's UIHostingConfiguration does not measure this way - its
+        // UIHostingContentView answers systemLayoutSizeFitting through the
+        // hosting view's own Auto Layout fitting (systemLayoutSizeFitting on
+        // the _UIHostingView), which performs a real layout of the SwiftUI
+        // graph at the target width. Measure that way here (build109's path,
+        // now with the sentinel guard above), keep sizeThatFits as a
+        // fallback. Device data proved this mechanism (build113-115: true
+        // heights at first measure, no collapsed cells); the temporary
+        // [HostFit] A/B diagnostic log was removed in build116.
+        hostingController.view.setNeedsLayout()
+        hostingController.view.layoutIfNeeded()
+        let alTarget = CGSize(width: measureWidth,
+                              height: UIView.layoutFittingCompressedSize.height)
+        let alSize = hostingController.view.systemLayoutSizeFitting(
+            alTarget,
+            withHorizontalFittingPriority: .required,
+            verticalFittingPriority: .fittingSizeLevel)
+        let ctrlHeight = hostingController.sizeThatFits(
+            in: CGSize(width: measureWidth, height: .greatestFiniteMagnitude)).height
+        var height = alSize.height
+        if !(height.isFinite && height > 0 && height < expandedWidth) {
+            height = ctrlHeight
+        }
+        if !(height.isFinite && height > 0 && height < expandedWidth) {
+            height = bounds.height.isFinite ? bounds.height : 0
+        }
+        if height > 0 { lastFittedHeight = height }
+        return CGSize(width: measureWidth, height: height)
+    }
+
+
+    private func attachIfNeeded(parent: UIViewController?) {
+        guard let parent, hostingController.parent !== parent else { return }
+        if hostingController.parent != nil {
+            hostingController.willMove(toParent: nil)
+            hostingController.removeFromParent()
+        }
+        parent.addChild(hostingController)
+        hostingController.didMove(toParent: parent)
+        // [round16] Device-verification trace for the iOS 15 hosting fix:
+        // one line per actual (re)attach, CellPerf category.
+        AppLogger(category: "CellPerf").info("[HostedCell] attach parent=\(hostingController.parent != nil) window=\(hostingController.view.window != nil) bounds=\(String(format: "%.0fx%.0f", bounds.width, bounds.height))")
+    }
+}
+
+
 // MARK: - NoAnimationCollectionView
 
 /// UICollectionView subclass that strips ALL UIKit implicit animations.

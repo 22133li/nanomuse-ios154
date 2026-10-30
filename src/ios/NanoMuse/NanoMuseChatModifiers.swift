@@ -124,7 +124,7 @@ struct NanoMuseComposerHost: ViewModifier {
     private var columnLayer: AnyView {
         AnyView(
             stack
-                .onGeometryChange(for: CGFloat.self) { proxy in
+                .onGeometryChangeBackport(for: CGFloat.self, tag: GeometryChangeComposerColumnTag.self) { proxy in
                     proxy.size.height
                 } action: { height in
                     if abs(height - columnHeight) > 0.5 { columnHeight = height }

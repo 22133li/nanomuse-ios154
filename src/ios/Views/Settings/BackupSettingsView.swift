@@ -292,11 +292,11 @@ struct BackupSettingsView: View {
                                 ? "stop.fill" : "externaldrive.badge.timemachine",
                             tint: runController.isRunning ? .red : .blue)
                         Text(runController.isRunning ? "Stop Backup" : "Start Backup")
+                    .fontWeight(.medium)
                     }
                     // Without maxWidth the row sizes to its content and sits
                     // left; this is what centres it in the Form row.
                     .frame(maxWidth: .infinity)
-                    .fontWeight(.medium)
                 }
                 // The start-time requirements gate STARTING only. Applying
                 // them while running would disable the button mid-run and
@@ -314,7 +314,7 @@ struct BackupSettingsView: View {
                 // spanned the middle of the card (user report: the divider
                 // above Stop Backup looked broken). Pin it to the row's
                 // leading edge so it runs the full card width.
-                .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
+                .nmListRowSeparatorLeadingZero()
 
                 // A disabled button with no explanation is a dead end — say
                 // which requirement is unmet rather than leaving the user to
@@ -332,28 +332,28 @@ struct BackupSettingsView: View {
                             .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity)
                             .multilineTextAlignment(.center)
-                            .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
+                            .nmListRowSeparatorLeadingZero()
                     } else if selected.isEmpty {
                         Text("Choose at least one thing to include.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity)
                             .multilineTextAlignment(.center)
-                            .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
+                            .nmListRowSeparatorLeadingZero()
                     } else if encryptBackup && passphrase.isEmpty {
                         Text("Set a passphrase to encrypt this backup.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity)
                             .multilineTextAlignment(.center)
-                            .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
+                            .nmListRowSeparatorLeadingZero()
                     } else if encryptBackup && passphrase != confirmPassphrase {
                         Text("Confirm the passphrase to continue.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity)
                             .multilineTextAlignment(.center)
-                            .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
+                            .nmListRowSeparatorLeadingZero()
                     }
                 }
 
@@ -370,13 +370,13 @@ struct BackupSettingsView: View {
 
             if let result {
                 Section {
-                    LabeledContent("Size", value: byteText(result.totalBytes))
+                    NanoMuseLabeledContent("Size", value: byteText(result.totalBytes))
                     if result.skippedFiles > 0 {
                         // §3.4: a size-capped export has gaps, and the user is
                         // told here rather than discovering it at restore time.
                         // "too large" would be wrong when files were left out
                         // on purpose — nothing exceeded anything.
-                        LabeledContent(maxFileSizeMB == Self.noFilesTag
+                        NanoMuseLabeledContent(maxFileSizeMB == Self.noFilesTag
                                        ? "Files not included"
                                        : "Excluded (too large)",
                                        value: "\(result.skippedFiles) file(s)")
@@ -701,7 +701,7 @@ struct BackupSettingsView: View {
                 // The placeholder is the automatic name, so an untouched field
                 // shows the user what will be used rather than sitting blank.
                 TextField(DeviceIdentity.automaticName, text: $deviceNameDraft)
-                    .autocorrectionDisabled()
+                    .disableAutocorrection(true)
                     .textInputAutocapitalization(.words)
                     .submitLabel(.done)
                     .onSubmit { commitDeviceName() }

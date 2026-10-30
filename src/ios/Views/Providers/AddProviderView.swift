@@ -11,7 +11,7 @@ struct AIDataSharingConsentView: View {
     var onDecline: () -> Void
 
     var body: some View {
-        NavigationStack {
+        NanoMuseCompatNavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     VStack(alignment: .leading, spacing: 8) {
@@ -276,7 +276,7 @@ struct AddProviderView: View {
         .navigationTitle(navigationTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
+            ToolbarItem(placement: NanoMuseToolbarPlacement.leading) {
                 if selectedType != nil {
                     Button("Back") { goBack() }
                 } else {
@@ -289,7 +289,7 @@ struct AddProviderView: View {
             // gesture bounces instead of silently discarding, and this button
             // is the visible path to the save/discard choice — the same
             // pattern as Mail's compose sheet.
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
                 if selectedType != nil {
                     Button {
                         requestExit()
@@ -341,7 +341,7 @@ struct AddProviderView: View {
                 }
             }
         }
-        .fileImporter(isPresented: $showImportFile, allowedContentTypes: [.json]) { result in
+        .nmFileImporter(isPresented: $showImportFile, allowedContentTypes: [.json], asCopy: true) { result in
             handleImport(result)
         }
         .alert(AppLocalized("Import"), isPresented: $showImportResult) {
@@ -362,12 +362,11 @@ struct AddProviderView: View {
         importSucceeded = false
         switch result {
         case .success(let url):
-            guard url.startAccessingSecurityScopedResource() else {
-                importMessage = AppLocalized("Cannot access the selected file.")
-                showImportResult = true
-                return
-            }
-            defer { url.stopAccessingSecurityScopedResource() }
+            // [T-ios154-fileimporter] iOS 15 picks return an asCopy temp
+            // URL (in-place picks never call back on 15.4), which is not
+            // security-scoped — tolerate it; the read below validates.
+            let accessed = url.startAccessingSecurityScopedResource()
+            defer { if accessed { url.stopAccessingSecurityScopedResource() } }
             guard let data = try? Data(contentsOf: url),
                   let json = String(data: data, encoding: .utf8) else {
                 importMessage = AppLocalized("Failed to read file.")
@@ -611,7 +610,7 @@ struct AddProviderView: View {
                     .textContentType(.none)
                     // A label is a proper noun the user is naming, and AutoFill
                     // must never offer to save it as a credential.
-                    .autocorrectionDisabled()
+                    .disableAutocorrection(true)
                     .textInputAutocapitalization(.words)
                     .onChange(of: labelInput) { _ in
                         // Mark the field as user-edited so subsequent
@@ -651,7 +650,7 @@ struct AddProviderView: View {
                                 // eye toggle.
                                 .textContentType(.oneTimeCode)
                                 .textInputAutocapitalization(.never)
-                                .autocorrectionDisabled()
+                                .disableAutocorrection(true)
                         } else {
                             SecureField(keyPlaceholder, text: $apiKeyInput)
                                 // [T-provider-label-keyboard] Opt the credential
@@ -796,7 +795,7 @@ struct AddProviderView: View {
                     .font(.system(.body, design: .monospaced))
                     .foregroundStyle(.secondary)
                     .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
+                    .disableAutocorrection(true)
                     .keyboardType(.URL)
 
                 SecureField("Bearer Token", text: $manualOAuthTokenInput)
@@ -849,7 +848,7 @@ struct AddProviderView: View {
                 .font(.system(.body, design: .monospaced))
                 .foregroundStyle(.secondary)
                 .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
+                .disableAutocorrection(true)
                 .keyboardType(.URL)
 
             if !enteredViaVoiceTemplate, selectedType != .gemini {

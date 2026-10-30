@@ -262,9 +262,9 @@ enum NanoMuseRegion {
         let tag = AppBundle.current.preferredLocalizations.first ?? Locale.preferredLanguages.first ?? "en"
         let locale = Locale(identifier: tag)
         return isMainland(
-            languageCode: locale.language.languageCode?.identifier,
-            scriptCode: locale.language.script?.identifier,
-            regionCode: locale.language.region?.identifier,
+            languageCode: locale.languageCode,
+            scriptCode: locale.scriptCode,
+            regionCode: locale.regionCode,
             signedInWithPhone: NanoMuseCloud.account?.channel == "phone",
             relayRegion: UserDefaults.standard.string(forKey: "nanomuse.relay.region")
         )

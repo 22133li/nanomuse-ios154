@@ -112,7 +112,7 @@ struct NanoMuseRoot: View {
                 )
                 // The gear opens Muse's settings page; the OpenMinis list is under "All settings".
                 .sheet(isPresented: $showSetupSettings) {
-                    NavigationStack {
+                    NanoMuseCompatNavigationStack {
                         NanoMuseSettingsHomeView(onAllSettings: {
                             showSetupSettings = false
                             showClassicSettings = true
@@ -188,7 +188,7 @@ struct NanoMuseAgentPagePresenter: ViewModifier {
                 )
             }
             .sheet(isPresented: $showRoutines) {
-                NavigationStack {
+                NanoMuseCompatNavigationStack {
                     NanoMuseRoutinesView()
                         .toolbar { ToolbarItem(placement: .cancellationAction) { Button(AppLocalized("Done")) { showRoutines = false } } }
                 }
@@ -494,7 +494,7 @@ struct NanoMuseHomeView: View {
             NanoMusePageSheet(title: AppLocalized("Computers")) { NanoMuseComputersView() }
         }
         .sheet(isPresented: $showNanoMuseSettings) {
-            NavigationStack {
+            NanoMuseCompatNavigationStack {
                 NanoMuseSettingsHomeView(onAllSettings: {
                     showNanoMuseSettings = false
                     classicWantsSettings = true
@@ -609,17 +609,75 @@ struct NanoMuseHomeView: View {
 
     // MARK: Chat layer
 
+    @ViewBuilder
     private var chatLayer: some View {
-        NavigationStack(path: $chatPath) {
-            Group {
-                if let id = main.chatId {
-                    AIChatView(sessionId: main.isDraft ? nil : id, draftId: main.isDraft ? id : nil)
-                        .id(id)
-                } else {
-                    ProgressView()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        if #available(iOS 16.0, *) {
+            NavigationStack(path: $chatPath) {
+                chatRoot
+                    .navigationDestination(for: String.self) { id in
+                        chatSideDestination(id)
+                    }
+            }
+        } else {
+            // [T-ios154-navlink-reentry] iOS 15 navigation, low-reentry form.
+            // The hidden link used to ride in chatRoot's .background; the
+            // build108 crash stack (SIGTRAP, ViewGraphGeometryObservers
+            // recursion — same signature as build100/102) symbolicated into
+            // exactly that background+NavigationLink evaluation, and its
+            // isActive setter mutated chatPath synchronously inside the
+            // navigation update pass. The link now sits as a ZStack sibling
+            // (outside the background evaluation path), and the pop sync is
+            // deferred to the next main-runloop turn — the same out-of-band
+            // delivery the geometry backport uses. Behaviour is unchanged:
+            // chatPath empty = main chat, one entry = that side chat pushed,
+            // swipe-back or removeAll() pops to the main chat.
+            NavigationView {
+                ZStack {
+                    chatRoot
+                    NavigationLink(
+                        destination: Group {
+                            if let id = chatPath.last {
+                                chatSideDestination(id)
+                            } else {
+                                EmptyView()
+                            }
+                        },
+                        isActive: Binding(
+                            get: { !chatPath.isEmpty },
+                            set: { active in
+                                if !active, !chatPath.isEmpty {
+                                    DispatchQueue.main.async {
+                                        if !chatPath.isEmpty { chatPath.removeLast() }
+                                    }
+                                }
+                            }
+                        )
+                    ) { EmptyView() }
                 }
             }
+            .navigationViewStyle(.stack)
+        }
+    }
+
+    @ViewBuilder
+    private func chatSideDestination(_ id: String) -> some View {
+        let draft = id.hasPrefix(NanoMuseMainChat.draftPrefix)
+        AIChatView(sessionId: draft ? nil : id, draftId: draft ? id : nil)
+            .id(id)
+            .environment(\.nmSystemBarScrim, true)
+            .environment(\.nmTopOverlay, 0)
+    }
+
+    private var chatRoot: some View {
+        Group {
+            if let id = main.chatId {
+                AIChatView(sessionId: main.isDraft ? nil : id, draftId: main.isDraft ? id : nil)
+                    .id(id)
+            } else {
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
             // Android: the header floats over the transcript, which scrolls under it. The header
             // is a safe-area inset with its measured height handed to the chat as `nmTopOverlay`:
             // the chat lets its message list extend under the header and gives the list that
@@ -669,7 +727,7 @@ struct NanoMuseHomeView: View {
                         .transition(.move(edge: .top).combined(with: .opacity))
                     }
                 }
-                .onGeometryChange(for: CGFloat.self) { proxy in
+                .onGeometryChangeBackport(for: CGFloat.self, tag: GeometryChangeShellHeaderTag.self) { proxy in
                     proxy.size.height
                 } action: { height in
                     if abs(height - chatHeaderHeight) > 0.5 { chatHeaderHeight = height }
@@ -685,19 +743,9 @@ struct NanoMuseHomeView: View {
             .background(NanoMuseEdgeSwipe(enabled: tab == .chat && chatPath.isEmpty && !drawerOpen) { drawerOpen = true })
             .nmRenameAlert(rename)
             // The system bar stays out of the main chat; side chats pushed from here keep theirs.
-            .toolbar(.hidden, for: .navigationBar)
+            .nmNavigationBarHidden(true)
             .animation(.easeInOut(duration: 0.25), value: star.pending)
             .animation(.easeInOut(duration: 0.25), value: allowance.pending)
-            .navigationDestination(for: String.self) { id in
-                let draft = id.hasPrefix(NanoMuseMainChat.draftPrefix)
-                AIChatView(sessionId: draft ? nil : id, draftId: draft ? id : nil)
-                    .id(id)
-                    // The side chat keeps the system bar, with the main chat's scrim behind it,
-                    // and no Muse header over its list.
-                    .environment(\.nmSystemBarScrim, true)
-                    .environment(\.nmTopOverlay, 0)
-            }
-        }
     }
 
     /// The round hamburger: the drawer with the side chats.
@@ -1120,7 +1168,7 @@ struct NanoMusePageSheet<Content: View>: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NanoMuseCompatNavigationStack {
             content()
                 .navigationTitle(title)
                 .navigationBarTitleDisplayMode(.inline)
@@ -1299,7 +1347,7 @@ struct NanoMuseDrawer: View {
                             row(session)
                         }
                         .listRowBackground(session.id == currentId ? NanoMuseTones.fill : Color.clear)
-                        .contextMenu {
+                        .nmContextMenu {
                             Button {
                                 close()
                                 onPinMain(session.id)
@@ -1331,7 +1379,7 @@ struct NanoMuseDrawer: View {
                     }
                 }
                 .listStyle(.plain)
-                .scrollContentBackground(.hidden)
+                .nanoMuseHideScrollBackground()
                 .nmRenameAlert(rename)
                 .alert(AppLocalized("Delete chat"), isPresented: Binding(get: { deleteCandidate != nil }, set: { if !$0 { deleteCandidate = nil } })) {
                     Button(AppLocalized("Cancel"), role: .cancel) {}
@@ -1364,7 +1412,7 @@ struct NanoMuseDrawer: View {
                     TextField(AppLocalized("Search"), text: $query)
                         .font(.subheadline)
                         .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
+                        .disableAutocorrection(true)
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 7)

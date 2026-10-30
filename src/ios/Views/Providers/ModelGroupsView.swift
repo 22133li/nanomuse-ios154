@@ -138,17 +138,17 @@ struct ModelGroupsView: View {
         .navigationTitle("Model Groups")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showAddAgentModels) {
-            NavigationStack {
+            NanoMuseCompatNavigationStack {
                 UnifiedModelPicker(config: .agentLoopAddModels())
             }
         }
         .sheet(isPresented: $showAddAgentGroups) {
-            NavigationStack {
+            NanoMuseCompatNavigationStack {
                 AddAgentLoopGroupsSheet()
             }
         }
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: NanoMuseToolbarPlacement.trailing) {
                 Menu {
                     Button {
                         showCreateGroup = true
@@ -189,7 +189,20 @@ struct ModelGroupsView: View {
         .background {
             NavigationLink(isActive: Binding(
                 get: { editingGroupId != nil },
-                set: { if !$0 { editingGroupId = nil } }
+                set: { active in
+                    // [T-ios154-navlink-reentry] Same trap class as the
+                    // chatLayer launch crash (build108 .ips, 2026-10-30):
+                    // UIKitNavigationBridge calls this setter synchronously
+                    // while popping, inside a graph update
+                    // (preferencesDidChange -> popCurrentView -> dismiss ->
+                    // isPresented setter), and the synchronous @State write
+                    // is what trips the EXC_BREAKPOINT in the setter frame.
+                    // Defer the clear to the next main-runloop turn, the
+                    // same out-of-band delivery round25 uses in chatLayer.
+                    if !active {
+                        DispatchQueue.main.async { editingGroupId = nil }
+                    }
+                }
             )) {
                 if let id = editingGroupId,
                    store.modelGroups.contains(where: { $0.id == id }) {

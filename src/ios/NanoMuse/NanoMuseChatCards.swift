@@ -94,6 +94,25 @@ struct NanoMuseAssistantBubble: ViewModifier {
         return trimmed.hasPrefix("|") && trimmed.contains("|\n|")
     }
 
+    /// [T-ios154-pill-sizeclass] iOS 15 backport: inside the message
+    /// list's UIHostingController cells, @Environment(\.horizontalSizeClass)
+    /// reports .regular on an iPhone (device log minis-2026-10-30: every
+    /// text measure ran at tcW=428 and the pill rendered ~456pt wide, off
+    /// the right edge of the 428pt screen), so the regular 600pt cap never
+    /// binds and the pill is sized by its content. Upstream's design value
+    /// on a phone is the compact 340 (Android NmAssistantBubble); a screen
+    /// narrower than the regular pill cannot be a regular-width layout,
+    /// so fall back to 340 there. iOS 16+ keeps the upstream value.
+    private var pillWidth: CGFloat {
+        let upstream = NanoMuseColumn.agentPillWidth(for: sizeClass)
+        if #available(iOS 16, *) { return upstream }
+        if sizeClass == .regular,
+           UIScreen.main.bounds.width < NanoMuseColumn.agentPillWidth {
+            return 340
+        }
+        return upstream
+    }
+
     @ViewBuilder
     func body(content view: Content) -> some View {
         if NanoMuseShellPrefs.shell && !Self.isBare(content) {
@@ -101,7 +120,7 @@ struct NanoMuseAssistantBubble: ViewModifier {
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
                 .background(NanoMuseTones.agentPill, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-                .frame(maxWidth: NanoMuseColumn.agentPillWidth(for: sizeClass), alignment: .leading)
+                .frame(maxWidth: pillWidth, alignment: .leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
         } else {
             view
