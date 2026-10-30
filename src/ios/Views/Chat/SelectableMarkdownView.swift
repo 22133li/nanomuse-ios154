@@ -7053,11 +7053,26 @@ final class SelectableMarkdownTextView: UITextView, UIGestureRecognizerDelegate 
         // unwrapped text width. sizeThatFits clamps its width argument
         // the same way, so route every case through it (empty storage
         // still falls through to super inside sizeThatFits).
+        //
+        // [T-ios154-flexible-intrinsic-width] The WIDTH half must stay
+        // flexible (noIntrinsicMetric). build111 device evidence: with a
+        // concrete intrinsic width (bounds/screen, 428 on the test phone),
+        // iOS 15's representable layout adopts it as the view's size and
+        // ancestor width caps never shrink it — the assistant bubble's
+        // 340pt frame ended up 456 wide and its text laid out at the full
+        // 428 (log: every tcW=428), off the right edge of the screen.
+        // Wrapping text has no honest fixed ideal width; reporting -1
+        // makes the queried-width channel (sizeThatFits above, which
+        // honors a sane proposal and clamps a bogus one) the only sizing
+        // answer, so the bubble's proposal (312) reaches the view. The
+        // height half still comes from a real measure at the current
+        // width, exactly as before.
         let screenWidth = UIScreen.main.bounds.width
         let width = (bounds.width > 1 && bounds.width <= screenWidth)
             ? bounds.width : screenWidth
-        return sizeThatFits(CGSize(width: width,
-                                   height: CGFloat.greatestFiniteMagnitude))
+        let fitted = sizeThatFits(CGSize(width: width,
+                                         height: CGFloat.greatestFiniteMagnitude))
+        return CGSize(width: UIView.noIntrinsicMetric, height: fitted.height)
     }
 
     func invalidateCellSizeIfNeeded() {
