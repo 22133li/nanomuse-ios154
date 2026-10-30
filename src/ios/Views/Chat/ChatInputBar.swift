@@ -626,6 +626,38 @@ enum UserAttachmentTileMetrics {
     }
 }
 
+/// [ios15-trailing-tiles] iOS 15 stand-in for FlowLayout's .trailing packing
+/// of the uniform user-attachment tiles. The 16+ Layout reports the full
+/// proposed width and right-aligns every row inside it; the 15 LazyVGrid
+/// fallback cannot right-align a row (it fills columns from the leading
+/// edge and ignores the alignment), so the tile lists chunk their items
+/// into rows themselves. Row packing reuses
+/// UserAttachmentTileMetrics.tilesPerRow with the same available width the
+/// cell-height estimator uses (collection width - 32 cell - 60 spacer; the
+/// V3 list is full-bleed, so the collection width is the screen width),
+/// which keeps the rendered height identical to the estimate.
+struct TrailingTileRows<Item, Tile: View>: View {
+    let items: [Item]
+    @ViewBuilder let tile: (Item) -> Tile
+
+    var body: some View {
+        let per = max(1, UserAttachmentTileMetrics.tilesPerRow(
+            availableWidth: UIScreen.main.bounds.width - 32 - 60))
+        let rows: [[Item]] = stride(from: 0, to: items.count, by: per).map {
+            Array(items[$0 ..< min($0 + per, items.count)])
+        }
+        VStack(alignment: .trailing, spacing: UserAttachmentTileMetrics.gap) {
+            ForEach(rows.indices, id: \.self) { row in
+                HStack(spacing: UserAttachmentTileMetrics.gap) {
+                    ForEach(rows[row].indices, id: \.self) { col in
+                        tile(rows[row][col])
+                    }
+                }
+            }
+        }
+    }
+}
+
 struct UserAttachmentList: View {
     let attachments: [AttachmentMeta]
     @Environment(\.openURL) private var openURL
@@ -640,18 +672,32 @@ struct UserAttachmentList: View {
     }
 
     var body: some View {
-        FlowLayout(hSpacing: UserAttachmentTileMetrics.gap, vSpacing: UserAttachmentTileMetrics.gap, alignment: .trailing) {
-            ForEach(attachments) { meta in
-                if meta.isImage {
-                    AsyncImageTile(meta: meta, tileSize: tileSize) {
-                        openGallery(startingAt: meta)
-                    }
-                } else if meta.isVideo {
-                    AsyncVideoTile(meta: meta, tileSize: tileSize)
-                } else {
-                    fileTile(meta)
+        if #available(iOS 16, *) {
+            FlowLayout(hSpacing: UserAttachmentTileMetrics.gap, vSpacing: UserAttachmentTileMetrics.gap, alignment: .trailing) {
+                ForEach(attachments) { meta in
+                    tileContent(meta)
                 }
             }
+        } else {
+            // [ios15-trailing-tiles] See TrailingTileRows: the 15 fallback
+            // grid drops the .trailing alignment, landing tiles on the
+            // leading edge instead of over the bubble's right edge.
+            TrailingTileRows(items: attachments) { meta in
+                tileContent(meta)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func tileContent(_ meta: AttachmentMeta) -> some View {
+        if meta.isImage {
+            AsyncImageTile(meta: meta, tileSize: tileSize) {
+                openGallery(startingAt: meta)
+            }
+        } else if meta.isVideo {
+            AsyncVideoTile(meta: meta, tileSize: tileSize)
+        } else {
+            fileTile(meta)
         }
     }
 
@@ -783,18 +829,31 @@ struct QueuedAttachmentPreview: View {
     private let tileSize: CGFloat = UserAttachmentTileMetrics.tile
 
     var body: some View {
-        FlowLayout(hSpacing: UserAttachmentTileMetrics.gap, vSpacing: UserAttachmentTileMetrics.gap, alignment: .trailing) {
-            ForEach(attachments) { attachment in
-                switch attachment.kind {
-                case .image:
-                    AsyncCacheURLImageTile(cacheURL: attachment.cacheURL, tileSize: tileSize)
-                        .opacity(0.7)
-                case .video:
-                    placeholderTile(icon: "film", fileName: attachment.fileName)
-                case .document:
-                    placeholderTile(icon: "doc.fill", fileName: attachment.fileName)
+        if #available(iOS 16, *) {
+            FlowLayout(hSpacing: UserAttachmentTileMetrics.gap, vSpacing: UserAttachmentTileMetrics.gap, alignment: .trailing) {
+                ForEach(attachments) { attachment in
+                    tileContent(attachment)
                 }
             }
+        } else {
+            // [ios15-trailing-tiles] Same fallback-alignment loss as
+            // UserAttachmentList — chunked trailing rows on 15.
+            TrailingTileRows(items: attachments) { attachment in
+                tileContent(attachment)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func tileContent(_ attachment: InputAttachment) -> some View {
+        switch attachment.kind {
+        case .image:
+            AsyncCacheURLImageTile(cacheURL: attachment.cacheURL, tileSize: tileSize)
+                .opacity(0.7)
+        case .video:
+            placeholderTile(icon: "film", fileName: attachment.fileName)
+        case .document:
+            placeholderTile(icon: "doc.fill", fileName: attachment.fileName)
         }
     }
 
