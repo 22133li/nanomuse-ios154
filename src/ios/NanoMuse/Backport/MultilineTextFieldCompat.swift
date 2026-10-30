@@ -105,10 +105,22 @@ struct NanoMuseMultilineTextField: View {
 /// the pill's flat grey capsule — the iOS 16 vertical TextField has no
 /// background, and upstream's own UIKit text view for the classic bar
 /// sets backgroundColor = .clear explicitly (ChatInputBar.swift). There
-/// is no scrollContentBackground on 15, so this sibling representable
-/// walks its own ancestor subtree (which holds only this editor) and
-/// clears the text view's background.
+/// is no scrollContentBackground on 15.
+///
+/// round32 walked this view's ancestor subtrees looking for the text
+/// view and never reached it on device (build117: box unchanged) — the
+/// background host and the editor do not share a shallow UIKit ancestor
+/// in SwiftUI 15's TextEditor hierarchy. Frame matching is used instead:
+/// a SwiftUI background fills its view's bounds exactly, so this view's
+/// frame in window coordinates IS the editor's frame; the text view in
+/// the window whose frame matches it is the editor, whatever the
+/// hierarchy. Attempts retry briefly in case the editor joins the
+/// window after this view's first update, and the outcome is logged
+/// once per launch (category TextEditorBG) so a device log can prove
+/// whether the clear landed.
 private struct TextEditorBackgroundClearer: UIViewRepresentable {
+    private static var didLogOutcome = false
+
     func makeUIView(context: Context) -> UIView {
         let view = UIView()
         view.isUserInteractionEnabled = false
@@ -116,26 +128,44 @@ private struct TextEditorBackgroundClearer: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: UIView, context: Context) {
-        DispatchQueue.main.async {
-            var ancestor = uiView.superview
-            var hops = 0
-            while let node = ancestor, hops < 4 {
-                if let textView = Self.findTextView(in: node) {
-                    textView.backgroundColor = .clear
-                    return
-                }
-                ancestor = node.superview
-                hops += 1
+        scheduleClear(from: uiView, attempt: 0)
+    }
+
+    private func scheduleClear(from view: UIView, attempt: Int) {
+        let delay: TimeInterval = attempt == 0 ? 0 : (attempt == 1 ? 0.1 : 0.4)
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+            guard let window = view.window, view.bounds.width > 1 else {
+                if attempt < 2 { scheduleClear(from: view, attempt: attempt + 1) }
+                return
+            }
+            let target = view.convert(view.bounds, to: window)
+            var cleared = false
+            Self.forEachTextView(in: window) { textView in
+                let frame = textView.convert(textView.bounds, to: window)
+                let overlap = frame.intersection(target)
+                guard !overlap.isNull,
+                      overlap.width * overlap.height >= 0.8 * target.width * target.height,
+                      frame.width <= target.width + 12,
+                      frame.height <= target.height + 12 else { return }
+                textView.backgroundColor = .clear
+                cleared = true
+            }
+            if !cleared, attempt < 2 {
+                scheduleClear(from: view, attempt: attempt + 1)
+                return
+            }
+            if !Self.didLogOutcome {
+                Self.didLogOutcome = true
+                AppLogger(category: "TextEditorBG").info("[ios15-texteditor-bg] \(cleared ? "cleared editor background" : "NO MATCHING TEXT VIEW FOUND") target=\(Int(target.width))x\(Int(target.height)) attempts=\(attempt + 1)")
             }
         }
     }
 
-    private static func findTextView(in view: UIView) -> UITextView? {
-        if let textView = view as? UITextView { return textView }
+    private static func forEachTextView(in view: UIView, visit: (UITextView) -> Void) {
+        if let textView = view as? UITextView { visit(textView) }
         for subview in view.subviews {
-            if let found = findTextView(in: subview) { return found }
+            forEachTextView(in: subview, visit: visit)
         }
-        return nil
     }
 }
 
