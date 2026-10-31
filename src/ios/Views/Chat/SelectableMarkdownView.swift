@@ -7403,9 +7403,44 @@ final class SelectableMarkdownTextView: UITextView, UIGestureRecognizerDelegate 
             let stillDeferred = (self.findCollectionView()?.collectionViewLayout
                 as? MessageListLayout)?.deferSelfSizing ?? false
             if stillDeferred {
-                // Window still open: re-measuring now would just hit the same
-                // skip branch. Wait another interval instead of giving up.
-                self.armDeferredRemeasureBackstop(attempt: attempt + 1)
+                // [ios15-defer-escape] (round34) The original reasoning —
+                // re-measuring inside the window just hits the skip branch —
+                // predates the iOS 15 escape inside
+                // `invalidateCellSizeIfNeeded`: that escape is exactly the
+                // branch that CAN consume inside the window, but it only
+                // runs when a fresh measure call arrives, and for a settled
+                // final text no further call may ever come (device log
+                // 2026-10-31: a +195 correction owed at 14:41:51 was never
+                // consumed in the remaining 10 minutes; the user
+                // screenshotted the overlapped list twice). Give the escape
+                // its call from here — the one place that keeps ticking
+                // while a debt is unpaid — under the escape's own
+                // preconditions, checked cheaply first: iOS 15 only (16 has
+                // the representable second channel), storage length
+                // unchanged since the debt was last recorded (a growing
+                // stream changes it on every chunk), view attached, and the
+                // user's finger off the scroll view (a live drag keeps the
+                // pure re-arm below, upstream's defer untouched). The call
+                // either consumes via the escape, re-skips (whose branch
+                // re-arms this backstop itself), or lands in the
+                // height-stable branch (which also re-arms when refused) —
+                // every outcome keeps exactly one chain alive.
+                var escapeProbeRan = false
+                if #available(iOS 16, *) {
+                    // iOS 16+: unchanged — wait for the next interval.
+                } else if self.debtStorageLen >= 0,
+                          self.textStorage.length == self.debtStorageLen,
+                          self.window != nil,
+                          let cv = self.findCollectionView(), !cv.isTracking {
+                    self.invalidateCellSizeIfNeeded()
+                    escapeProbeRan = true
+                }
+                if !escapeProbeRan {
+                    // Window still open: re-measuring now would just hit the
+                    // same skip branch. Wait another interval instead of
+                    // giving up.
+                    self.armDeferredRemeasureBackstop(attempt: attempt + 1)
+                }
                 return
             }
             self.invalidateCellSizeIfNeeded()
